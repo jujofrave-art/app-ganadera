@@ -345,6 +345,14 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .sync.listo{color:#8fd6a0}
 .sync.error{color:#e4907a}
 .sync.cargando{color:var(--chapeta)}
+.sync.espera{color:var(--chapeta)}
+.sync-chip.listo{border-color:rgba(143,214,160,.5);color:#8fd6a0}
+.sync-chip.espera,.sync-chip.cargando{border-color:rgba(245,197,24,.5);color:var(--chapeta)}
+.sync-chip.error{border-color:rgba(228,144,122,.55);color:#e4907a}
+.banda-espera{background:rgba(245,197,24,.13);border:1px solid rgba(212,166,8,.35);
+  border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:13px}
+.banda-espera strong{display:block;margin-bottom:2px}
+.banda-espera span{color:var(--tinta2);font-size:12.5px}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--tinta);color:var(--papel);padding:11px 18px;border-radius:8px;font-size:13px;z-index:99;box-shadow:0 10px 30px -8px rgba(0,0,0,.4)}
 
@@ -493,7 +501,7 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 let CONFIG_INCLUIDA = {"apiKey": "AIzaSyCjOJ5K5ek4nOMjooBg1sLLjpKfS2URHfQ", "authDomain": "app-ganadera-42eff.firebaseapp.com", "projectId": "app-ganadera-42eff", "storageBucket": "app-ganadera-42eff.firebasestorage.app", "messagingSenderId": "633091361694", "appId": "1:633091361694:web:f13f7eda9435ac3783248f"}; /*[[CONFIG-FIREBASE]]*/
 
 /* Código del service worker, para descargarlo desde Configuración. */
-const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app en el tel\u00e9fono para que abra sin se\u00f1al.\n   S\u00fabelo junto al index.html, en la misma carpeta.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v2\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([BASE, BASE + \"index.html\"])\n    .catch(() => c.add(BASE))));\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n\n  const url = new URL(req.url);\n\n  // Firebase y sus datos nunca se cachean: tienen su propio manejo offline.\n  if (/googleapis|gstatic|firebaseio|firebaseapp/.test(url.hostname)) return;\n\n  // La app: primero la red, salt\u00e1ndose la cach\u00e9 del navegador. Sin esto,\n  // GitHub Pages pide guardar el HTML 10 minutos y las actualizaciones no\n  // llegan hasta que ese plazo vence.\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n        .then((r) => {\n          const copia = r.clone();\n          caches.open(CACHE).then((c) => c.put(BASE, copia));\n          return r;\n        })\n        .catch(() => caches.match(BASE).then((r) => r || caches.match(BASE + \"index.html\")))\n    );\n    return;\n  }\n\n  // Tipograf\u00edas y dem\u00e1s: primero lo guardado, m\u00e1s r\u00e1pido.\n  e.respondWith(\n    caches.match(req).then((hit) =>\n      hit || fetch(req).then((r) => {\n        if (r.ok && (url.origin === self.location.origin || /fonts\\./.test(url.hostname))) {\n          const copia = r.clone();\n          caches.open(CACHE).then((c) => c.put(req, copia));\n        }\n        return r;\n      }).catch(() => hit)\n    )\n  );\n});\n";
+const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app y el SDK de Firebase en el tel\u00e9fono para que\n   todo abra sin se\u00f1al. S\u00fabelo junto al index.html.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v3\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(\n    caches.open(CACHE)\n      .then((c) => c.addAll([BASE, BASE + \"index.html\"]).catch(() => c.add(BASE)))\n      .catch(() => {})\n  );\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\n/** El SDK de Firebase lleva la versi\u00f3n en la URL, as\u00ed que nunca cambia:\n    se puede guardar para siempre. Sin esto la app no abre sin se\u00f1al. */\nconst esSDK = (u) =>\n  u.hostname === \"www.gstatic.com\" && u.pathname.includes(\"/firebasejs/\");\n\n/** Las tipograf\u00edas tampoco cambian. */\nconst esTipografia = (u) =>\n  u.hostname === \"fonts.googleapis.com\" || u.hostname === \"fonts.gstatic.com\";\n\n/** Datos en vivo: nunca se cachean, Firestore ya trae su propio offline. */\nconst esDatos = (u) =>\n  /firestore\\.googleapis|identitytoolkit|securetoken|firebaseio|firebaseinstallations/\n    .test(u.hostname);\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n  const url = new URL(req.url);\n\n  if (esDatos(url)) return;   // que pase directo\n\n  // La app: primero la red salt\u00e1ndose la cach\u00e9 del navegador, para que las\n  // actualizaciones lleguen solas. Si no hay se\u00f1al, la copia guardada.\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n        .then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(BASE, copia)).catch(() => {});\n          }\n          return r;\n        })\n        .catch(() =>\n          caches.match(BASE)\n            .then((r) => r || caches.match(BASE + \"index.html\"))\n            .then((r) => r || new Response(\n              \"<!doctype html><meta charset=utf-8><title>Sin conexion</title>\" +\n              \"<body style='font-family:system-ui;padding:40px;text-align:center'>\" +\n              \"<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder \" +\n              \"usarla despues sin senal.</p></body>\",\n              { headers: { \"Content-Type\": \"text/html; charset=utf-8\" } }))\n        )\n    );\n    return;\n  }\n\n  // SDK y tipograf\u00edas: primero lo guardado. Es lo que permite abrir sin se\u00f1al.\n  if (esSDK(url) || esTipografia(url)) {\n    e.respondWith(\n      caches.match(req).then((hit) => {\n        if (hit) {\n          fetch(req).then((r) => {\n            if (r && r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));\n          }).catch(() => {});\n          return hit;\n        }\n        return fetch(req).then((r) => {\n          if (r && (r.ok || r.type === \"opaque\")) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        });\n      })\n    );\n    return;\n  }\n\n  if (url.origin === self.location.origin) {\n    e.respondWith(\n      caches.match(req).then((hit) =>\n        hit || fetch(req).then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        }).catch(() => hit)\n      )\n    );\n  }\n});\n\n/** Permite que la app pida guardar el SDK apenas termina de cargar. */\nself.addEventListener(\"message\", (e) => {\n  if (e.data && e.data.tipo === \"guardar-sdk\" && Array.isArray(e.data.urls)) {\n    e.waitUntil(\n      caches.open(CACHE).then((c) =>\n        Promise.all(e.data.urls.map((u) => c.add(u).catch(() => {})))\n      )\n    );\n  }\n});\n";
 
 /* ==========================================================
    CONTROL GANADERO
@@ -501,11 +509,41 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.3.1";
+const VERSION = "1.5.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.5.0", "30 ago 2026", [
+    "El SDK de Firebase ahora queda guardado en el teléfono. Antes la app no abría " +
+      "sin señal porque tenía que descargarlo cada vez.",
+    "Los cambios ya no esperan la confirmación del servidor: la app nunca se queda " +
+      "colgada en el corral.",
+    "Un registro hecho sin señal ya no puede subirse dos veces ni desaparecer de la " +
+      "pantalla antes de llegar a Firestore.",
+    "Indicador permanente de sincronización, con cuántos cambios faltan por subir.",
+    "Si de plano no hay forma de conectar, se puede entrar a trabajar con lo guardado.",
+    "El service worker cambió: hay que volver a subir sw.js.",
+  ]],
+  ["1.4.0", "30 ago 2026", [
+    "Rol nuevo de superadministrador: ve todas las fincas y a todas las personas, " +
+      "y es el único que reasigna fincas y cambia roles.",
+    "Cada quien alcanza solo a gente de rango menor, y únicamente si la registró él " +
+      "o si se la asignaron.",
+    "Un dueño ya no ve a otros dueños ni puede tocarlos.",
+    "Nadie puede crear a alguien de su mismo rango o superior, ni ascenderse a sí mismo.",
+    "Cada registro guarda quién lo creó; en el personal se marca cuáles registraste tú.",
+    "Las reglas de Firestore reflejan la jerarquía: hay que volver a publicarlas.",
+  ]],
+  ["1.3.2", "30 ago 2026", [
+    "Arreglado: entrar con Google ya no hace creer a la app que tienes contraseña.",
+    "Si intentas entrar con contraseña y tu cuenta es de Google, el mensaje te lo dice " +
+      "y te manda al botón correcto.",
+    "«Primera vez» no manda el enlace si ya tienes contraseña; te remite a recuperarla.",
+    "«Olvidé mi contraseña» avisa si la cuenta solo entra con Google.",
+    "A quien entra con Google también se le ofrece ponerse una contraseña.",
+    "Configuración muestra qué formas de entrar tiene activas tu cuenta.",
+  ]],
   ["1.3.1", "30 ago 2026", [
     "Las versiones nuevas ya llegan solas. Antes GitHub Pages hacía que el navegador " +
       "guardara la app 10 minutos y había que recargar a la fuerza.",
@@ -659,7 +697,11 @@ const MOTIVOS_SECADO = {
   otro:       "Otro",
 };
 
+/* Jerarquía. Cada quien solo alcanza a los de rango menor. */
+const RANGO = { superadmin: 3, dueno: 2, administrador: 1, empleado: 0 };
+
 const ROLES = {
+  superadmin:    { et:"Superadmin",    plural:"Superadministradores", cl:"roja" },
   dueno:         { et:"Dueño",         plural:"Dueños",          cl:"ambar" },
   administrador: { et:"Administrador", plural:"Administradores", cl:"verde" },
   empleado:      { et:"Empleado",      plural:"Empleados",       cl:"gris"  },
@@ -863,7 +905,17 @@ function migrar(d) {
   }
   delete d.config.params.celo;
   delete d.config.params.diasAbiertos;
-  d.personas.forEach(p => { p.fincas ??= []; p.activo ??= true; });
+  d.personas.forEach(p => { p.fincas ??= []; p.activo ??= true; p.creadoPor ??= null; });
+  // El dueño principal pasa a superadministrador.
+  const m = (d.config.maestro || "").toLowerCase();
+  if (m) {
+    const yo = d.personas.find(p => (p.correo || "").toLowerCase() === m);
+    if (yo && yo.rol === "dueno") yo.rol = "superadmin";
+  }
+  for (const col of ["fincas", "animales", "inseminaciones", "palpaciones",
+                     "partos", "secados", "tratamientos", "anotaciones"]) {
+    (d[col] || []).forEach(x => { x.creadoPor ??= null; });
+  }
 
   // fincas: encargado (texto) -> persona vinculada
   for (const f of d.fincas) {
@@ -1345,6 +1397,8 @@ let S = { persona: null, modo: null, error: "", aviso: "", cargando: false,
 /* Qué puede hacer cada rol. El empleado registra el día a día;
    dueño y administrador además gestionan fincas y gente. */
 const PERMISOS = {
+  superadmin:    { fincas:1, editaFinca:1, borraFinca:1, personas:1, editaPersona:1,
+                   config:1, borra:1, animales:1, editaAnimal:1, eventos:1, reasigna:1 },
   dueno:         { fincas:1, editaFinca:1, borraFinca:1, personas:1, editaPersona:1,
                    config:1, borra:1, animales:1, editaAnimal:1, eventos:1 },
   administrador: { fincas:1, editaFinca:1, borraFinca:0, personas:1, editaPersona:1,
@@ -1354,6 +1408,8 @@ const PERMISOS = {
 };
 
 const rolActual = () => S.persona?.rol || "empleado";
+const esSuper = () => rolActual() === "superadmin";
+const miRango = () => RANGO[rolActual()] ?? 0;
 const puede = (q) => !!PERMISOS[rolActual()]?.[q];
 const manda = () => rolActual() === "dueno" || rolActual() === "administrador";
 
@@ -1372,6 +1428,7 @@ function esMaestro() {
 /** Fincas que esta persona tiene asignadas. Es la base de todo el filtrado. */
 function misFincas() {
   if (!S.persona) return [];
+  if (esSuper()) return D.fincas.map(f => f.id);
   return D.fincas.filter(f => (f.personas || []).includes(S.persona.id)).map(f => f.id);
 }
 const veFinca = (id) => misFincas().includes(id);
@@ -1380,11 +1437,48 @@ const veAnimal = (a) => a && veFinca(a.fincaId);
 /* ---------- vistas filtradas ---------- */
 const misFincasObj = () => D.fincas.filter(f => veFinca(f.id));
 const misAnimales  = () => D.animales.filter(veAnimal);
-const misPersonas  = () => {
+/**
+ * Quién ve a quién. El superadministrador ve a todos. Los demás solo
+ * alcanzan gente de rango menor, y únicamente si la crearon ellos o si
+ * comparten finca (es decir, se la asignaron).
+ */
+const misPersonas = () => {
   if (!S.persona) return [];
+  if (esSuper()) return D.personas;
   if (!puede("personas")) return [S.persona];
   const mias = misFincas();
-  return D.personas.filter(p => D.fincas.some(f => mias.includes(f.id) && (f.personas || []).includes(p.id)));
+  const r = miRango();
+  return D.personas.filter(p =>
+    p.id === S.persona.id ||
+    ((RANGO[p.rol] ?? 0) < r &&
+      (p.creadoPor === S.persona.id || (p.fincas || []).some(f => mias.includes(f))))
+  );
+};
+
+/** Roles que esta persona puede otorgar: solo por debajo del suyo. */
+const rolesQuePuedoCrear = () =>
+  Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
+
+const puedoEditarPersona = (p) => {
+  if (!p) return false;
+  if (esSuper()) return true;
+  if (!puede("editaPersona")) return false;
+  if (p.id === S.persona.id) return true;
+  if ((RANGO[p.rol] ?? 0) >= miRango()) return false;
+  const mias = misFincas();
+  return p.creadoPor === S.persona.id || (p.fincas || []).some(f => mias.includes(f));
+};
+
+const puedoEditarFinca = (f) => {
+  if (!f) return false;
+  if (esSuper()) return true;
+  return puede("editaFinca") && (f.personas || []).includes(S.persona.id);
+};
+
+const puedoBorrarFinca = (f) => {
+  if (!f) return false;
+  if (esSuper()) return true;
+  return rolActual() === "dueno" && f.creadoPor === S.persona.id;
 };
 const misEventos = (col) => {
   const mias = misFincas();
@@ -1473,6 +1567,12 @@ function bloqueClave() {
     ${S.aviso ? `<div class="nota">${esc(S.aviso)}</div>` : ""}
     ${enArchivoLocal() ? `<div class="aviso">El archivo está abierto con doble clic y el
       navegador bloquea Firebase. Ábrelo desde su dirección en internet.</div>` : ""}
+    ${FB.estado === "error" && haySesionGuardada() ? `<div class="nota">
+      No se pudo conectar con Firebase. Puedes seguir trabajando con lo que hay guardado
+      en este equipo; los cambios suben solos cuando vuelva la señal.
+      <div class="fila-btn" style="margin-top:9px">
+        <button class="btn btn-sm" data-acc="sin-senal">Trabajar sin señal</button>
+      </div></div>` : ""}
 
     <form data-acceso="firebase">
       <div class="campo"><label>Correo</label>
@@ -1598,6 +1698,22 @@ function conectarAcceso() {
     if (f.dataset.acceso === "primera-vez") {
       S.cargando = true; pantallaAcceso();
       try {
+        const m = await formasDeEntrar(correo);
+        if (m.includes("password")) {
+          S.cargando = false;
+          S.error = `La cuenta ${correo} ya tiene contraseña. Entra normal, o usa ` +
+                    `«Olvidé mi contraseña» si no la recuerdas.`;
+          return pantallaAcceso();
+        }
+        if (m.includes("google.com")) {
+          S.cargando = false;
+          S.aviso = `La cuenta ${correo} entra con Google. Puedes usar el botón de Google ` +
+                    `aquí abajo, o seguir con el enlace si prefieres tener contraseña.`;
+          if (!confirm(`${correo} ya entra con Google.\n\n` +
+                       `¿Quieres que te mandemos el enlace de todos modos para ponerte ` +
+                       `una contraseña?`)) return pantallaAcceso();
+          S.cargando = true; pantallaAcceso();
+        }
         await invitarPorCorreo(correo);
         try { localStorage.setItem(CLAVE_INVITADO, correo); } catch {}
         D.config.correo = correo; guardarLocal();
@@ -1611,6 +1727,13 @@ function conectarAcceso() {
     if (f.dataset.acceso === "olvide") {
       S.cargando = true; pantallaAcceso();
       try {
+        const m = await formasDeEntrar(correo);
+        if (m.length && !m.includes("password")) {
+          S.cargando = false;
+          S.error = `La cuenta ${correo} no tiene contraseña que cambiar: entra con Google. ` +
+                    `Usa el botón de Google, y si quieres contraseña ponla desde Configuración.`;
+          return pantallaAcceso();
+        }
         await enviarReinicio(correo);
         S.cargando = false;
         S.aviso = `Te mandamos un correo a ${correo} para cambiar la contraseña.`;
@@ -1625,7 +1748,17 @@ function conectarAcceso() {
       S.cargando = false;
       S.error = errorFB(err);
       if (/no existe|no coinciden/i.test(S.error)) {
-        S.error += " Si es tu primera vez, usa el enlace de abajo para crear tu contraseña.";
+        const m = await formasDeEntrar(correo);
+        if (m.includes("google.com") && !m.includes("password")) {
+          S.error = `La cuenta ${correo} entra con Google, no tiene contraseña. ` +
+                    `Usa el botón de Google que está abajo. Si prefieres una contraseña, ` +
+                    `entra con Google y ponla desde Configuración.`;
+        } else if (m.length === 0) {
+          S.error += " Si entraste con Google, usa el botón de abajo. " +
+                     "Si es tu primera vez y nunca has puesto contraseña, usa el enlace de abajo.";
+        } else {
+          S.error += " Si no la recuerdas, usa «Olvidé mi contraseña».";
+        }
       }
       pantallaAcceso();
     }
@@ -1637,6 +1770,8 @@ function conectarAcceso() {
 
   document.querySelectorAll("[data-acc]").forEach(b => b.onclick = async () => {
     const a = b.dataset.acc;
+
+    if (a === "sin-senal") { entrarSinSenal(); return; }
 
     if (a === "olvide-ir") { S.modoAcceso = "olvide"; S.error = ""; S.aviso = ""; return pantallaAcceso(); }
 
@@ -1686,7 +1821,7 @@ function crearPrimerUsuario(nombre, correo) {
 const CLAVE_SESION = CLAVE + "-sesion";
 function guardarSesion() {
   try {
-    if (S.persona && S.modo === "local") localStorage.setItem(CLAVE_SESION, S.persona.id);
+    if (S.persona) localStorage.setItem(CLAVE_SESION, S.persona.id);
     else localStorage.removeItem(CLAVE_SESION);
   } catch {}
 }
@@ -1696,6 +1831,22 @@ function recuperarSesion() {
     const id = localStorage.getItem(CLAVE_SESION);
     if (id) { const p = persona(id); if (p) { S.persona = p; S.modo = "local"; } }
   } catch {}
+}
+
+/**
+ * Salvavidas del campo: si el SDK de Firebase no cargó (sin señal y sin
+ * caché) pero en este teléfono ya había una sesión y datos, se entra igual
+ * a trabajar sobre lo guardado. Al volver la señal todo sube.
+ */
+function entrarSinSenal() {
+  let id = null;
+  try { id = localStorage.getItem(CLAVE_SESION); } catch {}
+  const p = id ? persona(id) : null;
+  if (!p) return false;
+  S.persona = p; S.modo = "offline"; S.error = "";
+  pintar();
+  avisar("Sin señal. Trabajando con lo guardado en este equipo.");
+  return true;
 }
 function cerrarSesion() {
   if (S.modo === "firebase") { salirFirebase(); }
@@ -1720,7 +1871,7 @@ const nombreDesdeCorreo = (c) => c.split("@")[0]
  */
 function asegurarPersona(email) {
   const p = D.personas.find(x => (x.correo || "").toLowerCase() === email.toLowerCase());
-  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; ofrecerClave(); return; }
+  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; guardarSesion(); ofrecerClave(); return; }
 
   if (D.personas.length > 0) {
     S.error = `La cuenta ${email} entró bien, pero no hay ninguna persona registrada con ese ` +
@@ -1732,7 +1883,7 @@ function asegurarPersona(email) {
   S.persona = crearPrimerUsuario(nombreDesdeCorreo(email), email);
   if (FB.rolRemoto) S.persona.rol = FB.rolRemoto;
   S.modo = "firebase"; S.error = "";
-  guardar();
+  guardar(); guardarSesion();
   ofrecerClave();
 }
 
@@ -1741,8 +1892,17 @@ function ofrecerClave() {
   if (S.claveOfrecida) return;
   S.claveOfrecida = true;
   setTimeout(() => {
-    if (S.persona && !hojaAbierta && metodoAcceso() === "enlace") hojaClave(false);
+    if (S.persona && !hojaAbierta && FB.user && !tieneClave()) hojaClave(false);
   }, 1200);
+}
+
+
+/** ¿Hay una sesión previa y datos en este equipo? */
+function haySesionGuardada() {
+  try {
+    const id = localStorage.getItem(CLAVE_SESION);
+    return !!(id && persona(id) && D.fincas.length);
+  } catch { return false; }
 }
 
 /* ==========================================================
@@ -1756,6 +1916,7 @@ const VISTAS = [
   { id: "activos",     et: "Activos",         grupo: "Hato" },
   { id: "salidas",     et: "Vendido-Muerto",  grupo: "Hato" },
   { id: "fincas",      et: "Fincas",          grupo: "Hato" },
+  { id: "superadmins",    et: "Superadmin",      grupo: "Personas" },
   { id: "duenos",         et: "Dueños",          grupo: "Personas" },
   { id: "administradores",et: "Administradores", grupo: "Personas" },
   { id: "empleados",      et: "Empleados",       grupo: "Personas" },
@@ -1794,7 +1955,10 @@ function sinFincas() {
 }
 
 function vistaPermitida(id) {
-  if (["duenos","administradores","empleados"].includes(id)) return puede("personas");
+  // Cada quien ve las secciones de personal por debajo de su rango.
+  const seccion = { superadmins:"superadmin", duenos:"dueno",
+                    administradores:"administrador", empleados:"empleado" }[id];
+  if (seccion) return puede("personas") && miRango() > RANGO[seccion];
   if (id === "configuracion") return true;
   return true;
 }
@@ -1813,6 +1977,7 @@ function conteoVista(id) {
     case "secados":      return misEventos("secados").length;
     case "tratamientos": return misEventos("tratamientos").length;
     case "anotaciones":  return D.anotaciones.filter(n => veFinca(n.fincaId)).length;
+    case "superadmins":     return misPersonas().filter(p => p.rol === "superadmin").length;
     case "duenos":          return misPersonas().filter(p => p.rol === "dueno").length;
     case "administradores": return misPersonas().filter(p => p.rol === "administrador").length;
     case "empleados":       return misPersonas().filter(p => p.rol === "empleado").length;
@@ -1843,8 +2008,8 @@ function pintar() {
         <path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <div class="topbar-tit">${esc(v ? v.et : "Control Ganadero")}</div>
-    ${nAlertas ? `<button class="topbar-alertas" data-ir="alertas">${nAlertas}</button>`
-               : `<span class="ver-chip">v${VERSION}</span>`}
+    <span class="ver-chip sync-chip ${estadoSync().clase}">${estadoSync().corto}</span>
+    ${nAlertas ? `<button class="topbar-alertas" data-ir="alertas">${nAlertas}</button>` : ""}
   </header>
   <div class="rail-fondo ${V.railAbierto ? "visible" : ""}" data-cerrar-menu></div>
   <div class="marco">
@@ -1864,11 +2029,7 @@ function pintar() {
         `).join("")}
       </nav>
       <div class="pie">
-        <div class="sync ${FB.estado}">${
-          FB.estado === "listo" && FB.user ? "● Sincronizado" :
-          FB.estado === "cargando" ? "● Conectando…" :
-          FB.estado === "error" ? "● Error de conexión" :
-          D.config.firebase ? "○ Falta iniciar sesión" : "○ Solo en este equipo"}</div>
+        <div class="sync ${estadoSync().clase}">${estadoSync().texto}</div>
         <div class="quien">
           <span class="p ${ROLES[S.persona.rol].cl}">${ROLES[S.persona.rol].et}</span>
           <strong>${esc(S.persona.nombre)}</strong>
@@ -1877,7 +2038,13 @@ function pintar() {
         <button data-salir>Cerrar sesión</button>
       </div>
     </aside>
-    <main class="lienzo">${VERSION_NUEVA ? `<div class="banda-nueva">
+    <main class="lienzo">${FB.sinSubir && (FB.enCache || navigator.onLine === false) ? `
+      <div class="banda-espera">
+        <div><strong>${FB.sinSubir} cambio${FB.sinSubir === 1 ? "" : "s"} sin subir</strong>
+        <span>Sigue trabajando normal. Todo se guardó en el teléfono y sube solo cuando
+        vuelva la señal.</span></div>
+      </div>` : ""}
+      ${VERSION_NUEVA ? `<div class="banda-nueva">
         <div><strong>Hay una versión nueva: ${esc(VERSION_NUEVA)}</strong>
         <span>Tienes la ${VERSION}. Actualiza para tener los últimos arreglos.</span></div>
         <button class="btn btn-sm" data-acc="actualizar">Actualizar ahora</button>
@@ -1899,6 +2066,22 @@ function selectorFinca() {
   </select>`;
 }
 /** Solo aparece si en la finca hay más de una especie. */
+/** Cómo va la sincronización, en una línea. */
+function estadoSync() {
+  const sinRed = typeof navigator !== "undefined" && navigator.onLine === false;
+  if (!D.config.firebase) return { clase: "", texto: "○ Solo en este equipo", corto: "Local" };
+  if (FB.estado === "cargando") return { clase: "cargando", texto: "◍ Conectando…", corto: "…" };
+  if (!FB.user) return { clase: "", texto: "○ Falta iniciar sesión", corto: "Entrar" };
+  if (FB.estado === "error") return { clase: "error", texto: "▲ Error de conexión", corto: "Error" };
+  if (sinRed || FB.enCache) {
+    return FB.sinSubir
+      ? { clase: "espera", texto: `◌ Sin señal · ${FB.sinSubir} por subir`, corto: `${FB.sinSubir}` }
+      : { clase: "espera", texto: "◌ Sin señal · al día", corto: "Sin señal" };
+  }
+  if (FB.sinSubir) return { clase: "espera", texto: `↑ Subiendo ${FB.sinSubir}…`, corto: `↑${FB.sinSubir}` };
+  return { clase: "listo", texto: "● Todo guardado", corto: "OK" };
+}
+
 function selectorEspecie() {
   const hay = [...new Set(misAnimales().map(especieDe))];
   if (hay.length < 2) return "";
@@ -1955,6 +2138,7 @@ function cuerpo(v) {
     alertas: vAlertas, activos: vActivos, salidas: vSalidas, fincas: vFincas,
     palpacion: vPalpacion, inseminacion: vInseminacion, partos: vPartos,
     secados: vSecados, tratamientos: vTratamientos, anotaciones: vAnotaciones,
+    superadmins: () => vPersonas("superadmin"),
     duenos: () => vPersonas("dueno"),
     administradores: () => vPersonas("administrador"),
     empleados: () => vPersonas("empleado"),
@@ -2235,7 +2419,8 @@ function vPersonas(rol) {
   return `
   <header class="cab"><div><h1>${R.plural}</h1>
     <p>${L.length} de ${tot.length} registrados</p></div>
-    ${puede("editaPersona") ? `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>` : ""}</header>
+    ${puede("editaPersona") && rolesQuePuedoCrear().includes(rol)
+      ? `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>` : ""}</header>
   <div class="barra">${buscador("Buscar nombre, correo, teléfono, finca…")}${selectorFinca()}</div>
   ${fichas([["todos","Todos",tot.length],
             ["activos","Activos",tot.filter(p=>p.activo!==false).length],
@@ -2251,7 +2436,8 @@ function vPersonas(rol) {
           <td>${p.telefono ? esc(p.telefono) : '<span class="sub">—</span>'}</td>
           <td>${fs.length ? fs.map(f => `<span class="p">${esc(f.nombre)}</span>`).join(" ")
                           : '<span class="sub">Sin asignar</span>'}</td>
-          <td><span class="sub">${esc(p.notas) || "—"}</span></td>
+          <td><span class="sub">${esc(p.notas) || "—"}</span>${
+            p.creadoPor === S.persona?.id ? '<div class="sub">lo registraste tú</div>' : ""}</td>
           <td class="flecha">›</td></tr>`;
       }).join(""))}`;
 }
@@ -2343,8 +2529,11 @@ function hojaClave(obligatoria) {
     <form data-clave>
       <div class="hoja-cuerpo">
         <div class="aviso" data-error hidden></div>
-        <div class="nota">Entraste con el enlace del correo. Si te pones una contraseña,
-        la próxima vez entras directo sin esperar ningún mensaje.</div>
+        <div class="nota">${proveedores().google
+          ? "Entraste con Google, así que tu cuenta todavía no tiene contraseña. " +
+            "Si le pones una, también podrás entrar con correo y contraseña."
+          : "Entraste con el enlace del correo. Si te pones una contraseña, la próxima vez " +
+            "entras directo sin esperar ningún mensaje."}</div>
         <div class="rej">
           <div class="campo ancho"><label>Contraseña nueva</label>
             <input name="clave" type="password" autocomplete="new-password"
@@ -2589,7 +2778,8 @@ function formFinca(id) {
   const f = id ? finca(id) : { nombre:"", ubicacion:"", personas: S.persona ? [S.persona.id] : [] };
   const asig = f.personas || [];
   const bloque = (rol) => {
-    const gente = D.personas.filter(p => p.rol === rol).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    const gente = (esSuper() ? D.personas : misPersonas())
+      .filter(p => p.rol === rol).sort((a,b)=>a.nombre.localeCompare(b.nombre));
     return `<div class="campo ancho"><label>${ROLES[rol].plural}</label>
       ${gente.length === 0
         ? `<span class="ayuda">No hay ${ROLES[rol].plural.toLowerCase()} registrados todavía.</span>`
@@ -2610,10 +2800,10 @@ function formFinca(id) {
         <div class="campo"><label>Ubicación</label><input name="ubicacion" value="${esc(f.ubicacion)}"></div>
         <div class="campo ancho"><div class="nota" style="margin:0">Marca a todas las personas que atienden esta finca.
           El correo sale de la ficha de cada una, no se escribe aquí.</div></div>
-        ${bloque("dueno")}${bloque("administrador")}${bloque("empleado")}
+        ${esSuper() ? bloque("superadmin") : ""}${bloque("dueno")}${bloque("administrador")}${bloque("empleado")}
       </div></div>
       <div class="hoja-pie">
-        ${id && puede("borraFinca") ? '<button type="button" class="btn btn-baja" data-borrar="finca:'+id+'">Eliminar</button>' : ""}
+        ${id && puedoBorrarFinca(f) ? '<button type="button" class="btn btn-baja" data-borrar="finca:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
@@ -2628,9 +2818,11 @@ function formPersona(id, rol) {
     <form data-guardar="persona:${id||""}">
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div><div class="rej">
         <div class="campo"><label>Nombre completo</label><input name="nombre" value="${esc(p.nombre)}" required></div>
-        <div class="campo"><label>Rol</label><select name="rol">
-          ${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${p.rol===k?"selected":""}>${v.et}</option>`).join("")}
-        </select></div>
+        <div class="campo"><label>Rol</label><select name="rol" ${!esSuper() && id ? "disabled" : ""}>
+          ${Object.entries(ROLES)
+            .filter(([k]) => esSuper() || rolesQuePuedoCrear().includes(k) || k === p.rol)
+            .map(([k,v])=>`<option value="${k}" ${p.rol===k?"selected":""}>${v.et}</option>`).join("")}
+        </select>${!esSuper() && id ? '<span class="ayuda">Solo un superadministrador cambia el rol de alguien ya registrado.</span>' : ""}</div>
         <div class="campo"><label>Correo</label><input type="email" name="correo" value="${esc(p.correo)}"></div>
         <div class="campo"><label>Teléfono</label><input name="telefono" value="${esc(p.telefono)}"></div>
         <div class="campo"><label>Documento</label><input name="documento" value="${esc(p.documento)}"></div>
@@ -2651,7 +2843,7 @@ function formPersona(id, rol) {
             : '<span class="ayuda">Ninguna. Se asignan desde la ficha de cada finca.</span>'}</div></div>` : ""}
       </div></div>
       <div class="hoja-pie">
-        ${id && puede("editaPersona") ? '<button type="button" class="btn btn-baja" data-borrar="persona:'+id+'">Eliminar</button>' : ""}
+        ${id && puedoEditarPersona(p) ? '<button type="button" class="btn btn-baja" data-borrar="persona:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
@@ -2870,7 +3062,7 @@ function fichaFinca(id) {
     </div>
     <div class="hoja-pie">
       <button class="btn" data-cerrar>Cerrar</button>
-      ${puede("editaFinca") ? `<button class="btn btn-firme" data-editar="finca:${id}">Editar finca</button>` : ""}
+      ${puedoEditarFinca(finca(id)) ? `<button class="btn btn-firme" data-editar="finca:${id}">Editar finca</button>` : ""}
     </div>`);
 }
 
@@ -2892,14 +3084,22 @@ const FB = {
 const SDK = "https://www.gstatic.com/firebasejs/10.13.0/";
 const enArchivoLocal = () => location.protocol === "file:";
 
+const ARCHIVOS_SDK = ["firebase-app.js", "firebase-auth.js", "firebase-firestore.js"];
+
 async function cargarSDK() {
   if (FB.mods) return FB.mods;
-  const [app, auth, fs] = await Promise.all([
-    import(SDK + "firebase-app.js"),
-    import(SDK + "firebase-auth.js"),
-    import(SDK + "firebase-firestore.js"),
-  ]);
+  const tope = new Promise((_, r) =>
+    setTimeout(() => r(new Error("El SDK de Firebase tardó demasiado")), 15000));
+  const carga = Promise.all(ARCHIVOS_SDK.map(f => import(SDK + f)));
+  const [app, auth, fs] = await Promise.race([carga, tope]);
   FB.mods = { app, auth, fs };
+
+  // Pedirle al service worker que lo guarde, para poder abrir sin señal.
+  try {
+    navigator.serviceWorker?.controller?.postMessage({
+      tipo: "guardar-sdk", urls: ARCHIVOS_SDK.map(f => SDK + f),
+    });
+  } catch {}
   return FB.mods;
 }
 
@@ -2960,6 +3160,8 @@ async function conectarFirebase(silencioso) {
     FB.estado = "listo";
   } catch (e) {
     FB.estado = "error"; FB.error = errorFB(e);
+    // Sin señal y sin SDK guardado: si ya se había usado aquí, seguir con lo local.
+    if (silencioso && !S.persona && haySesionGuardada()) { entrarSinSenal(); return; }
   }
   pintar();
 }
@@ -2968,6 +3170,7 @@ async function entrarFirebase(correo, clave, registrar) {
   const { auth } = await cargarSDK();
   const fn = registrar ? auth.createUserWithEmailAndPassword : auth.signInWithEmailAndPassword;
   await fn(FB.auth, correo, clave);
+  marcarConClave(correo);
   D.config.correo = correo;
   guardarLocal();
 }
@@ -3023,7 +3226,7 @@ function escucharColecciones(mias) {
   limpiarSiCambioDeUsuario(FB.user.email);
   const { fs } = FB.mods;
 
-  if (!mias.length) {
+  if (!mias.length && FB.rolRemoto !== "superadmin") {
     // Todavía sin fincas: normal recién creada la cuenta.
     FB.estado = "listo";
     FB.error = "";
@@ -3039,13 +3242,36 @@ function escucharColecciones(mias) {
   }
 
   const escuchar = (nombre, consulta) => {
-    const u = fs.onSnapshot(consulta,
+    const u = fs.onSnapshot(consulta, { includeMetadataChanges: true },
       (snap) => {
         FB.aplicando = true;
+
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const vistos = new Set(docs.map(d => d.id));
+
+        // Lo que se creó aquí y todavía no aparece en la consulta se conserva.
+        // Sin esto, un registro hecho sin señal podría desaparecer de la
+        // pantalla antes de haber llegado a Firestore.
+        const propios = FB.sinConfirmar[nombre] || new Set();
+        for (const local of (D[nombre] || [])) {
+          if (!vistos.has(local.id) && propios.has(local.id)) docs.push(local);
+        }
+
         FB.espejo[nombre] = {};
-        docs.forEach(d => FB.espejo[nombre][d.id] = JSON.stringify(d));
+        docs.forEach(d => { FB.espejo[nombre][d.id] = JSON.stringify(d); });
         D[nombre] = docs;
+
+        // Lo que el servidor ya confirmó deja de estar pendiente.
+        if (!snap.metadata.hasPendingWrites) {
+          snap.docs.forEach(d => propios.delete(d.id));
+        }
+
+        FB.enCache = snap.metadata.fromCache;
+        if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
+          FB.ultimaSync = Date.now();
+        }
+        recalcularPendientes();
+
         guardarLocal();
         FB.aplicando = false;
         if (nombre === "personas") asegurarPersona(FB.user.email);
@@ -3057,11 +3283,16 @@ function escucharColecciones(mias) {
   };
 
   const col = (n) => fs.collection(FB.db, n);
-  escuchar("fincas", fs.query(col("fincas"), fs.where(fs.documentId(), "in", trozo)));
-  escuchar("personas", fs.query(col("personas"), fs.where("fincas", "array-contains-any", trozo)));
+  // El superadministrador no filtra: las reglas le permiten leerlo todo.
+  const todo = FB.rolRemoto === "superadmin";
+
+  escuchar("fincas", todo ? col("fincas")
+    : fs.query(col("fincas"), fs.where(fs.documentId(), "in", trozo)));
+  escuchar("personas", todo ? col("personas")
+    : fs.query(col("personas"), fs.where("fincas", "array-contains-any", trozo)));
   for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
                    "secados", "tratamientos", "anotaciones"]) {
-    escuchar(n, fs.query(col(n), fs.where("fincaId", "in", trozo)));
+    escuchar(n, todo ? col(n) : fs.query(col(n), fs.where("fincaId", "in", trozo)));
   }
 
   FB.estado = "listo";
@@ -3086,15 +3317,29 @@ async function sincronizarUsuarios() {
   } catch (e) { console.warn("usuarios:", errorFB(e)); }
 }
 
-/* ---------- empujar cambios locales ---------- */
+/* ---------- empujar cambios locales ----------
+   Sin señal, Firestore guarda las escrituras en el teléfono y las manda
+   solas al reconectar. Por eso NO esperamos la confirmación del servidor:
+   si lo hiciéramos, la app se quedaría colgada en el corral.
+
+   El espejo se actualiza en cuanto se emite la escritura, así el mismo
+   cambio no se vuelve a mandar en el siguiente guardado. Eso es lo que
+   evita que un registro hecho sin señal se suba dos veces. */
+
 function programarEmpuje() {
   if (!FB.db || !FB.user || FB.aplicando) return;
   clearTimeout(FB.pendiente);
-  FB.pendiente = setTimeout(empujar, 700);
+  FB.pendiente = setTimeout(empujar, 120);
 }
 
+function recalcularPendientes() {
+  FB.sinSubir = Object.values(FB.sinConfirmar).reduce((n, s) => n + s.size, 0);
+}
+
+let empujando = false;
+
 async function empujar() {
-  if (!FB.db || !FB.user) return;
+  if (!FB.db || !FB.user || empujando) return;
   const { fs } = FB.mods;
   const cambios = [];
 
@@ -3104,28 +3349,69 @@ async function empujar() {
     for (const doc of (D[nombre] || [])) {
       vistos.add(doc.id);
       const json = JSON.stringify(doc);
-      if (espejo[doc.id] !== json) cambios.push(["set", nombre, doc.id, doc]);
+      if (espejo[doc.id] !== json) cambios.push(["set", nombre, doc.id, doc, json]);
     }
     for (const id in espejo) if (!vistos.has(id)) cambios.push(["del", nombre, id]);
   }
   if (!cambios.length) return sincronizarUsuarios();
 
-
+  empujando = true;
   try {
-    // Firestore acepta máximo 500 operaciones por lote.
     for (let i = 0; i < cambios.length; i += 450) {
+      const tanda = cambios.slice(i, i + 450);
       const lote = fs.writeBatch(FB.db);
-      for (const [op, col, id, doc] of cambios.slice(i, i + 450)) {
+
+      for (const [op, col, id, doc, json] of tanda) {
         const ref = fs.doc(FB.db, col, id);
         if (op === "set") { const { id: _, ...resto } = doc; lote.set(ref, resto); }
         else lote.delete(ref);
       }
-      await lote.commit();
+
+      // commit() aplica el cambio al disco de inmediato; la promesa solo se
+      // resuelve cuando el servidor responde. No la esperamos.
+      lote.commit().catch((e) => {
+        // Un rechazo real (permisos, datos inválidos) sí hay que mostrarlo.
+        if (!/unavailable|network|offline/i.test(String(e?.code || e))) {
+          FB.estado = "error"; FB.error = errorFB(e); pintar();
+        }
+      });
+
+      // Marcar como emitido: ni se reenvía, ni la escucha lo borra.
+      for (const [op, col, id, , json] of tanda) {
+        (FB.espejo[col] ||= {});
+        (FB.sinConfirmar[col] ||= new Set());
+        if (op === "set") { FB.espejo[col][id] = json; FB.sinConfirmar[col].add(id); }
+        else { delete FB.espejo[col][id]; FB.sinConfirmar[col].delete(id); }
+      }
     }
-    await sincronizarUsuarios();
-  } catch (e) {
-    FB.estado = "error"; FB.error = errorFB(e); pintar();
+    recalcularPendientes();
+    pintar();
+    sincronizarUsuarios();
+  } finally {
+    empujando = false;
   }
+}
+
+/** ¿Quedó todo guardado en el servidor? */
+async function esperarSubida() {
+  if (!FB.db) return false;
+  try {
+    await FB.mods.fs.waitForPendingWrites(FB.db);
+    for (const k in FB.sinConfirmar) FB.sinConfirmar[k].clear();
+    FB.sinSubir = 0; FB.ultimaSync = Date.now();
+    pintar();
+    return true;
+  } catch { return false; }
+}
+
+/* Avisar cuando vuelve la señal, para que se note que está subiendo. */
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    FB.enCache = false;
+    if (FB.db) { programarEmpuje(); esperarSubida(); }
+    pintar();
+  });
+  window.addEventListener("offline", () => { FB.enCache = true; pintar(); });
 }
 
 /** Primera vez: manda todo lo que hay en el equipo a Firestore. */
@@ -3311,7 +3597,9 @@ async function completarEnlace() {
     if (!correo) return false;
   }
   try {
-    await auth.signInWithEmailLink(FB.auth, correo.trim().toLowerCase(), location.href);
+    const c = correo.trim().toLowerCase();
+    await auth.signInWithEmailLink(FB.auth, c, location.href);
+    marcarSinClave(c);          // entró por enlace: aún no tiene contraseña
     try { localStorage.removeItem(CLAVE_INVITADO); } catch {}
     history.replaceState(null, "", location.pathname);
     S.reciénInvitado = true;
@@ -3328,7 +3616,10 @@ async function entrarConGoogle() {
   const prov = new auth.GoogleAuthProvider();
   prov.setCustomParameters({ prompt: "select_account" });
   try {
-    await auth.signInWithPopup(FB.auth, prov);
+    const r = await auth.signInWithPopup(FB.auth, prov);
+    // Si la cuenta solo tiene Google, todavía no hay contraseña.
+    const ps = (r.user?.providerData || []).map(x => x.providerId);
+    if (!ps.includes("password")) marcarSinClave(r.user.email);
   } catch (e) {
     const c = e?.code || "";
     if (/popup-blocked|popup-closed|cancelled-popup|operation-not-supported/.test(c)) {
@@ -3349,6 +3640,16 @@ async function enviarReinicio(correo) {
 async function definirClave(nueva) {
   const { auth } = FB.mods;
   await auth.updatePassword(FB.auth.currentUser, nueva);
+  marcarConClave(FB.auth.currentUser.email);
+}
+
+/** Qué formas de entrar tiene un correo. Puede venir vacío si el proyecto
+    tiene activada la protección contra enumeración de correos. */
+async function formasDeEntrar(correo) {
+  try {
+    const { auth } = await cargarSDK();
+    return await auth.fetchSignInMethodsForEmail(FB.auth, correo.trim().toLowerCase());
+  } catch { return []; }
 }
 
 /**
@@ -3365,13 +3666,53 @@ async function rechazarAcceso(correo) {
   pantallaAcceso();
 }
 
-/** Con qué método entró la persona. */
+/* ----------------------------------------------------------
+   ¿Esta cuenta tiene contraseña de verdad?
+
+   Firebase no lo dice: a quien entra por enlace de correo lo
+   marca igual que a quien tiene contraseña. Así que lo anotamos
+   nosotros cuando pasa cada cosa.
+   ---------------------------------------------------------- */
+const CLAVE_SIN_PASS = CLAVE + "-sin-clave";
+
+function _sinClave() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_SIN_PASS) || "[]"); } catch { return []; }
+}
+function marcarSinClave(correo) {
+  const c = (correo || "").toLowerCase(); if (!c) return;
+  const l = _sinClave(); if (l.includes(c)) return;
+  l.push(c);
+  try { localStorage.setItem(CLAVE_SIN_PASS, JSON.stringify(l)); } catch {}
+}
+function marcarConClave(correo) {
+  const c = (correo || "").toLowerCase(); if (!c) return;
+  try { localStorage.setItem(CLAVE_SIN_PASS, JSON.stringify(_sinClave().filter(x => x !== c))); } catch {}
+}
+
+/** Proveedores reales de la cuenta abierta. */
+function proveedores() {
+  const u = FB.auth?.currentUser;
+  if (!u) return { google: false, correo: false };
+  const p = u.providerData.map(x => x.providerId);
+  return { google: p.includes("google.com"), correo: p.includes("password") };
+}
+
+/** true solo si sabemos que puso una contraseña. */
+function tieneClave() {
+  const u = FB.auth?.currentUser;
+  if (!u) return false;
+  const pr = proveedores();
+  if (!pr.correo) return false;                       // solo Google: no hay contraseña
+  return !_sinClave().includes((u.email || "").toLowerCase());
+}
+
+/** Cómo entró, para mostrarlo. */
 function metodoAcceso() {
   const u = FB.auth?.currentUser;
   if (!u) return null;
-  const p = u.providerData.map(x => x.providerId);
-  if (p.includes("google.com")) return "google";
-  if (p.includes("password")) return "clave";
+  const pr = proveedores();
+  if (pr.google && !tieneClave()) return "google";
+  if (tieneClave()) return "clave";
   return "enlace";
 }
 
@@ -3445,6 +3786,10 @@ const REGLAS = `rules_version = '2';
 // Control Ganadero — cada quien solo ve sus fincas.
 // El permiso sale de /usuarios/{correo}, que lleva el rol y la
 // lista de fincas asignadas. La app mantiene esos documentos sola.
+//
+// Roles, de mayor a menor: superadmin, dueno, administrador, empleado.
+// El superadministrador ve y reasigna todo; los demás quedan encerrados
+// en las fincas que tengan asignadas.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -3458,12 +3803,14 @@ service cloud.firestore {
     }
     function misFincas()  { return yo().fincas; }
     function rol()        { return yo().rol; }
-    function manda()      { return rol() == 'dueno' || rol() == 'administrador'; }
-    function esDueno()    { return rol() == 'dueno'; }
+    function esSuper()    { return rol() == 'superadmin'; }
+    function manda()      { return esSuper() || rol() == 'dueno' || rol() == 'administrador'; }
+    function esDueno()    { return esSuper() || rol() == 'dueno'; }
 
     // El documento pertenece a una finca que tengo asignada.
-    function mia()        { return resource.data.fincaId in misFincas(); }
-    function seraMia()    { return request.resource.data.fincaId in misFincas(); }
+    // El superadministrador pasa por encima de ese filtro.
+    function mia()        { return esSuper() || resource.data.fincaId in misFincas(); }
+    function seraMia()    { return esSuper() || request.resource.data.fincaId in misFincas(); }
 
     // ---- quién puede entrar y a qué fincas ----
     match /usuarios/{correo} {
@@ -3474,16 +3821,18 @@ service cloud.firestore {
 
     // ---- fincas: solo las asignadas ----
     match /fincas/{id} {
-      allow read:   if registrado() && id in misFincas();
+      allow read:   if registrado() && (esSuper() || id in misFincas());
       allow create: if registrado() && manda();
-      allow update: if registrado() && manda() && id in misFincas();
-      allow delete: if registrado() && esDueno() && id in misFincas();
+      allow update: if registrado() && manda() && (esSuper() || id in misFincas());
+      allow delete: if registrado() && esDueno() && (esSuper() || id in misFincas());
     }
 
     // ---- personal: solo quien comparte finca conmigo ----
     match /personas/{id} {
       allow read:   if registrado() && (
-                      (manda() && resource.data.fincas.hasAny(misFincas()))
+                      esSuper()
+                      || (manda() && resource.data.fincas.hasAny(misFincas()))
+                      || (manda() && resource.data.creadoPor == yo().persona)
                       || resource.data.correo == request.auth.token.email);
       allow create: if registrado() && manda();
       allow update: if registrado() && manda();
@@ -3660,8 +4009,11 @@ function vConfiguracion() {
           <div class="nota">Sesión abierta como <strong>${esc(FB.user.email)}</strong>
           ${metodoAcceso() === "google" ? "con tu cuenta de Google"
             : metodoAcceso() === "enlace" ? "con un enlace al correo" : "con contraseña"}.
-          Todo lo que registres se sube solo.</div>
-          ${metodoAcceso() !== "clave" ? `<div class="rej">
+          Todo lo que registres se sube solo.<br>
+          <span style="font-size:12px">Formas de entrar activas:
+          ${[proveedores().google && "Google", tieneClave() && "correo y contraseña"]
+            .filter(Boolean).join(" · ") || "solo el enlace al correo"}.</span></div>
+          ${!tieneClave() ? `<div class="rej">
             <div class="campo ancho"><label>Ponerle una contraseña a tu cuenta</label>
               <input id="nueva-clave" type="password" autocomplete="new-password"
                 placeholder="Mínimo 6 caracteres">
@@ -3775,8 +4127,20 @@ function vConfiguracion() {
     <div class="panel-cab"><h2>Cómo entra cada persona</h2></div>
     <div class="panel-cuerpo">
       <p class="expl">No tienes que crear cuentas a mano ni repartir contraseñas. Registras a
-      la persona en Dueños, Administradores o Empleados con su correo, la asignas a una finca,
-      y le mandas la invitación desde su propia ficha.</p>
+      la persona con su correo, la asignas a una finca, y le mandas la invitación desde su
+      propia ficha.</p>
+
+      <h4 class="sub-titulo">Quién alcanza a quién</h4>
+      <ul class="cambios">
+        <li><strong>Superadministrador</strong> — ve todas las fincas y a todas las personas.
+        Es el único que puede cambiarle el rol a alguien y reasignar fincas entre dueños.</li>
+        <li><strong>Dueño</strong> — solo sus fincas. Ve y gestiona a los administradores y
+        empleados que él registró o que le asignaron. No ve a otros dueños.</li>
+        <li><strong>Administrador</strong> — solo sus fincas, y solo a los empleados.</li>
+        <li><strong>Empleado</strong> — solo sus fincas. No ve el personal.</li>
+      </ul>
+      <p class="expl">Nadie puede crear a alguien de su mismo rango ni por encima, ni cambiarle
+      el rol a quien ya está registrado. Eso queda reservado al superadministrador.</p>
 
       ${paso(1, "Registra a la persona", `<p>En la sección que corresponda, con su correo.
         Ese correo es su llave: tiene que ser el mismo que use para entrar.</p>`)}
@@ -4192,6 +4556,7 @@ function error(f, msg) {
 function enviar(f) {
   const [tipo, id] = f.dataset.guardar.split(":");
   const v = datos(f);
+  const nuevo = (o) => ({ id: uid(), creadoPor: S.persona?.id || null, ...o });
 
   if (tipo === "animal") {
     v.partosPrevios = Number(v.partosPrevios) || 0;
@@ -4206,44 +4571,55 @@ function enviar(f) {
     if (v.estado !== "activo" && !v.fechaSalida)
       return error(f, "Pon la fecha de salida para un animal vendido o muerto.");
     if (id) Object.assign(animal(id), v);
-    else D.animales.push({ id: uid(), ...v });
+    else D.animales.push(nuevo(v));
     return persistir(id ? "Animal actualizado" : "Animal añadido");
   }
 
   if (tipo === "finca") {
     v.personas = v.personas || [];
+    if (!id && S.persona && !v.personas.includes(S.persona.id)) v.personas.push(S.persona.id);
     if (id) Object.assign(finca(id), v);
-    else D.fincas.push({ id: uid(), ...v });
+    else D.fincas.push(nuevo(v));
     return persistir("Finca guardada");
   }
 
   if (tipo === "persona") {
     v.activo = v.activo !== "no";
+    if (!esSuper()) {
+      const previo = id ? persona(id) : null;
+      if (previo) v.rol = previo.rol;                               // el rol no se toca
+      else if (!rolesQuePuedoCrear().includes(v.rol)) {
+        return error(f, "No puedes crear a alguien con ese rol.");
+      }
+      if (previo && !puedoEditarPersona(previo)) {
+        return error(f, "Esa persona no está bajo tu cargo.");
+      }
+    }
     if (v.correo && D.personas.some(p => p.correo && p.correo.toLowerCase() === v.correo.toLowerCase() && p.id !== id))
       return error(f, `Ya hay una persona con el correo ${v.correo}.`);
     if (id) Object.assign(persona(id), v);
-    else D.personas.push({ id: uid(), ...v });
+    else D.personas.push(nuevo(v));
     return persistir("Persona guardada");
   }
 
   if (tipo === "insem") {
     // intento y estatus no se guardan: se calculan al mostrar.
     if (id) Object.assign(D.inseminaciones.find(x => x.id === id), v);
-    else D.inseminaciones.push({ id: uid(), ...v });
+    else D.inseminaciones.push(nuevo(v));
     return persistir("Servicio registrado");
   }
 
   if (tipo === "palp") {
     v.diasGestacion = v.diasGestacion ? Number(v.diasGestacion) : null;
     if (id) Object.assign(D.palpaciones.find(x => x.id === id), v);
-    else D.palpaciones.push({ id: uid(), ...v });
+    else D.palpaciones.push(nuevo(v));
     return persistir("Palpación registrada");
   }
 
   if (tipo === "parto") {
     if (v.tipo === "aborto") v.sexoCria = "";
     if (id) Object.assign(D.partos.find(x => x.id === id), v);
-    else D.partos.push({ id: uid(), ...v });
+    else D.partos.push(nuevo(v));
     // Una novillona que pare pasa a ser vaca.
     const a = animal(v.animalId);
     if (a && v.tipo === "parto" && CATEGORIAS[a.categoria]?.etapa === "levante") {
@@ -4259,19 +4635,19 @@ function enviar(f) {
     const prev = D.secados.find(x => x.animalId === v.animalId && x.fecha === v.fecha && x.id !== id);
     if (prev) return error(f, "Esa vaca ya tiene un secado registrado en esa misma fecha.");
     if (id) Object.assign(D.secados.find(x => x.id === id), v);
-    else D.secados.push({ id: uid(), ...v });
+    else D.secados.push(nuevo(v));
     return persistir("Secado registrado");
   }
 
   if (tipo === "trat") {
     if (id) Object.assign(D.tratamientos.find(x => x.id === id), v);
-    else D.tratamientos.push({ id: uid(), ...v });
+    else D.tratamientos.push(nuevo(v));
     return persistir("Tratamiento guardado");
   }
 
   if (tipo === "nota") {
     if (id) Object.assign(D.anotaciones.find(x => x.id === id), v);
-    else D.anotaciones.push({ id: uid(), ...v });
+    else D.anotaciones.push(nuevo(v));
     return persistir("Anotación guardada");
   }
 }
