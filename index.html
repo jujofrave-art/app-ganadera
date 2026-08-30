@@ -201,6 +201,7 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .chip input{accent-color:var(--pasto);margin:0;width:15px;height:15px;flex:none}
 .chip span{display:flex;flex-direction:column;line-height:1.25}
 .chip i{font-style:normal;font-size:11px;color:var(--tenue);font-family:var(--dato)}
+.invitar{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .aviso{background:rgba(166,67,43,.08);border:1px solid rgba(166,67,43,.25);color:var(--hierro);border-radius:7px;padding:9px 12px;font-size:12.5px;margin-bottom:13px}
 .nota{background:rgba(62,107,74,.08);border:1px solid rgba(62,107,74,.22);color:var(--pasto);border-radius:7px;padding:9px 12px;font-size:12.5px;margin-bottom:13px}
 
@@ -274,6 +275,13 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .forma-caja form{display:flex;flex-direction:column;gap:13px;margin-bottom:14px}
 .btn.grande{padding:12px 16px;font-size:14px;margin-top:3px;width:100%}
 .forma-caja .btn:not(.grande){width:100%}
+.btn.google{display:flex;align-items:center;justify-content:center;gap:9px;background:#fff;
+  border-color:#dadce0;color:#3c4043;font-weight:500}
+.btn.google:hover{background:#f7f8f8;border-color:#c6cacd}
+.enlaces{display:flex;flex-direction:column;gap:7px;align-items:flex-start;margin-top:13px}
+.liga{background:none;border:0;padding:2px 0;color:var(--pasto);font-size:12.5px;text-align:left;
+  text-decoration:underline;text-underline-offset:2px}
+.liga:hover{color:var(--tinta)}
 .separa{display:flex;align-items:center;gap:11px;margin:15px 0;color:var(--tenue);
   font-family:var(--dato);font-size:10px;letter-spacing:.13em;text-transform:uppercase}
 .separa::before,.separa::after{content:"";flex:1;height:1px;background:var(--linea)}
@@ -488,11 +496,32 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.0.1";
+const VERSION = "1.3.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.3.0", "30 ago 2026", [
+    "La portada tiene tres pantallas: iniciar sesión, primera vez y olvidé la contraseña.",
+    "Quien entra con un correo no autorizado queda fuera de inmediato, con la razón explicada.",
+    "Tras entrar por el enlace, la app ofrece ponerse una contraseña.",
+    "Quien ya tiene contraseña no puede crear otra encima: se le manda el correo de cambio.",
+    "Al cambiar de persona en el mismo equipo se borra la caché de la anterior.",
+    "Botón de Google al final de la portada, en las tres pantallas donde aplica.",
+  ]],
+  ["1.2.0", "30 ago 2026", [
+    "Dueño principal: un solo correo ve la conexión con Firebase, las reglas y la publicación.",
+    "Los demás dueños y administradores ven únicamente los parámetros de la finca y las invitaciones.",
+    "Importar y borrar todo quedan reservados al dueño principal.",
+    "Configuración deja de estar oculta para los empleados: ven la versión y cómo instalar la app.",
+  ]],
+  ["1.1.0", "30 ago 2026", [
+    "Acceso con cuenta de Google.",
+    "Invitación por correo: registras a la persona y le llega un enlace para entrar. " +
+      "Ya no hay que crear cuentas a mano en Firebase.",
+    "Recuperación de contraseña desde la portada, sin intervención del dueño.",
+    "Quien entra por enlace o con Google puede ponerse una contraseña desde Configuración.",
+  ]],
   ["1.0.1", "30 ago 2026", [
     "Con Firebase configurado, la portada pide correo y contraseña en vez de crear un usuario local.",
     "La app vuelve a suscribirse sola cuando cambian tus fincas; antes había que recargar tras crear la primera.",
@@ -801,7 +830,14 @@ function migrar(d) {
   }
   d.config.firebase ??= null;
   d.config.sinFirebase ??= false;
+  d.config.sesionDe ??= "";
   d.config.correo ??= "";
+  // Dueño principal: el único que ve la conexión con la base de datos.
+  // Si viene de una versión anterior, se toma el primer dueño con correo.
+  if (!d.config.maestro) {
+    const p = (d.personas || []).find(x => x.rol === "dueno" && x.correo);
+    d.config.maestro = (p?.correo || "").toLowerCase();
+  }
   const vieja = d.config.params || {};
   d.config.params = {};
   for (const esp in PARAMS_BASE) {
@@ -1291,7 +1327,8 @@ function idxAlerta(x) {
    SESIÓN Y PERMISOS
    ========================================================== */
 
-let S = { persona: null, modo: null, error: "", cargando: false };
+let S = { persona: null, modo: null, error: "", aviso: "", cargando: false,
+          modoAcceso: "entrar" };
 
 /* Qué puede hacer cada rol. El empleado registra el día a día;
    dueño y administrador además gestionan fincas y gente. */
@@ -1307,6 +1344,18 @@ const PERMISOS = {
 const rolActual = () => S.persona?.rol || "empleado";
 const puede = (q) => !!PERMISOS[rolActual()]?.[q];
 const manda = () => rolActual() === "dueno" || rolActual() === "administrador";
+
+/**
+ * Dueño principal. Es el único que ve la conexión con Firebase, las reglas
+ * y la publicación, para que nadie más pueda apuntar la app a otra base.
+ * Si nadie está marcado todavía, manda el primer dueño.
+ */
+function esMaestro() {
+  const m = (D.config.maestro || "").toLowerCase();
+  const mio = (S.persona?.correo || "").toLowerCase();
+  if (!m) return rolActual() === "dueno";
+  return !!mio && mio === m;
+}
 
 /** Fincas que esta persona tiene asignadas. Es la base de todo el filtrado. */
 function misFincas() {
@@ -1394,44 +1443,124 @@ function bloqueInicio(hayFB) {
 
 /** Ya hay gente registrada. */
 function bloqueEntrar(hayFB, gente, primeraVez) {
+  if (!hayFB) return bloqueLocal(gente);
+  const modo = S.modoAcceso || "entrar";
+  return {
+    entrar:  bloqueClave,
+    primera: bloquePrimeraVez,
+    olvide:  bloqueOlvide,
+  }[modo]();
+}
+
+/* ---------- entrar con contraseña ---------- */
+function bloqueClave() {
+  return `
+    <h2>Iniciar sesión</h2>
+    <p class="lede">Con el correo que te registraron en la finca.</p>
+    ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
+    ${S.aviso ? `<div class="nota">${esc(S.aviso)}</div>` : ""}
+    ${enArchivoLocal() ? `<div class="aviso">El archivo está abierto con doble clic y el
+      navegador bloquea Firebase. Ábrelo desde su dirección en internet.</div>` : ""}
+
+    <form data-acceso="firebase">
+      <div class="campo"><label>Correo</label>
+        <input name="correo" type="email" value="${esc(D.config.correo)}"
+          autocomplete="username" required></div>
+      <div class="campo"><label>Contraseña</label>
+        <input name="clave" type="password" autocomplete="current-password" required></div>
+      <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
+        ${S.cargando ? "Entrando…" : "Entrar"}</button>
+    </form>
+
+    <div class="enlaces">
+      <button class="liga" data-modo="primera">Es mi primera vez, quiero crear mi contraseña</button>
+      <button class="liga" data-acc="olvide-ir">Olvidé mi contraseña</button>
+    </div>
+
+    <div class="separa"><span>o</span></div>
+    ${botonGoogle()}`;
+}
+
+/* ---------- primera vez ---------- */
+function bloquePrimeraVez() {
+  return `
+    <h2>Primera vez</h2>
+    <p class="lede">Escribe el correo con el que te registraron. Si está autorizado, te llega
+    un enlace para entrar y ponerte una contraseña.</p>
+    ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
+    ${S.aviso ? `<div class="nota">${esc(S.aviso)}</div>` : ""}
+
+    <form data-acceso="primera-vez">
+      <div class="campo"><label>Tu correo</label>
+        <input name="correo" type="email" value="${esc(D.config.correo)}"
+          autocomplete="username" required autofocus></div>
+      <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
+        ${S.cargando ? "Enviando…" : "Enviarme el enlace"}</button>
+    </form>
+
+    <p class="pie-nota" style="border:0;padding-top:10px;margin-top:4px">
+      Si ya tienes contraseña no uses esto: entra normal, o usa
+      <strong>Olvidé mi contraseña</strong> si no la recuerdas.</p>
+
+    <div class="enlaces">
+      <button class="liga" data-modo="entrar">Volver a iniciar sesión</button>
+    </div>
+
+    <div class="separa"><span>o</span></div>
+    ${botonGoogle()}`;
+}
+
+/* ---------- olvidé la contraseña ---------- */
+function bloqueOlvide() {
+  return `
+    <h2>Cambiar la contraseña</h2>
+    <p class="lede">Te mandamos un correo para que pongas una nueva.</p>
+    ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
+    ${S.aviso ? `<div class="nota">${esc(S.aviso)}</div>` : ""}
+
+    <form data-acceso="olvide">
+      <div class="campo"><label>Tu correo</label>
+        <input name="correo" type="email" value="${esc(D.config.correo)}"
+          autocomplete="username" required autofocus></div>
+      <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
+        ${S.cargando ? "Enviando…" : "Enviarme el correo"}</button>
+    </form>
+
+    <div class="enlaces">
+      <button class="liga" data-modo="entrar">Volver a iniciar sesión</button>
+    </div>`;
+}
+
+function botonGoogle() {
+  return `<button class="btn google grande" data-acc="google">
+    <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#4285F4" d="M45 24.5c0-1.6-.1-2.7-.4-3.9H24v7.1h12c-.2 1.9-1.5 4.7-4.3 6.6l6.6 5.1C42.2 35.7 45 30.6 45 24.5z"/>
+      <path fill="#34A853" d="M24 46c5.8 0 10.7-1.9 14.3-5.2l-6.6-5.1c-1.8 1.2-4.2 2.1-7.7 2.1-5.9 0-10.9-3.9-12.7-9.2l-6.9 5.3C7.9 41 15.4 46 24 46z"/>
+      <path fill="#FBBC05" d="M11.3 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-6.9-5.4C2.9 17 2 20.4 2 24s.9 7 2.4 10z"/>
+      <path fill="#EA4335" d="M24 10.2c4.2 0 7 1.8 8.6 3.3l6.3-6.1C35 3.9 30 2 24 2 15.4 2 7.9 7 4.4 14l6.9 5.4C13.1 14.1 18.1 10.2 24 10.2z"/>
+    </svg>
+    Iniciar sesión con Google</button>`;
+}
+
+/* ---------- sin Firebase: elegir quién eres ---------- */
+function bloqueLocal(gente) {
   return `
     <h2>Entrar</h2>
-    <p class="lede">${hayFB
-      ? (primeraVez
-          ? "Primera vez en este equipo. Entra con la cuenta que creaste en Firebase; " +
-            "tu ficha se arma sola."
-          : "Usa el correo con el que te registraron en la finca.")
-      : "Elige quién eres. Verás únicamente las fincas que tengas asignadas."}</p>
-
+    <p class="lede">Elige quién eres. Verás únicamente las fincas que tengas asignadas.</p>
     ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
-    ${enArchivoLocal() && hayFB ? `<div class="aviso">El archivo está abierto con doble clic y el
-      navegador bloquea Firebase. Publícalo en un servidor para poder entrar con tu cuenta.</div>` : ""}
-
-    ${hayFB ? `
-      <form data-acceso="firebase">
-        <div class="campo"><label>Correo</label>
-          <input name="correo" type="email" value="${esc(D.config.correo)}"
-            autocomplete="username" required autofocus></div>
-        <div class="campo"><label>Contraseña</label>
-          <input name="clave" type="password" autocomplete="current-password" required></div>
-        <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
-          ${S.cargando ? "Entrando…" : "Entrar"}</button>
-      </form>
-    ` : `
-      <form data-acceso="local">
-        <div class="campo"><label>¿Quién eres?</label>
-          <select name="personaId" required autofocus>
-            ${["dueno","administrador","empleado"].map(r => {
-              const g = gente.filter(p => p.rol === r);
-              return g.length ? `<optgroup label="${ROLES[r].plural}">${g.map(p =>
-                `<option value="${p.id}">${esc(p.nombre)}</option>`).join("")}</optgroup>` : "";
-            }).join("")}
-          </select></div>
-        <button class="btn btn-firme grande">Entrar</button>
-      </form>
-      <div class="separa"><span>o</span></div>
-      <button class="btn" data-ir-config>Conectar Firebase</button>
-    `}`;
+    <form data-acceso="local">
+      <div class="campo"><label>¿Quién eres?</label>
+        <select name="personaId" required autofocus>
+          ${["dueno","administrador","empleado"].map(r => {
+            const g = gente.filter(p => p.rol === r);
+            return g.length ? `<optgroup label="${ROLES[r].plural}">${g.map(p =>
+              `<option value="${p.id}">${esc(p.nombre)}</option>`).join("")}</optgroup>` : "";
+          }).join("")}
+        </select></div>
+      <button class="btn btn-firme grande">Entrar</button>
+    </form>
+    <div class="separa"><span>o</span></div>
+    <button class="btn" data-ir-config>Conectar Firebase</button>`;
 }
 
 function conectarAcceso() {
@@ -1439,7 +1568,7 @@ function conectarAcceso() {
   if (f) f.onsubmit = async (e) => {
     e.preventDefault();
     const v = datos(f);
-    S.error = "";
+    S.error = ""; S.aviso = "";
 
     if (f.dataset.acceso === "primero") {
       S.persona = crearPrimerUsuario(v.nombre, v.correo);
@@ -1451,10 +1580,72 @@ function conectarAcceso() {
       S.persona = persona(v.personaId); S.modo = "local";
       guardarSesion(); pintar(); return;
     }
+
+    const correo = (v.correo || "").trim().toLowerCase();
+
+    if (f.dataset.acceso === "primera-vez") {
+      S.cargando = true; pantallaAcceso();
+      try {
+        await invitarPorCorreo(correo);
+        try { localStorage.setItem(CLAVE_INVITADO, correo); } catch {}
+        D.config.correo = correo; guardarLocal();
+        S.cargando = false;
+        S.aviso = `Listo. Revisa ${correo} y abre el enlace desde este mismo dispositivo. ` +
+                  `Si no llega en un par de minutos, mira en correo no deseado.`;
+      } catch (err) { S.cargando = false; S.error = errorFB(err); }
+      pantallaAcceso(); return;
+    }
+
+    if (f.dataset.acceso === "olvide") {
+      S.cargando = true; pantallaAcceso();
+      try {
+        await enviarReinicio(correo);
+        S.cargando = false;
+        S.aviso = `Te mandamos un correo a ${correo} para cambiar la contraseña.`;
+      } catch (err) { S.cargando = false; S.error = errorFB(err); }
+      pantallaAcceso(); return;
+    }
+
+    // Entrar con contraseña
     S.cargando = true; pantallaAcceso();
-    try { await entrarFirebase(v.correo, v.clave); }
-    catch (err) { S.error = errorFB(err); S.cargando = false; pantallaAcceso(); }
+    try { await entrarFirebase(correo, v.clave); }
+    catch (err) {
+      S.cargando = false;
+      S.error = errorFB(err);
+      if (/no existe|no coinciden/i.test(S.error)) {
+        S.error += " Si es tu primera vez, usa el enlace de abajo para crear tu contraseña.";
+      }
+      pantallaAcceso();
+    }
   };
+
+  document.querySelectorAll("[data-modo]").forEach(b => b.onclick = () => {
+    S.modoAcceso = b.dataset.modo; S.error = ""; S.aviso = ""; pantallaAcceso();
+  });
+
+  document.querySelectorAll("[data-acc]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.acc;
+
+    if (a === "olvide-ir") { S.modoAcceso = "olvide"; S.error = ""; S.aviso = ""; return pantallaAcceso(); }
+
+    if (a === "google") {
+      S.error = ""; S.aviso = ""; S.cargando = true; pantallaAcceso();
+      try { await entrarConGoogle(); }
+      catch (e) { S.error = errorFB(e); S.cargando = false; pantallaAcceso(); }
+      return;
+    }
+
+    if (a === "modo-local") { D.config.firebase = null; D.config.sinFirebase = true;
+                              guardarLocal(); pantallaAcceso(); }
+    if (a === "modo-demo") {
+      let p = D.personas.find(x => x.rol === "administrador") || D.personas[0];
+      if (!p) { p = { id: uid(), nombre: "Administrador", rol: "administrador", correo: "",
+                      telefono: "", documento: "", notas: "", activo: true, fincas: [] };
+                D.personas.push(p); }
+      D.fincas.forEach(f2 => { if (!(f2.personas || []).includes(p.id)) (f2.personas ||= []).push(p.id); });
+      recalcularAccesos(); S.persona = p; S.modo = "local"; guardar(); guardarSesion(); pintar();
+    }
+  });
 
   const c = document.querySelector("[data-ir-config]");
   if (c) c.onclick = () => {
@@ -1472,7 +1663,10 @@ function crearPrimerUsuario(nombre, correo) {
     telefono: "", documento: "", notas: "", activo: true, fincas: [],
   };
   D.personas.push(p);
-  if (p.correo) D.config.correo = p.correo;
+  if (p.correo) {
+    D.config.correo = p.correo;
+    if (!D.config.maestro) D.config.maestro = p.correo;
+  }
   return p;
 }
 
@@ -1514,7 +1708,7 @@ const nombreDesdeCorreo = (c) => c.split("@")[0]
  */
 function asegurarPersona(email) {
   const p = D.personas.find(x => (x.correo || "").toLowerCase() === email.toLowerCase());
-  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; return; }
+  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; ofrecerClave(); return; }
 
   if (D.personas.length > 0) {
     S.error = `La cuenta ${email} entró bien, pero no hay ninguna persona registrada con ese ` +
@@ -1527,6 +1721,16 @@ function asegurarPersona(email) {
   if (FB.rolRemoto) S.persona.rol = FB.rolRemoto;
   S.modo = "firebase"; S.error = "";
   guardar();
+  ofrecerClave();
+}
+
+/** Una sola vez: si entró por el enlace del correo, invitarle a poner contraseña. */
+function ofrecerClave() {
+  if (S.claveOfrecida) return;
+  S.claveOfrecida = true;
+  setTimeout(() => {
+    if (S.persona && !hojaAbierta && metodoAcceso() === "enlace") hojaClave(false);
+  }, 1200);
 }
 
 /* ==========================================================
@@ -1579,7 +1783,7 @@ function sinFincas() {
 
 function vistaPermitida(id) {
   if (["duenos","administradores","empleados"].includes(id)) return puede("personas");
-  if (id === "configuracion") return puede("config");
+  if (id === "configuracion") return true;
   return true;
 }
 
@@ -2114,6 +2318,31 @@ const opAnimales = (sel, filtro) => misAnimales()
   .sort((a,b) => a.nombre.localeCompare(b.nombre))
   .map(a => `<option value="${a.id}" ${sel===a.id?"selected":""}>${esc(a.nombre)} · ${esc(a.chapeta)} · ${esc(nombreFinca(a.fincaId))}</option>`).join("");
 
+/* ---------- INVITACIÓN A PONERSE CONTRASEÑA ---------- */
+function hojaClave(obligatoria) {
+  abrirHoja(`
+    <div class="hoja-cab"><h2>Ponte una contraseña</h2>
+      ${obligatoria ? "" : '<button class="cerrar" data-cerrar>×</button>'}</div>
+    <form data-clave>
+      <div class="hoja-cuerpo">
+        <div class="aviso" data-error hidden></div>
+        <div class="nota">Entraste con el enlace del correo. Si te pones una contraseña,
+        la próxima vez entras directo sin esperar ningún mensaje.</div>
+        <div class="rej">
+          <div class="campo ancho"><label>Contraseña nueva</label>
+            <input name="clave" type="password" autocomplete="new-password"
+              placeholder="Mínimo 6 caracteres" required></div>
+          <div class="campo ancho"><label>Repítela</label>
+            <input name="clave2" type="password" autocomplete="new-password" required></div>
+        </div>
+      </div>
+      <div class="hoja-pie">
+        ${obligatoria ? "" : '<button type="button" class="btn" data-cerrar>Ahora no</button>'}
+        <button class="btn btn-firme">Guardar contraseña</button>
+      </div>
+    </form>`);
+}
+
 /* ---------- FICHA DEL ANIMAL ---------- */
 function seg(nombre, ops, valor) {
   return `<div class="seg">${ops.map(([v, t]) => `<label>
@@ -2392,6 +2621,14 @@ function formPersona(id, rol) {
           <option value="si" ${p.activo!==false?"selected":""}>Activo</option>
           <option value="no" ${p.activo===false?"selected":""}>Inactivo</option></select></div>
         <div class="campo ancho"><label>Notas</label><input name="notas" value="${esc(p.notas)}" placeholder="Mayordomo, inseminador…"></div>
+        ${id && p.correo ? `<div class="campo ancho"><label>Acceso a la app</label>
+          <div class="invitar">
+            <button type="button" class="btn btn-sm" data-invitar="${esc(p.correo)}">
+              Enviarle la invitación</button>
+            <span class="ayuda">Le llega un enlace a ${esc(p.correo)}. Al abrirlo entra sin
+            contraseña y puede ponerse una. También puede entrar con su cuenta de Google si
+            usa ese mismo correo.</span>
+          </div></div>` : ""}
         ${id ? `<div class="campo ancho"><label>Fincas asignadas</label>
           <div>${fincasDe(id).length ? fincasDe(id).map(f=>`<span class="p">${esc(f.nombre)}</span>`).join(" ")
             : '<span class="ayuda">Ninguna. Se asignan desde la ficha de cada finca.</span>'}</div></div>` : ""}
@@ -2691,6 +2928,11 @@ async function conectarFirebase(silencioso) {
         });
       } catch { FB.db = fs.getFirestore(FB.app); }
 
+      // Si volvió de Google por redirección, recoger el resultado.
+      auth.getRedirectResult(FB.auth).catch(() => {});
+      // Si llegó por un enlace de invitación, terminar de entrarlo.
+      completarEnlace().catch(() => {});
+
       auth.onAuthStateChanged(FB.auth, (u) => {
         FB.user = u;
         if (u) { vincularUsuario(u.email); escucharTodo(); }
@@ -2745,10 +2987,8 @@ function escucharTodo() {
   FB.escuchaUsuario = fs.onSnapshot(fs.doc(FB.db, "usuarios", correo),
     (snap) => {
       if (!snap.exists()) {
-        FB.estado = "error";
-        FB.error = `No existe el documento usuarios/${correo} en Firestore. ` +
-                   `Créalo siguiendo el paso 5 de esta página.`;
-        return pintar();
+        // El correo entró bien pero nadie lo autorizó: fuera.
+        return rechazarAcceso(correo);
       }
       const datos = snap.data();
       FB.rolRemoto = datos.rol || null;
@@ -2763,6 +3003,7 @@ function escucharTodo() {
 
 function escucharColecciones(mias) {
   pararEscuchas();
+  limpiarSiCambioDeUsuario(FB.user.email);
   const { fs } = FB.mods;
 
   if (!mias.length) {
@@ -3010,6 +3251,114 @@ function descargarSW() {
 }
 
 /* ==========================================================
+   FORMAS DE ENTRAR
+   Contraseña, cuenta de Google, o enlace enviado al correo.
+   El enlace es el que sirve para invitar gente nueva: crea la
+   cuenta sin tumbar la sesión de quien invita.
+   ========================================================== */
+
+/** Si en este equipo estuvo otra persona, se borra su caché antes de sincronizar. */
+function limpiarSiCambioDeUsuario(correo) {
+  const c = (correo || "").toLowerCase();
+  if ((D.config.sesionDe || "") === c) return;
+  for (const col of COLECCIONES) D[col] = [];
+  FB.espejo = {};
+  D.config.sesionDe = c;
+  guardarLocal();
+}
+
+const ajustesEnlace = () => ({
+  url: location.origin + location.pathname,
+  handleCodeInApp: true,
+});
+const CLAVE_INVITADO = CLAVE + "-invitado";
+
+/** Manda el enlace de acceso. Si la cuenta no existe, la crea al abrirlo. */
+async function invitarPorCorreo(correo) {
+  if (!FB.auth) throw new Error("Firebase no está conectado.");
+  const { auth } = await cargarSDK();
+  const c = correo.trim().toLowerCase();
+  await auth.sendSignInLinkToEmail(FB.auth, c, ajustesEnlace());
+  return c;
+}
+
+/** Si la persona llegó por el enlace, termina de entrarla. */
+async function completarEnlace() {
+  const { auth } = FB.mods;
+  if (!auth.isSignInWithEmailLink(FB.auth, location.href)) return false;
+
+  let correo = null;
+  try { correo = localStorage.getItem(CLAVE_INVITADO); } catch {}
+  if (!correo) {
+    correo = prompt("Para terminar de entrar, confirma tu correo:");
+    if (!correo) return false;
+  }
+  try {
+    await auth.signInWithEmailLink(FB.auth, correo.trim().toLowerCase(), location.href);
+    try { localStorage.removeItem(CLAVE_INVITADO); } catch {}
+    history.replaceState(null, "", location.pathname);
+    S.reciénInvitado = true;
+    return true;
+  } catch (e) {
+    S.error = errorFB(e);
+    history.replaceState(null, "", location.pathname);
+    return false;
+  }
+}
+
+async function entrarConGoogle() {
+  const { auth } = await cargarSDK();
+  const prov = new auth.GoogleAuthProvider();
+  prov.setCustomParameters({ prompt: "select_account" });
+  try {
+    await auth.signInWithPopup(FB.auth, prov);
+  } catch (e) {
+    const c = e?.code || "";
+    if (/popup-blocked|popup-closed|cancelled-popup|operation-not-supported/.test(c)) {
+      await auth.signInWithRedirect(FB.auth, prov);
+      return;
+    }
+    throw e;
+  }
+}
+
+/** Correo para restablecer la contraseña de una cuenta que ya existe. */
+async function enviarReinicio(correo) {
+  const { auth } = await cargarSDK();
+  await auth.sendPasswordResetEmail(FB.auth, correo.trim().toLowerCase());
+}
+
+/** Le pone contraseña a quien entró por enlace o por Google. */
+async function definirClave(nueva) {
+  const { auth } = FB.mods;
+  await auth.updatePassword(FB.auth.currentUser, nueva);
+}
+
+/**
+ * Cierra la sesión de quien no está en la lista de autorizados y le explica
+ * por qué. Sin esto quedaría dentro viendo una pantalla vacía.
+ */
+async function rechazarAcceso(correo) {
+  pararTodo();
+  try { await salirFirebase(); } catch {}
+  S.persona = null; S.modo = null; S.modoAcceso = "entrar"; S.aviso = "";
+  S.error = `La cuenta ${correo} existe, pero no está autorizada en esta finca. ` +
+            `Pídele al dueño que te registre con ese mismo correo y te asigne a una finca.`;
+  FB.estado = "listo"; FB.error = "";
+  pantallaAcceso();
+}
+
+/** Con qué método entró la persona. */
+function metodoAcceso() {
+  const u = FB.auth?.currentUser;
+  if (!u) return null;
+  const p = u.providerData.map(x => x.providerId);
+  if (p.includes("google.com")) return "google";
+  if (p.includes("password")) return "clave";
+  return "enlace";
+}
+
+/* ==========================================================
    CONFIGURACIÓN
    ========================================================== */
 
@@ -3159,7 +3508,9 @@ function vConfiguracion() {
 
   return `
   <header class="cab"><div><h1>Configuración</h1>
-    <p>Conexión con Firebase, reglas de seguridad y parámetros de la finca</p></div>
+    <p>${esMaestro() ? "Conexión con Firebase, reglas de seguridad y parámetros de la finca"
+       : puede("config") ? "Parámetros de la finca, invitaciones e instalación"
+       : "Versión de la app e instalación en el celular"}</p></div>
     <span class="p gris">v${VERSION} · ${FECHA_VERSION}</span></header>
 
   <!-- ============ 0. VERSIÓN ============ -->
@@ -3176,6 +3527,11 @@ function vConfiguracion() {
     </div>
   </section>
 
+  ${!esMaestro() ? `<div class="nota">La conexión con la base de datos la administra
+    ${D.config.maestro ? `<strong>${esc(D.config.maestro)}</strong>` : "el dueño principal"}.
+    Aquí ves solo lo que puedes cambiar sin afectar a los demás.</div>` : ""}
+
+  ${!esMaestro() ? "" : `
   <!-- ============ 1. FIREBASE ============ -->
   <section class="panel">
     <div class="panel-cab">
@@ -3218,8 +3574,35 @@ function vConfiguracion() {
         </ul>
 
         ${FB.user ? `
-          <div class="nota">Sesión abierta como <strong>${esc(FB.user.email)}</strong>.
+          <div class="nota">Sesión abierta como <strong>${esc(FB.user.email)}</strong>
+          ${metodoAcceso() === "google" ? "con tu cuenta de Google"
+            : metodoAcceso() === "enlace" ? "con un enlace al correo" : "con contraseña"}.
           Todo lo que registres se sube solo.</div>
+          ${metodoAcceso() !== "clave" ? `<div class="rej">
+            <div class="campo ancho"><label>Ponerle una contraseña a tu cuenta</label>
+              <input id="nueva-clave" type="password" autocomplete="new-password"
+                placeholder="Mínimo 6 caracteres">
+              <span class="ayuda">Así entras directo, sin depender del enlace ni de Google.</span>
+            </div></div>
+            <div class="fila-btn" style="margin-bottom:12px">
+              <button class="btn" data-acc="poner-clave">Guardar contraseña</button>
+            </div>`
+          : `<div class="fila-btn" style="margin-bottom:12px">
+              <button class="btn" data-acc="cambiar-clave">Cambiar mi contraseña</button>
+             </div>
+             <p class="expl">Ya tienes contraseña. Al pulsar, te llega un correo para
+             cambiarla; no se puede crear otra encima.</p>`}
+          <div class="rej" style="margin-bottom:12px">
+            <div class="campo ancho"><label>Dueño principal</label>
+              <input id="maestro" type="email" value="${esc(D.config.maestro)}"
+                placeholder="correo@ejemplo.com">
+              <span class="ayuda">Único correo que ve esta sección y la de publicación.
+              Si lo cambias por otro, pierdes el acceso a estos paneles en este equipo.</span>
+            </div>
+          </div>
+          <div class="fila-btn" style="margin-bottom:12px">
+            <button class="btn" data-acc="guardar-maestro">Guardar dueño principal</button>
+          </div>
           <div class="fila-btn">
             <button class="btn" data-acc="subir-todo">Subir datos de este equipo</button>
             <button class="btn" data-acc="salir-fb">Cerrar sesión</button>
@@ -3254,9 +3637,18 @@ function vConfiguracion() {
         <code>southamerica-east1</code> o <code>us-central1</code>. El modo producción bloquea todo
         de entrada; eso lo abre el paso 4.</p>`)}
 
-      ${paso(3, "Habilitar el acceso con correo", `<p>Abre <strong>Authentication → Comenzar</strong> y
-        activa <strong>Correo electrónico/contraseña</strong>. En la pestaña <strong>Users</strong>
-        crea la cuenta de cada persona que vaya a usar la app.</p>`)}
+      ${paso(3, "Habilitar las formas de entrar", `
+        <p>En <strong>Authentication → Método de acceso</strong> activa:</p>
+        <ul class="cambios">
+          <li><strong>Correo electrónico/contraseña</strong> — el interruptor de arriba.</li>
+          <li><strong>Vínculo del correo electrónico</strong> — el segundo interruptor, dentro
+          de esa misma tarjeta. Es el que permite invitar gente nueva sin crearles la cuenta
+          a mano.</li>
+          <li><strong>Google</strong> — opcional. Agrégalo como proveedor nuevo si quieres que
+          entren con su cuenta de Google. Te pide un correo de contacto del proyecto.</li>
+        </ul>
+        <p>Tu propia cuenta sí la creas a mano la primera vez, en la pestaña
+        <strong>Users</strong>. Las demás se crean solas al invitarlas desde la app.</p>`)}
 
       ${paso(4, "Pegar las reglas de seguridad", `
         <p>Ve a <strong>Firestore Database → Reglas</strong>, borra lo que haya, pega esto y pulsa
@@ -3293,6 +3685,39 @@ function vConfiguracion() {
     </div>
   </section>
 
+  `}
+  ${!puede("personas") ? "" : `
+  <!-- ============ 2b. INVITAR ============ -->
+  <section class="panel">
+    <div class="panel-cab"><h2>Cómo entra cada persona</h2></div>
+    <div class="panel-cuerpo">
+      <p class="expl">No tienes que crear cuentas a mano ni repartir contraseñas. Registras a
+      la persona en Dueños, Administradores o Empleados con su correo, la asignas a una finca,
+      y le mandas la invitación desde su propia ficha.</p>
+
+      ${paso(1, "Registra a la persona", `<p>En la sección que corresponda, con su correo.
+        Ese correo es su llave: tiene que ser el mismo que use para entrar.</p>`)}
+
+      ${paso(2, "Asígnala a una finca", `<p>Desde la ficha de la finca, marcando su casilla.
+        Sin finca asignada entra pero no ve nada.</p>`)}
+
+      ${paso(3, "Envíale la invitación", `<p>Abre su ficha y pulsa
+        <strong>Enviarle la invitación</strong>. Le llega un correo con un enlace.</p>`)}
+
+      ${paso(4, "Ella abre el enlace", `<p>Al abrirlo entra directo, sin contraseña. La cuenta
+        se crea en ese momento. Desde Configuración puede ponerse una contraseña para las
+        próximas veces, o seguir entrando con Google si usa ese mismo correo.</p>
+        <p class="expl">El enlace debe abrirse en el mismo dispositivo donde lo va a usar. Si lo
+        abre en otro, la app le pide confirmar el correo y funciona igual.</p>`)}
+
+      <div class="nota">Si alguien olvida su contraseña, en la portada tiene
+      <strong>Olvidé mi contraseña</strong> y le llega un correo para cambiarla. No tienes que
+      intervenir.</div>
+    </div>
+  </section>
+
+  `}
+  ${!puede("config") ? "" : `
   <!-- ============ 3. PARÁMETROS ============ -->
   <section class="panel">
     <div class="panel-cab"><h2>Parámetros de la finca</h2></div>
@@ -3339,6 +3764,8 @@ function vConfiguracion() {
     </div>
   </section>
 
+  `}
+  ${!esMaestro() ? "" : `
   <!-- ============ 4. PUBLICAR ============ -->
   <section class="panel">
     <div class="panel-cab"><h2>Publicar la app para el equipo</h2>
@@ -3385,6 +3812,7 @@ function vConfiguracion() {
     </div>
   </section>
 
+  `}
   <!-- ============ 5. INSTALAR ============ -->
   <section class="panel">
     <div class="panel-cab"><h2>Instalar en el celular</h2>
@@ -3438,9 +3866,13 @@ function vConfiguracion() {
         por las fotos. Conecta Firebase o exporta y borra fotos viejas.</div>` : ""}
       <div class="fila-btn">
         <button class="btn" data-acc="exportar">Exportar copia</button>
-        <button class="btn" data-acc="importar">Importar copia</button>
-        <button class="btn btn-baja" data-acc="reiniciar">Borrar todo y empezar de cero</button>
+        ${esMaestro() ? `
+          <button class="btn" data-acc="importar">Importar copia</button>
+          <button class="btn btn-baja" data-acc="reiniciar">Borrar todo y empezar de cero</button>
+        ` : ""}
       </div>
+      ${!esMaestro() ? `<p class="expl" style="margin:10px 0 0">Importar y borrar están
+      reservados al dueño principal, porque reemplazan los datos de todos.</p>` : ""}
     </div>
   </section>`;
 }
@@ -3627,6 +4059,37 @@ function conectarHoja(d) {
 
   etiquetarTablas(d);
 
+  d.querySelectorAll("[data-invitar]").forEach(b => b.onclick = async () => {
+    const c = b.dataset.invitar;
+    if (!FB.user) return alert("Necesitas estar conectado a Firebase para enviar invitaciones.");
+    if (!confirm(`¿Enviarle a ${c} el enlace para entrar a la app?`)) return;
+    b.disabled = true; b.textContent = "Enviando…";
+    try {
+      await invitarPorCorreo(c);
+      b.textContent = "Invitación enviada";
+      avisar(`Enlace enviado a ${c}`);
+    } catch (e) {
+      b.disabled = false; b.textContent = "Enviarle la invitación";
+      alert("No se pudo enviar: " + errorFB(e) +
+        "\n\nSi dice que falta habilitar el método, ve a Authentication → Método de acceso " +
+        "y activa 'Vínculo del correo electrónico' dentro de Correo/contraseña.");
+    }
+  });
+
+  const fc = d.querySelector("form[data-clave]");
+  if (fc) fc.onsubmit = async (e) => {
+    e.preventDefault();
+    const v = datos(fc);
+    if (v.clave.length < 6) return error(fc, "La contraseña debe tener al menos 6 caracteres.");
+    if (v.clave !== v.clave2) return error(fc, "Las dos contraseñas no coinciden.");
+    try {
+      await definirClave(v.clave);
+      cerrarHoja(); avisar("Contraseña guardada. Ya puedes entrar con ella.");
+    } catch (err) {
+      error(fc, errorFB(err) + " Si pide volver a entrar, cierra sesión y usa el enlace otra vez.");
+    }
+  };
+
   const f = d.querySelector("form[data-guardar]");
   if (f) f.onsubmit = (e) => { e.preventDefault(); enviar(f); };
 }
@@ -3791,6 +4254,33 @@ conectarFirebase(true);
   if (a === "publicar")     { generarArchivoPublicable(); return; }
   if (a === "instalar")     { instalarApp(); return; }
   if (a === "bajar-sw")     { descargarSW(); return; }
+  if (a === "guardar-maestro") {
+    const m = val("maestro").toLowerCase();
+    if (m && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) return alert("Ese correo no es válido.");
+    const mio = (S.persona?.correo || "").toLowerCase();
+    if (m && m !== mio &&
+        !confirm(`Vas a pasarle el control de la base de datos a ${m}.\n\n` +
+                 `Tú dejarás de ver la conexión con Firebase, las reglas y la publicación ` +
+                 `en este equipo. ¿Seguro?`)) return;
+    D.config.maestro = m;
+    guardar(); pintar(); avisar("Dueño principal actualizado");
+    return;
+  }
+  if (a === "cambiar-clave") {
+    const c = FB.user?.email;
+    if (!c) return;
+    try { await enviarReinicio(c); avisar(`Te mandamos un correo a ${c}`); }
+    catch (e) { alert("No se pudo: " + errorFB(e)); }
+    return;
+  }
+  if (a === "poner-clave") {
+    const k = val("nueva-clave");
+    if (k.length < 6) return alert("La contraseña debe tener al menos 6 caracteres.");
+    try { await definirClave(k); avisar("Contraseña guardada"); pintar(); }
+    catch (e) { alert("No se pudo: " + errorFB(e) +
+      "\n\nSi dice que hace falta volver a entrar, cierra sesión y entra de nuevo."); }
+    return;
+  }
   if (a === "params-fabrica") {
     if (!confirm("¿Volver a los valores de fábrica?")) return;
     D.config.params = JSON.parse(JSON.stringify(PARAMS_BASE));
