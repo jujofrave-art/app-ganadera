@@ -354,6 +354,11 @@ tr.grupo .n{opacity:.55;margin-left:6px}
    ========================================================== */
 .topbar{display:none}
 .rail-fondo{display:none}
+.banda-nueva{background:rgba(245,197,24,.16);border:1px solid var(--chapeta-b);color:var(--tinta);
+  border-radius:9px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;
+  justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px}
+.banda-nueva strong{display:block;margin-bottom:2px}
+.banda-nueva span{color:var(--tinta2);font-size:12.5px}
 .banda-riesgo{background:var(--hierro);color:#fff;padding:9px 14px;font-size:12.5px;line-height:1.45}
 .banda-riesgo strong{display:block}
 
@@ -488,7 +493,7 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 let CONFIG_INCLUIDA = {"apiKey": "AIzaSyCjOJ5K5ek4nOMjooBg1sLLjpKfS2URHfQ", "authDomain": "app-ganadera-42eff.firebaseapp.com", "projectId": "app-ganadera-42eff", "storageBucket": "app-ganadera-42eff.firebasestorage.app", "messagingSenderId": "633091361694", "appId": "1:633091361694:web:f13f7eda9435ac3783248f"}; /*[[CONFIG-FIREBASE]]*/
 
 /* Código del service worker, para descargarlo desde Configuración. */
-const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app en el tel\u00e9fono para que abra sin se\u00f1al.\n   S\u00fabelo junto al index.html, en la misma carpeta.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v1\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([BASE, BASE + \"index.html\"])\n    .catch(() => c.add(BASE))));\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n\n  const url = new URL(req.url);\n\n  // Firebase y sus datos nunca se cachean: tienen su propio manejo offline.\n  if (/googleapis|gstatic|firebaseio|firebaseapp/.test(url.hostname)) return;\n\n  // La app: primero la red, para que las actualizaciones lleguen solas;\n  // si no hay se\u00f1al, la copia guardada.\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      fetch(req)\n        .then((r) => {\n          const copia = r.clone();\n          caches.open(CACHE).then((c) => c.put(BASE, copia));\n          return r;\n        })\n        .catch(() => caches.match(BASE).then((r) => r || caches.match(BASE + \"index.html\")))\n    );\n    return;\n  }\n\n  // Tipograf\u00edas y dem\u00e1s: primero lo guardado, m\u00e1s r\u00e1pido.\n  e.respondWith(\n    caches.match(req).then((hit) =>\n      hit || fetch(req).then((r) => {\n        if (r.ok && (url.origin === self.location.origin || /fonts\\./.test(url.hostname))) {\n          const copia = r.clone();\n          caches.open(CACHE).then((c) => c.put(req, copia));\n        }\n        return r;\n      }).catch(() => hit)\n    )\n  );\n});\n";
+const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app en el tel\u00e9fono para que abra sin se\u00f1al.\n   S\u00fabelo junto al index.html, en la misma carpeta.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v2\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([BASE, BASE + \"index.html\"])\n    .catch(() => c.add(BASE))));\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n\n  const url = new URL(req.url);\n\n  // Firebase y sus datos nunca se cachean: tienen su propio manejo offline.\n  if (/googleapis|gstatic|firebaseio|firebaseapp/.test(url.hostname)) return;\n\n  // La app: primero la red, salt\u00e1ndose la cach\u00e9 del navegador. Sin esto,\n  // GitHub Pages pide guardar el HTML 10 minutos y las actualizaciones no\n  // llegan hasta que ese plazo vence.\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n        .then((r) => {\n          const copia = r.clone();\n          caches.open(CACHE).then((c) => c.put(BASE, copia));\n          return r;\n        })\n        .catch(() => caches.match(BASE).then((r) => r || caches.match(BASE + \"index.html\")))\n    );\n    return;\n  }\n\n  // Tipograf\u00edas y dem\u00e1s: primero lo guardado, m\u00e1s r\u00e1pido.\n  e.respondWith(\n    caches.match(req).then((hit) =>\n      hit || fetch(req).then((r) => {\n        if (r.ok && (url.origin === self.location.origin || /fonts\\./.test(url.hostname))) {\n          const copia = r.clone();\n          caches.open(CACHE).then((c) => c.put(req, copia));\n        }\n        return r;\n      }).catch(() => hit)\n    )\n  );\n});\n";
 
 /* ==========================================================
    CONTROL GANADERO
@@ -496,11 +501,18 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.3.1", "30 ago 2026", [
+    "Las versiones nuevas ya llegan solas. Antes GitHub Pages hacía que el navegador " +
+      "guardara la app 10 minutos y había que recargar a la fuerza.",
+    "Aviso en pantalla cuando hay una versión más reciente, con botón para actualizar.",
+    "Botón para buscar actualizaciones a mano en Configuración.",
+    "El service worker cambió: hay que volver a subir sw.js.",
+  ]],
   ["1.3.0", "30 ago 2026", [
     "La portada tiene tres pantallas: iniciar sesión, primera vez y olvidé la contraseña.",
     "Quien entra con un correo no autorizado queda fuera de inmediato, con la razón explicada.",
@@ -1865,7 +1877,12 @@ function pintar() {
         <button data-salir>Cerrar sesión</button>
       </div>
     </aside>
-    <main class="lienzo">${SIN_ALMACEN ? `<div class="banda-riesgo">
+    <main class="lienzo">${VERSION_NUEVA ? `<div class="banda-nueva">
+        <div><strong>Hay una versión nueva: ${esc(VERSION_NUEVA)}</strong>
+        <span>Tienes la ${VERSION}. Actualiza para tener los últimos arreglos.</span></div>
+        <button class="btn btn-sm" data-acc="actualizar">Actualizar ahora</button>
+      </div>` : ""}
+      ${SIN_ALMACEN ? `<div class="banda-riesgo">
         <strong>Este navegador no está guardando los datos.</strong>
         Suele pasar en modo incógnito. Lo que registres se pierde al cerrar la pestaña:
         sal del modo privado o conecta Firebase antes de seguir.</div>` : ""}
@@ -3359,6 +3376,67 @@ function metodoAcceso() {
 }
 
 /* ==========================================================
+   ACTUALIZACIONES
+   GitHub Pages pide guardar el HTML unos minutos, así que la
+   versión nueva no llega sola. Se consulta el archivo saltando
+   la caché y se avisa si cambió.
+   ========================================================== */
+
+let VERSION_NUEVA = null;
+let ultimaRevision = 0;
+
+async function buscarActualizacion(manual) {
+  if (!location.protocol.startsWith("http")) {
+    if (manual) alert("Solo se puede buscar actualizaciones con la app publicada en internet.");
+    return null;
+  }
+  const ahora = Date.now();
+  if (!manual && ahora - ultimaRevision < 120000) return null;   // como mucho cada 2 minutos
+  ultimaRevision = ahora;
+
+  try {
+    const r = await fetch(location.pathname + "?v=" + ahora, { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const html = await r.text();
+    const m = html.match(/const VERSION = "([^"]+)"/);
+    if (!m) throw new Error("sin versión");
+
+    if (m[1] !== VERSION) {
+      VERSION_NUEVA = m[1];
+      pintar();
+      return m[1];
+    }
+    VERSION_NUEVA = null;
+    if (manual) avisar(`Ya tienes la versión más reciente (${VERSION})`);
+    return null;
+  } catch (e) {
+    if (manual) alert("No se pudo consultar: " + (e.message || e));
+    return null;
+  }
+}
+
+/** Borra todo lo guardado del archivo y recarga. Los datos no se tocan. */
+async function aplicarActualizacion() {
+  try {
+    if (window.caches) {
+      const claves = await caches.keys();
+      await Promise.all(claves.map(k => caches.delete(k)));
+    }
+    const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+    await Promise.all(regs.map(r => r.update().catch(() => {})));
+  } catch {}
+  location.replace(location.pathname + "?v=" + Date.now());
+}
+
+// Al abrir y al volver a la pestaña, revisar si hay versión nueva.
+if (location.protocol.startsWith("http")) {
+  setTimeout(() => buscarActualizacion(false), 4000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) buscarActualizacion(false);
+  });
+}
+
+/* ==========================================================
    CONFIGURACIÓN
    ========================================================== */
 
@@ -3518,8 +3596,13 @@ function vConfiguracion() {
     <div class="panel-cab"><h2>Versión ${VERSION}</h2>
       <span class="p gris">${FECHA_VERSION}</span></div>
     <div class="panel-cuerpo">
-      <p class="expl">Compara este número con el del archivo que tengas guardado para saber
-      si estás en la versión más reciente. La app avisa sola cuando cambia.</p>
+      <p class="expl">La app revisa sola si hay versión nueva al abrirla y cada vez que
+      vuelves a la pestaña. Si aparece un aviso arriba, pulsa Actualizar.</p>
+      ${VERSION_NUEVA ? `<div class="aviso">Hay una versión más reciente: ${esc(VERSION_NUEVA)}.</div>` : ""}
+      <div class="fila-btn" style="margin-bottom:14px">
+        <button class="btn" data-acc="revisar-version">Buscar actualizaciones</button>
+        ${VERSION_NUEVA ? '<button class="btn btn-firme" data-acc="actualizar">Actualizar ahora</button>' : ""}
+      </div>
       ${CAMBIOS.map(([v, f, lista], i) => `
         <h4 class="sub-titulo">${v} · ${f}${i === 0 ? " · actual" : ""}</h4>
         <ul class="cambios">${lista.map(x => `<li>${x}</li>`).join("")}</ul>
@@ -4254,6 +4337,8 @@ conectarFirebase(true);
   if (a === "publicar")     { generarArchivoPublicable(); return; }
   if (a === "instalar")     { instalarApp(); return; }
   if (a === "bajar-sw")     { descargarSW(); return; }
+  if (a === "actualizar")   { aplicarActualizacion(); return; }
+  if (a === "revisar-version") { await buscarActualizacion(true); return; }
   if (a === "guardar-maestro") {
     const m = val("maestro").toLowerCase();
     if (m && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) return alert("Ese correo no es válido.");

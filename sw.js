@@ -4,7 +4,7 @@
    Súbelo junto al index.html, en la misma carpeta.
    ========================================================== */
 
-const CACHE = "ganadero-v1";
+const CACHE = "ganadero-v2";
 const BASE = new URL("./", self.location).pathname;
 
 self.addEventListener("install", (e) => {
@@ -30,11 +30,12 @@ self.addEventListener("fetch", (e) => {
   // Firebase y sus datos nunca se cachean: tienen su propio manejo offline.
   if (/googleapis|gstatic|firebaseio|firebaseapp/.test(url.hostname)) return;
 
-  // La app: primero la red, para que las actualizaciones lleguen solas;
-  // si no hay señal, la copia guardada.
+  // La app: primero la red, saltándose la caché del navegador. Sin esto,
+  // GitHub Pages pide guardar el HTML 10 minutos y las actualizaciones no
+  // llegan hasta que ese plazo vence.
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req)
+      fetch(new Request(req.url, { cache: "reload", credentials: "same-origin" }))
         .then((r) => {
           const copia = r.clone();
           caches.open(CACHE).then((c) => c.put(BASE, copia));
