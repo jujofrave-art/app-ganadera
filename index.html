@@ -307,6 +307,8 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .fila-btn{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .panel textarea{font-family:var(--dato);font-size:11.5px;line-height:1.5}
 
+.cambios{margin:0 0 4px;padding-left:18px;font-size:13px;line-height:1.6;color:var(--tinta2)}
+.cambios li{margin-bottom:4px}
 .paso{display:flex;gap:14px;padding:15px 0;border-bottom:1px dashed var(--linea)}
 .paso:last-child{border-bottom:0;padding-bottom:0}
 .paso:first-child{padding-top:0}
@@ -486,7 +488,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
+const FECHA_VERSION = "30 ago 2026";
+
+/* Historial de cambios. Lo más reciente arriba. */
+const CAMBIOS = [
+  ["1.0.1", "30 ago 2026", [
+    "Con Firebase configurado, la portada pide correo y contraseña en vez de crear un usuario local.",
+    "La app vuelve a suscribirse sola cuando cambian tus fincas; antes había que recargar tras crear la primera.",
+    "Ya no puede crearse una ficha de persona duplicada al entrar en un equipo nuevo.",
+    "La lista de usuarios autorizados en Firestore se actualiza también después de guardar cambios.",
+  ]],
+  ["1.0.0", "30 ago 2026", [
+    "Primera versión completa.",
+    "Siete especies con su propia gestación, palpación y secado.",
+    "Filtrado por finca y por rol, reflejado en las reglas de Firestore.",
+    "Interfaz para celular, instalación como app y funcionamiento sin señal.",
+  ]],
+];
 
 /* ==========================================================
    ESPECIES DE GRANJA
@@ -853,6 +872,16 @@ function recalcularAccesos(d) {
 }
 
 let D = migrar(cargar() || semilla());
+
+/** Avisa una sola vez cuando el archivo publicado cambió de versión. */
+const CLAVE_VERSION = CLAVE + "-version";
+function revisarVersion() {
+  let previa = null;
+  try { previa = localStorage.getItem(CLAVE_VERSION); } catch {}
+  if (previa === VERSION) return null;
+  try { localStorage.setItem(CLAVE_VERSION, VERSION); } catch {}
+  return previa;   // null la primera vez, o la versión anterior
+}
 
 /* ==========================================================
    ESTADO REPRODUCTIVO — todo se deriva de los eventos.
@@ -1329,7 +1358,8 @@ function pantallaAcceso() {
         <div class="solo-movil"><div class="sello"></div><strong>Control Ganadero</strong>
           <span class="ver-chip">v${VERSION}</span></div>
 
-        ${primeraVez ? bloqueInicio(hayFB) : bloqueEntrar(hayFB, gente)}
+        ${hayFB ? bloqueEntrar(hayFB, gente, primeraVez)
+                : primeraVez ? bloqueInicio(hayFB) : bloqueEntrar(hayFB, gente, false)}
 
         <p class="pie-nota"><span class="ver-pie">Control Ganadero v${VERSION}</span><br>${hayFB
           ? "Los datos se sincronizan con Firebase y cada quien ve solo sus fincas."
@@ -1363,11 +1393,14 @@ function bloqueInicio(hayFB) {
 }
 
 /** Ya hay gente registrada. */
-function bloqueEntrar(hayFB, gente) {
+function bloqueEntrar(hayFB, gente, primeraVez) {
   return `
     <h2>Entrar</h2>
     <p class="lede">${hayFB
-      ? "Usa el correo con el que te registraron en la finca."
+      ? (primeraVez
+          ? "Primera vez en este equipo. Entra con la cuenta que creaste en Firebase; " +
+            "tu ficha se arma sola."
+          : "Usa el correo con el que te registraron en la finca.")
       : "Elige quién eres. Verás únicamente las fincas que tengas asignadas."}</p>
 
     ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
@@ -1464,21 +1497,36 @@ function cerrarSesion() {
   guardarSesion(); pantallaAcceso();
 }
 
-/** Une la cuenta de Firebase con su ficha de persona. */
+/** Une la cuenta de Firebase con su ficha de persona, si ya existe. */
 function vincularUsuario(email) {
   const p = D.personas.find(x => (x.correo || "").toLowerCase() === email.toLowerCase());
   if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; }
-  else if (D.personas.length === 0) {
-    // Primer arranque contra un proyecto vacío: la cuenta que entra queda de dueño.
-    S.persona = crearPrimerUsuario(email.split("@")[0], email);
-    S.modo = "firebase"; S.error = ""; guardar();
-  }
-  else {
-    S.error = `La cuenta ${email} entró bien, pero no hay ninguna persona registrada con ese ` +
-              `correo. Pídele a un administrador que te cree la ficha y te asigne a una finca.`;
-    S.persona = null;
-  }
+  else { S.persona = null; }   // se resuelve al llegar los datos de Firestore
   S.cargando = false;
+}
+
+const nombreDesdeCorreo = (c) => c.split("@")[0]
+  .replace(/[._-]+/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+
+/**
+ * Se llama cuando ya llegaron los datos de Firestore. Si nadie tiene ese
+ * correo, es el primer ingreso contra un proyecto vacío y se crea la ficha.
+ */
+function asegurarPersona(email) {
+  const p = D.personas.find(x => (x.correo || "").toLowerCase() === email.toLowerCase());
+  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; return; }
+
+  if (D.personas.length > 0) {
+    S.error = `La cuenta ${email} entró bien, pero no hay ninguna persona registrada con ese ` +
+              `correo. Pídele a un dueño que te cree la ficha y te asigne a una finca.`;
+    S.persona = null;
+    return;
+  }
+
+  S.persona = crearPrimerUsuario(nombreDesdeCorreo(email), email);
+  if (FB.rolRemoto) S.persona.rol = FB.rolRemoto;
+  S.modo = "firebase"; S.error = "";
+  guardar();
 }
 
 /* ==========================================================
@@ -2645,8 +2693,8 @@ async function conectarFirebase(silencioso) {
 
       auth.onAuthStateChanged(FB.auth, (u) => {
         FB.user = u;
-        if (u) { escucharTodo(); vincularUsuario(u.email); }
-        else { pararEscuchas(); S.persona = null; S.modo = null; }
+        if (u) { vincularUsuario(u.email); escucharTodo(); }
+        else { pararTodo(); S.persona = null; S.modo = null; }
         pintar();
       });
     }
@@ -2675,33 +2723,62 @@ function pararEscuchas() {
   FB.escuchas = [];
 }
 
+function pararTodo() {
+  pararEscuchas();
+  try { FB.escuchaUsuario?.(); } catch {}
+  FB.escuchaUsuario = null;
+  FB.claveFincas = null;
+}
+
 /* ---------- escuchar cambios remotos ----------
    Las consultas van filtradas por finca a propósito: si pidiéramos la
    colección entera, Firestore la rechazaría por no poder demostrar que
    el usuario alcanza todos los documentos. */
-async function escucharTodo() {
+
+/** Observa mi propio documento de usuario. Cuando cambian mis fincas
+    —por ejemplo al crear la primera— vuelve a suscribir las colecciones. */
+function escucharTodo() {
+  if (FB.escuchaUsuario) return;
+  const { fs } = FB.mods;
+  const correo = FB.user.email.toLowerCase();
+
+  FB.escuchaUsuario = fs.onSnapshot(fs.doc(FB.db, "usuarios", correo),
+    (snap) => {
+      if (!snap.exists()) {
+        FB.estado = "error";
+        FB.error = `No existe el documento usuarios/${correo} en Firestore. ` +
+                   `Créalo siguiendo el paso 5 de esta página.`;
+        return pintar();
+      }
+      const datos = snap.data();
+      FB.rolRemoto = datos.rol || null;
+      const mias = (datos.fincas || []).filter(Boolean);
+      const clave = JSON.stringify(mias.slice().sort());
+      if (clave === FB.claveFincas) return;    // nada cambió
+      FB.claveFincas = clave;
+      escucharColecciones(mias);
+    },
+    (e) => { FB.estado = "error"; FB.error = errorFB(e); pintar(); });
+}
+
+function escucharColecciones(mias) {
   pararEscuchas();
   const { fs } = FB.mods;
-  const correo = FB.user.email;
 
-  // 1. Mi documento de usuario: de ahí salen el rol y las fincas.
-  const miDoc = await fs.getDoc(fs.doc(FB.db, "usuarios", correo)).catch(() => null);
-  const mias = (miDoc?.exists() ? miDoc.data().fincas : []) || [];
-  FB.rolRemoto = miDoc?.exists() ? miDoc.data().rol : null;
-
-  if (!miDoc?.exists()) {
-    FB.estado = "error";
-    FB.error = `No existe el documento usuarios/${correo} en Firestore. ` +
-               `Créalo siguiendo el paso 5 de esta página.`;
+  if (!mias.length) {
+    // Todavía sin fincas: normal recién creada la cuenta.
+    FB.estado = "listo";
+    FB.error = "";
+    asegurarPersona(FB.user.email);
     return pintar();
   }
-  if (!mias.length) {
-    FB.error = "Tu usuario todavía no tiene fincas asignadas. " +
-               "Un dueño o administrador debe asignártelas.";
-  }
 
-  const trozos = [];
-  for (let i = 0; i < Math.max(1, mias.length); i += 30) trozos.push(mias.slice(i, i + 30));
+  // Firestore admite hasta 30 valores en un "in".
+  const trozo = mias.slice(0, 30);
+  if (mias.length > 30) {
+    FB.error = `Tienes ${mias.length} fincas y Firestore solo consulta 30 a la vez. ` +
+               `Se están mostrando las primeras 30.`;
+  }
 
   const escuchar = (nombre, consulta) => {
     const u = fs.onSnapshot(consulta,
@@ -2713,22 +2790,23 @@ async function escucharTodo() {
         D[nombre] = docs;
         guardarLocal();
         FB.aplicando = false;
+        if (nombre === "personas") asegurarPersona(FB.user.email);
+        else if (S.persona) S.persona = D.personas.find(p => p.id === S.persona.id) || S.persona;
         pintar();
       },
       (e) => { FB.estado = "error"; FB.error = errorFB(e); pintar(); });
     FB.escuchas.push(u);
   };
 
-  if (!mias.length) return pintar();
-
   const col = (n) => fs.collection(FB.db, n);
-  const porFinca = (n) => fs.query(col(n), fs.where("fincaId", "in", trozos[0]));
+  escuchar("fincas", fs.query(col("fincas"), fs.where(fs.documentId(), "in", trozo)));
+  escuchar("personas", fs.query(col("personas"), fs.where("fincas", "array-contains-any", trozo)));
+  for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
+                   "secados", "tratamientos", "anotaciones"]) {
+    escuchar(n, fs.query(col(n), fs.where("fincaId", "in", trozo)));
+  }
 
-  escuchar("fincas", fs.query(col("fincas"), fs.where(fs.documentId(), "in", trozos[0])));
-  escuchar("personas", fs.query(col("personas"), fs.where("fincas", "array-contains-any", trozos[0])));
-  for (const n of ["animales", "inseminaciones", "palpaciones", "partos", "secados", "tratamientos", "anotaciones"])
-    escuchar(n, porFinca(n));
-
+  FB.estado = "listo";
   pintar();
   // La configuración se queda local: cada equipo tiene la suya.
 }
@@ -2774,6 +2852,7 @@ async function empujar() {
   }
   if (!cambios.length) return sincronizarUsuarios();
 
+
   try {
     // Firestore acepta máximo 500 operaciones por lote.
     for (let i = 0; i < cambios.length; i += 450) {
@@ -2785,6 +2864,7 @@ async function empujar() {
       }
       await lote.commit();
     }
+    await sincronizarUsuarios();
   } catch (e) {
     FB.estado = "error"; FB.error = errorFB(e); pintar();
   }
@@ -2803,7 +2883,7 @@ async function subirTodo() {
 
 function desconectarFirebase() {
   if (!confirm("La app vuelve a trabajar solo en este equipo. Los datos en Firebase no se borran. ¿Continuar?")) return;
-  pararEscuchas();
+  pararTodo();
   D.config.firebase = null;
   D.config.sinFirebase = true;   // que no vuelva a entrar la del archivo
   FB.app = null; FB.db = null; FB.auth = null; FB.user = null;
@@ -3080,7 +3160,21 @@ function vConfiguracion() {
   return `
   <header class="cab"><div><h1>Configuración</h1>
     <p>Conexión con Firebase, reglas de seguridad y parámetros de la finca</p></div>
-    <span class="p gris">Versión ${VERSION}</span></header>
+    <span class="p gris">v${VERSION} · ${FECHA_VERSION}</span></header>
+
+  <!-- ============ 0. VERSIÓN ============ -->
+  <section class="panel">
+    <div class="panel-cab"><h2>Versión ${VERSION}</h2>
+      <span class="p gris">${FECHA_VERSION}</span></div>
+    <div class="panel-cuerpo">
+      <p class="expl">Compara este número con el del archivo que tengas guardado para saber
+      si estás en la versión más reciente. La app avisa sola cuando cambia.</p>
+      ${CAMBIOS.map(([v, f, lista], i) => `
+        <h4 class="sub-titulo">${v} · ${f}${i === 0 ? " · actual" : ""}</h4>
+        <ul class="cambios">${lista.map(x => `<li>${x}</li>`).join("")}</ul>
+      `).join("")}
+    </div>
+  </section>
 
   <!-- ============ 1. FIREBASE ============ -->
   <section class="panel">
@@ -3410,6 +3504,10 @@ function conectar() {
     const pos = e.target.selectionStart;
     recuperarSesion();
 pintar();
+
+// Si el archivo cambió de versión desde la última vez, avisarlo.
+const versionPrevia = revisarVersion();
+if (versionPrevia) setTimeout(() => avisar(`Actualizada de la ${versionPrevia} a la ${VERSION}`), 900);
 conectarFirebase(true);
     const n = $("[data-f=busca]"); n.focus(); n.setSelectionRange(pos, pos);
   };
@@ -3672,6 +3770,10 @@ async function acciones(a) {
       "Copia el bloque completo desde Configuración del proyecto → Tus apps → Web.");
     D.config.firebase = cfg; guardarLocal(); recuperarSesion();
 pintar();
+
+// Si el archivo cambió de versión desde la última vez, avisarlo.
+const versionPrevia = revisarVersion();
+if (versionPrevia) setTimeout(() => avisar(`Actualizada de la ${versionPrevia} a la ${VERSION}`), 900);
 conectarFirebase(true);
     avisar("Configuración guardada"); conectarFirebase();
     return;
@@ -3735,5 +3837,9 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarHoja
 
 recuperarSesion();
 pintar();
+
+// Si el archivo cambió de versión desde la última vez, avisarlo.
+const versionPrevia = revisarVersion();
+if (versionPrevia) setTimeout(() => avisar(`Actualizada de la ${versionPrevia} a la ${VERSION}`), 900);
 conectarFirebase(true);
 </script></body></html>
