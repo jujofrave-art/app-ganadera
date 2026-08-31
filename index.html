@@ -225,6 +225,16 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .alerta-caja[data-n="alta"]{border-left-color:var(--hierro)}
 .alerta-caja[data-n="media"]{border-left-color:var(--chapeta-b)}
 .alerta-caja[data-n="baja"]{border-left-color:var(--pasto)}
+.alerta-caja[data-n="hecha"]{border-left-color:var(--linea);opacity:.62}
+.alerta-caja .cu,.alerta-caja .chap{cursor:pointer}
+.alerta-acc{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:none}
+.hecha-el{display:block;font-family:var(--dato);font-size:10.5px;color:var(--pasto);margin-top:3px}
+.btn-listo{background:var(--pasto);border-color:var(--pasto);color:#fff;font-weight:500}
+.btn-listo:hover{background:#33593d;border-color:#33593d}
+@media(max-width:860px){
+  .alerta-acc{flex-direction:row;align-items:center;justify-content:space-between;width:100%;
+    margin-top:4px}
+}
 .alerta-caja .cu{flex:1}
 .alerta-caja strong{display:block;font-size:13.5px;margin-bottom:2px}
 .alerta-caja span{color:var(--tenue);font-size:12.5px}
@@ -302,7 +312,32 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 }
 
 /* ---------- configuración ---------- */
-.panel{border:1px solid var(--linea);border-radius:11px;background:var(--alto);margin-bottom:16px;overflow:hidden}
+.panel{border:1px solid var(--linea);border-radius:11px;background:var(--alto);
+  margin-bottom:10px;overflow:hidden}
+details.panel>summary{cursor:pointer;list-style:none;user-select:none}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary:hover{background:rgba(22,36,28,.06)}
+.flecha-acord{color:var(--tenue);font-size:13px;transition:transform .18s;flex:none;margin-left:2px}
+details.panel[open]>summary .flecha-acord{transform:rotate(180deg)}
+details.panel[open]>summary{border-bottom:1px solid var(--linea)}
+details.panel:not([open])>summary{border-bottom:0}
+
+.lista-correos{list-style:none;margin:0;padding:0;border:1px solid var(--linea);border-radius:9px;
+  overflow:hidden}
+.lista-correos li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 13px;border-bottom:1px solid var(--linea);font-size:13px;flex-wrap:wrap}
+.lista-correos li:last-child{border-bottom:0}
+.lista-correos span:first-child{font-family:var(--dato);font-size:12.5px;word-break:break-all}
+
+.interruptores{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.interruptor{display:flex;align-items:center;gap:10px;border:1px solid var(--linea);
+  border-radius:9px;padding:10px 12px;cursor:pointer;background:var(--alto)}
+.interruptor:has(input:checked){border-color:var(--pasto);background:rgba(62,107,74,.07)}
+.interruptor input{width:17px;height:17px;accent-color:var(--pasto);margin:0;flex:none}
+.interruptor span{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.interruptor strong{font-size:13px;font-weight:500}
+.interruptor em{font-style:normal;font-family:var(--dato);font-size:9.5px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--tenue)}
 .panel-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;
   padding:14px 18px;border-bottom:1px solid var(--linea);background:rgba(22,36,28,.03)}
 .panel-cab h2{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0}
@@ -354,6 +389,93 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .banda-espera strong{display:block;margin-bottom:2px}
 .banda-espera span{color:var(--tinta2);font-size:12.5px}
 
+/* ---------- gráfico de leche ---------- */
+.grafico{display:flex;align-items:flex-end;gap:5px;height:190px;padding:22px 0 0;
+  border-bottom:1px solid var(--linea);overflow-x:auto}
+.barra-col{flex:1;min-width:44px;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-end;height:100%;gap:4px}
+.barra-cuerpo{width:100%;max-width:44px;background:var(--chapeta);border:1px solid var(--chapeta-b);
+  border-radius:4px 4px 0 0;min-height:4px;transition:height .2s}
+.barra-col:hover .barra-cuerpo{background:var(--chapeta-b)}
+.barra-val{font-family:var(--dato);font-size:10.5px;color:var(--tinta2);white-space:nowrap}
+.barra-et{font-size:9.5px;color:var(--tenue);text-align:center;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+  padding-top:5px;border-top:0}
+.conteo .sub{display:block;margin-top:3px;font-size:11px}
+@media(max-width:860px){
+  .grafico{height:160px}
+  .barra-col{min-width:52px}
+  .barra-et{font-size:9px}
+}
+
+/* ---------- filas de pajilla ---------- */
+.pajilla-fila{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:11px;
+  border:1px solid var(--linea);border-radius:9px;padding:13px 34px 13px 13px;margin-bottom:9px;
+  background:rgba(22,36,28,.02)}
+.pajilla-fila .pajilla-ancha{grid-column:1/-1}
+.quita-pajilla{position:absolute;top:9px;right:9px;width:24px;height:24px;border-radius:6px;
+  border:1px solid var(--linea);background:var(--alto);color:var(--tenue);font-size:15px;
+  line-height:1;padding:0;display:grid;place-items:center}
+.quita-pajilla:hover{border-color:var(--hierro);color:var(--hierro)}
+@media(max-width:860px){.pajilla-fila{grid-template-columns:1fr}}
+
+/* ---------- desplegable con buscador ---------- */
+.combo{position:relative}
+.combo-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:9px 11px;border:1px solid var(--linea);border-radius:7px;background:var(--alto);
+  text-align:left;font-size:14px;color:var(--tinta)}
+.combo-btn:hover{border-color:var(--tenue)}
+.combo.abierto .combo-btn{border-color:var(--pasto);box-shadow:0 0 0 2px rgba(62,107,74,.15)}
+.combo-btn.vacio .combo-txt{color:var(--tenue)}
+.combo-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.combo-flecha{color:var(--tenue);font-size:12px;flex:none}
+.combo-panel{position:absolute;z-index:30;top:calc(100% + 4px);left:0;right:0;
+  background:var(--alto);border:1px solid var(--tenue);border-radius:9px;overflow:hidden;
+  box-shadow:0 12px 30px -8px rgba(22,36,28,.35)}
+.combo-busca{width:100%;border:0;border-bottom:1px solid var(--linea);padding:10px 12px;
+  font-size:14px;background:var(--papel-alto,var(--alto));outline:0}
+.combo-lista{list-style:none;margin:0;padding:4px;max-height:238px;overflow-y:auto}
+.combo-lista li{padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;
+  align-items:baseline;gap:9px;justify-content:space-between;font-size:13.5px}
+.combo-lista li:hover{background:rgba(62,107,74,.1)}
+.combo-lista li em{font-style:normal;font-size:11.5px;color:var(--tenue);flex:none;
+  font-family:var(--dato)}
+.combo-lista li.combo-grupo{font-family:var(--dato);font-size:9px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--tenue);cursor:default;padding:9px 10px 4px;background:none}
+.combo-lista li.combo-grupo:hover{background:none}
+.combo-lista li.combo-vacio{color:var(--tenue);font-style:italic}
+.combo-nada{padding:11px 12px;font-size:12.5px;color:var(--tenue);border-top:1px solid var(--linea)}
+@media(max-width:860px){
+  .combo-btn{padding:12px;font-size:16px}
+  .combo-busca{font-size:16px;padding:12px}
+  .combo-lista{max-height:46vh}
+  .combo-lista li{padding:11px 10px;font-size:15px}
+}
+
+/* ---------- modo selección ---------- */
+.celda-sel{width:38px;padding-left:13px!important;padding-right:0!important}
+.celda-sel input{width:17px;height:17px;accent-color:var(--pasto);margin:0;cursor:pointer}
+tbody tr.marcada td{background:rgba(62,107,74,.09)!important}
+.tarjeta{position:relative}
+.marca-tarjeta{position:absolute;top:11px;right:11px;width:22px;height:22px;border-radius:50%;
+  border:1.5px solid var(--linea);display:grid;place-items:center;font-size:12px;
+  background:var(--alto);color:var(--papel)}
+.marca-tarjeta.on{background:var(--pasto);border-color:var(--pasto)}
+.barra-sel{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:60;
+  background:var(--tinta);color:var(--papel);border-radius:11px;padding:11px 15px;
+  display:flex;align-items:center;gap:15px;flex-wrap:wrap;
+  box-shadow:0 12px 34px -8px rgba(0,0,0,.5);font-size:13.5px;max-width:calc(100vw - 24px)}
+.barra-sel strong{font-family:var(--dato);font-size:15px}
+.barra-sel-btns{display:flex;gap:7px;flex-wrap:wrap}
+.barra-sel .btn{background:rgba(237,239,232,.1);border-color:rgba(237,239,232,.22);color:var(--papel)}
+.barra-sel .btn:hover{background:rgba(237,239,232,.2)}
+.barra-sel .btn-baja{color:#f0a08c;border-color:rgba(240,160,140,.4);background:transparent}
+@media(max-width:860px){
+  .barra-sel{left:10px;right:10px;transform:none;bottom:calc(12px + env(safe-area-inset-bottom));
+    justify-content:space-between}
+  .celda-sel{display:none}
+  tbody tr.marcada{outline:2px solid var(--pasto);outline-offset:-1px}
+}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--tinta);color:var(--papel);padding:11px 18px;border-radius:8px;font-size:13px;z-index:99;box-shadow:0 10px 30px -8px rgba(0,0,0,.4)}
 
 /* ==========================================================
@@ -509,11 +631,72 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.5.0";
+const VERSION = "1.12.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.12.0", "30 ago 2026", [
+    "Litros por vaca al día, que es la medida que de verdad compara.",
+    "Las vacas en producción se cuentan a la fecha de cada entrega, no las de hoy: " +
+      "un promedio de marzo se divide entre las vacas que ordeñaban en marzo.",
+    "Solo cuentan las que estaban dando leche: se descartan las secas, las de levante, " +
+      "las que ya salieron y las de especies no lecheras.",
+    "Comparativo entre fincas ordenado por litros por vaca.",
+    "El gráfico se puede ver en total o por vaca.",
+    "Todo respeta las fincas a las que cada quien tiene acceso.",
+  ]],
+  ["1.11.0", "30 ago 2026", [
+    "Sección nueva de Leche, en el grupo Producción.",
+    "Cada registro dice cuántos días cubre: si la leche sale cada dos días, el promedio " +
+      "diario se calcula bien.",
+    "Resúmenes semanal, quincenal, mensual y anual con litros, días, promedio y entregas.",
+    "Gráfico del promedio diario de los últimos catorce periodos.",
+    "Se puede anotar la leche del tanque o la de un animal en particular, y separar " +
+      "el ordeño de la mañana del de la tarde.",
+    "Precio por litro opcional para ver el ingreso del periodo.",
+  ]],
+  ["1.10.0", "30 ago 2026", [
+    "Un servicio puede llevar varias pajillas, cada una con su fecha y su hora.",
+    "Sigue contando como un solo intento: dos pajillas el mismo día no son dos servicios.",
+    "La gestación cuenta desde la primera aplicación.",
+    "Avisa si dos pajillas quedan iguales a la misma hora, o si hay más de cinco días " +
+      "entre la primera y la última.",
+    "Los servicios que ya tenías se convierten solos al nuevo formato.",
+  ]],
+  ["1.9.0", "30 ago 2026", [
+    "Alerta nueva de cuido preparto: arranca 15 días antes de los nueve meses de gestación.",
+    "Botón «Listo» en cada alerta: al marcarla desaparece, y vuelve sola en el ciclo siguiente.",
+    "Al dar «Listo» en la alerta de secado se crea el registro en la tabla de Secados con la " +
+      "fecha de hoy, y la vaca pasa a Seca.",
+    "Pestaña de alertas hechas, con opción de deshacer.",
+    "Pajilla y tipo de tratamiento pasan a desplegable con buscador, y siguen aceptando " +
+      "cualquier texto nuevo.",
+    "El día en que arranca el cuido preparto se puede cambiar por especie.",
+  ]],
+  ["1.8.0", "30 ago 2026", [
+    "Catálogo de 91 razas repartidas por especie. Al elegir la especie solo aparecen las suyas.",
+    "Se puede seguir escribiendo cualquier raza que no esté en la lista; queda guardada para la próxima.",
+    "Todos los desplegables largos traen buscador: animales, fincas, razas y categorías.",
+    "El buscador ignora tildes y mayúsculas, y en el celular no abre el teclado tapando la lista.",
+    "Filtro de personas en el formulario de finca cuando hay más de seis.",
+  ]],
+  ["1.7.0", "30 ago 2026", [
+    "Configuración quedó en acordeón: cada área se abre y se cierra, y recuerda cómo la dejaste.",
+    "Límites de creación por dueño: cuántas fincas, administradores y empleados puede crear cada uno.",
+    "Área para dar acceso a la configuración avanzada a otros correos, además del dueño principal.",
+    "Interruptores por persona para cerrarle secciones concretas de la app.",
+  ]],
+  ["1.6.0", "30 ago 2026", [
+    "Modo selección en todas las tablas: marcar varios y eliminarlos o editarlos de una vez.",
+    "Edición en grupo de animales (finca, categoría, estado, raza) y de personas (rol, estado, finca).",
+    "Arreglado: al eliminar a una persona no se le quitaba el acceso en Firestore y seguía entrando.",
+    "Arreglado: al cambiarle el correo a alguien, el correo anterior conservaba el acceso.",
+    "Borrar una finca ahora arrastra sus animales y eventos, avisando cuántos, en vez de bloquearse.",
+    "Al cambiar la chapeta de un animal se actualiza esa referencia en sus crías.",
+    "Los animales vendidos o muertos solo los edita o borra un dueño o superadministrador.",
+    "Botón para revisar y reparar enlaces rotos en Configuración.",
+  ]],
   ["1.5.0", "30 ago 2026", [
     "El SDK de Firebase ahora queda guardado en el teléfono. Antes la app no abría " +
       "sin señal porque tenía que descargarlo cada vez.",
@@ -593,25 +776,25 @@ const CAMBIOS = [
    puede asumir la vaca.
    ========================================================== */
 const ESPECIES = {
-  bovino:   { et:"Bovino",   plural:"Bovinos",   gestacion:283, palpar:40, estro:21,
+  bovino:   { et:"Bovino",   plural:"Bovinos",   gestacion:283, preparto:259, palpar:40, estro:21,
               edadServicio:15, lechero:true,  secarDesde:211, secarHasta:218,
               celo:{uno:30,dos:60,tres:90} },
-  bufalino: { et:"Bufalino", plural:"Búfalos",   gestacion:310, palpar:45, estro:21,
+  bufalino: { et:"Bufalino", plural:"Búfalos",   gestacion:310, preparto:286, palpar:45, estro:21,
               edadServicio:24, lechero:true,  secarDesde:235, secarHasta:245,
               celo:{uno:40,dos:70,tres:100} },
-  caprino:  { et:"Caprino",  plural:"Caprinos",  gestacion:150, palpar:30, estro:21,
+  caprino:  { et:"Caprino",  plural:"Caprinos",  gestacion:150, preparto:126, palpar:30, estro:21,
               edadServicio:8,  lechero:true,  secarDesde:90,  secarHasta:97,
               celo:{uno:25,dos:45,tres:70} },
-  ovino:    { et:"Ovino",    plural:"Ovinos",    gestacion:147, palpar:30, estro:17,
+  ovino:    { et:"Ovino",    plural:"Ovinos",    gestacion:147, preparto:123, palpar:30, estro:17,
               edadServicio:8,  lechero:false,
               celo:{uno:25,dos:45,tres:70} },
-  porcino:  { et:"Porcino",  plural:"Porcinos",  gestacion:114, palpar:25, estro:21,
+  porcino:  { et:"Porcino",  plural:"Porcinos",  gestacion:114, preparto:90, palpar:25, estro:21,
               edadServicio:8,  lechero:false,
               celo:{uno:10,dos:21,tres:35} },
-  equino:   { et:"Equino",   plural:"Equinos",   gestacion:340, palpar:16, estro:21,
+  equino:   { et:"Equino",   plural:"Equinos",   gestacion:340, preparto:316, palpar:16, estro:21,
               edadServicio:36, lechero:false,
               celo:{uno:30,dos:60,tres:90} },
-  asnal:    { et:"Asnal",    plural:"Asnales",   gestacion:365, palpar:16, estro:24,
+  asnal:    { et:"Asnal",    plural:"Asnales",   gestacion:365, preparto:341, palpar:16, estro:24,
               edadServicio:36, lechero:false,
               celo:{uno:30,dos:60,tres:90} },
 };
@@ -659,6 +842,53 @@ const CATEGORIAS = {
   burro:        { et:"Burro",        especie:"asnal",    sexo:"M", etapa:"adulto" },
 };
 
+/* ==========================================================
+   RAZAS POR ESPECIE
+   Se puede escribir cualquier otra: la lista solo agiliza.
+   ========================================================== */
+const RAZAS = {
+  bovino: [
+    "Holstein", "Holstein Rojo", "Holstein Negro", "Jersey", "Pardo Suizo", "Ayrshire",
+    "Normando", "Montbéliarde", "Gyr", "Gyrolando", "Girolando", "Guzerat", "Nelore",
+    "Brahman Gris", "Brahman Rojo", "Brahman Blanco", "Cebú comercial",
+    "Angus Negro", "Angus Rojo", "Simmental", "Charolais", "Limousin", "Senepol",
+    "Braford", "Brangus", "Simbrah", "Blanco Orejinegro", "Costeño con Cuernos",
+    "Romosinuano", "Sanmartinero", "Hartón del Valle", "Lucerna", "Criollo", "F1", "Mestizo",
+  ],
+  bufalino: [
+    "Murrah", "Jafarabadi", "Mediterráneo", "Nili-Ravi", "Carabao", "Buffalypso", "Mestizo",
+  ],
+  caprino: [
+    "Alpina Francesa", "Saanen", "Toggenburg", "Anglo-Nubian", "LaMancha", "Boer",
+    "Santandereana", "Criolla", "Mestiza",
+  ],
+  ovino: [
+    "Katahdin", "Dorper", "Pelibuey", "Santa Inés", "Blackbelly", "Hampshire", "Suffolk",
+    "Romney Marsh", "Corriedale", "Texel", "Criolla", "Mestiza",
+  ],
+  porcino: [
+    "Yorkshire", "Landrace", "Duroc", "Hampshire", "Pietrain", "Large White",
+    "Zungo Costeño", "Casco de Mula", "San Pedreño", "Criollo", "F1", "Mestizo",
+  ],
+  equino: [
+    "Criollo Colombiano", "Paso Fino Colombiano", "Trocha y Galope", "Trote y Galope",
+    "Cuarto de Milla", "Pura Sangre Inglés", "Árabe", "Appaloosa", "Percherón",
+    "Silla Argentino", "Mestizo",
+  ],
+  asnal: [
+    "Burro Criollo", "Andaluz-Cordobés", "Catalán", "Mestizo", "Mular",
+  ],
+};
+
+/** Razas de una especie, más las que ya se hayan escrito a mano. */
+function razasDe(especie) {
+  const base = RAZAS[especie] || [];
+  const usadas = D.animales
+    .filter(a => especieDe(a) === especie && a.raza)
+    .map(a => a.raza);
+  return [...new Set([...base, ...usadas])].sort((a, b) => a.localeCompare(b, "es"));
+}
+
 /** Solo las hembras que ya salieron de cría se pueden servir. */
 const puedeServir = (c) => c && c.sexo === "H" && c.etapa !== "cria";
 
@@ -689,6 +919,21 @@ Object.defineProperty(globalThis, "DIAS_PALPAR", { get: () => parEspecie("bovino
 
 /* Por qué se secó la vaca. El primero es el del calendario; los demás
    son decisiones que toma la finca antes de tiempo. */
+/* ==========================================================
+   LECHE
+   Cada registro dice cuántos días cubre: en muchas fincas la
+   leche sale cada dos días, y sin eso el promedio diario sale
+   al doble.
+   ========================================================== */
+const MOMENTOS_LECHE = {
+  total:  "Todo el día",
+  manana: "Ordeño de la mañana",
+  tarde:  "Ordeño de la tarde",
+};
+
+const MESES = ["enero","febrero","marzo","abril","mayo","junio",
+               "julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
 const MOTIVOS_SECADO = {
   ventana:    "Fin de lactancia",
   produccion: "Baja producción",
@@ -817,6 +1062,27 @@ function contiene(texto, consulta) {
   return t.split(/\s+/).every(p => h.includes(p));
 }
 
+/** Resumen legible de las pajillas de un servicio. */
+function pajillasDe(i) {
+  const l = (i.aplicaciones || []).map(a => a.pajilla).filter(Boolean);
+  return [...new Set(l)].join(" + ") || "—";
+}
+
+/** "6 ene 6:00 a. m. · 6 ene 6:00 p. m." */
+function aplicacionesTexto(i) {
+  return (i.aplicaciones || []).map(a =>
+    `${fmtCorto(a.fecha)}${a.hora ? " " + horaBonita(a.hora) : ""}` +
+    (a.pajilla ? ` · ${a.pajilla}` : "")).join(" · ");
+}
+
+function horaBonita(h) {
+  if (!h) return "";
+  const [H, M] = h.split(":").map(Number);
+  const ampm = H < 12 ? "a.m." : "p.m.";
+  const h12 = H % 12 === 0 ? 12 : H % 12;
+  return `${h12}:${String(M).padStart(2, "0")} ${ampm}`;
+}
+
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, c =>
     ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -865,7 +1131,7 @@ function semilla() {
   return {
     config: { firebase: null, correo: "", params: JSON.parse(JSON.stringify(PARAMS_BASE)) },
     personas: [], fincas: [], animales: [], inseminaciones: [],
-    palpaciones: [], partos: [], secados: [], tratamientos: [], anotaciones: [],
+    palpaciones: [], partos: [], secados: [], tratamientos: [], leche: [], anotaciones: [],
   };
 }
 
@@ -875,6 +1141,7 @@ function semilla() {
 function migrar(d) {
   d.personas ||= [];
   d.secados ||= [];
+  d.leche ||= [];
   d.config ||= {};
   // Si el archivo viene publicado con la configuración adentro, se usa esa,
   // salvo que en este equipo alguien la haya quitado a propósito.
@@ -885,6 +1152,11 @@ function migrar(d) {
   d.config.firebase ??= null;
   d.config.sinFirebase ??= false;
   d.config.sesionDe ??= "";
+  d.config.limites ??= { global: {}, por: {} };
+  d.config.limites.global ??= {};
+  d.config.limites.por ??= {};
+  d.config.accesoConfig ??= [];   // correos con acceso a la configuración avanzada
+  d.config.permisos ??= {};       // {correo: {vistaId: false}} para cerrar secciones
   d.config.correo ??= "";
   // Dueño principal: el único que ve la conexión con la base de datos.
   // Si viene de una versión anterior, se toma el primer dueño con correo.
@@ -913,7 +1185,7 @@ function migrar(d) {
     if (yo && yo.rol === "dueno") yo.rol = "superadmin";
   }
   for (const col of ["fincas", "animales", "inseminaciones", "palpaciones",
-                     "partos", "secados", "tratamientos", "anotaciones"]) {
+                     "partos", "secados", "tratamientos", "leche", "anotaciones"]) {
     (d[col] || []).forEach(x => { x.creadoPor ??= null; });
   }
 
@@ -945,8 +1217,21 @@ function migrar(d) {
     a.ultimoPartoPrevio ??= null;
     a.raza ??= "";
     a.foto ??= null;
+    a.hechas ??= {};   // alertas que alguien ya marcó como cumplidas
   }
-  (d.inseminaciones || []).forEach(i => { delete i.estatus; delete i.intento; });
+  (d.inseminaciones || []).forEach(i => {
+    delete i.estatus; delete i.intento;
+    // Un servicio puede llevar varias pajillas, cada una con su fecha y hora.
+    if (!Array.isArray(i.aplicaciones)) {
+      i.aplicaciones = [{ fecha: i.fecha, hora: i.hora || "",
+                          pajilla: i.pajilla || "", detalles: "" }];
+    }
+    i.aplicaciones = i.aplicaciones.filter(a => a && a.fecha);
+    if (!i.aplicaciones.length) i.aplicaciones = [{ fecha: i.fecha, hora: "", pajilla: "", detalles: "" }];
+    // La fecha del servicio es la de la primera aplicación: de ahí cuenta la gestación.
+    i.fecha = i.aplicaciones.map(a => a.fecha).sort()[0];
+    delete i.pajilla; delete i.hora;
+  });
   recalcularAccesos(d);
   return d;
 }
@@ -1157,91 +1442,152 @@ const ETAPAS = {
 /* ==========================================================
    ALERTAS — se calculan, no se digitan.
    ========================================================== */
-function alertas() {
+/**
+ * Cada alerta lleva una clave que incluye la fecha del ciclo al que
+ * pertenece. Así, cuando alguien la marca como hecha, desaparece solo
+ * esa vez: el próximo servicio o el próximo parto la vuelve a levantar.
+ */
+function alertas(incluirHechas) {
   const out = [];
-  const push = (a, nivel, titulo, detalle, orden) =>
-    out.push({ animalId: a.id, nombre: a.nombre, chapeta: a.chapeta,
-               fincaId: a.fincaId, nivel, titulo, detalle, orden });
-
   const visibles = (typeof misAnimales === "function") ? misAnimales() : D.animales;
+
   for (const a of visibles.filter(x => x.estado === "activo")) {
     const e = estado(a);
+    const P = par(a);
+    const hechas = a.hechas || {};
 
-    // 1. Palpación vencida o próxima
+    const push = (nivel, titulo, detalle, orden, clave, accion) => {
+      const hecha = clave ? hechas[clave] : null;
+      if (hecha && !incluirHechas) return;
+      out.push({
+        animalId: a.id, nombre: a.nombre, chapeta: a.chapeta, fincaId: a.fincaId,
+        nivel, titulo, detalle, orden, clave, accion,
+        hecha: hecha || null,
+      });
+    };
+
+    const srv = e.servicioValido?.fecha || e.ultInsem?.fecha || "";
+    const prt = e.ultPartoReal?.fecha || "";
+
+    // 1. Palpación
     if (e.fechaPalpacion) {
       const d = dias(e.fechaPalpacion);
-      if (d >= 0) push(a, "alta", "Palpación vencida",
-        `Servicio del ${fmt(e.ultInsem.fecha)}. ${d === 0 ? "Toca palparla hoy." : `Debió palparse hace ${d} ${d===1?"día":"días"}.`}`, 1000 + d);
-      else if (d >= -7) push(a, "media", "Palpación próxima",
-        `Palpar el ${fmt(e.fechaPalpacion)}, a ${-d} ${d===-1?"día":"días"}.`, 500 + d);
+      if (d >= 0) push("alta", "Palpación vencida",
+        `Servicio del ${fmt(e.ultInsem.fecha)}. ${d === 0 ? "Toca palparla hoy." :
+          `Debió palparse hace ${d} ${d===1?"día":"días"}.`}`,
+        1000 + d, `palpar:${e.ultInsem.fecha}`);
+      else if (d >= -7) push("media", "Palpación próxima",
+        `Palpar el ${fmt(e.fechaPalpacion)}, a ${-d} ${d===-1?"día":"días"}.`,
+        500 + d, `palpar:${e.ultInsem.fecha}`);
     }
 
-    // 2. Salió vacía en la palpación y nadie la ha vuelto a servir
+    // 2. Salió vacía y nadie la ha vuelto a servir
     if (e.ultPalp && e.ultPalp.resultado === "vacia" && !e.prenada &&
         (!e.ultInsem || e.ultInsem.fecha < e.ultPalp.fecha)) {
       const d = dias(e.ultPalp.fecha);
-      push(a, "alta", "Vacía, sin servicio nuevo",
-        `Palpada vacía el ${fmt(e.ultPalp.fecha)}, hace ${d} ${d===1?"día":"días"}. Toca volver a servirla.`, 900 + d);
+      push("alta", "Vacía, sin servicio nuevo",
+        `Palpada vacía el ${fmt(e.ultPalp.fecha)}, hace ${d} ${d===1?"día":"días"}. ` +
+        `Toca volver a servirla.`, 900 + d, `vacia:${e.ultPalp.fecha}`);
     }
 
-    // 3. Secar la vaca: solo dentro de la ventana y si no la han secado ya
-    if (par(a).lechero && !e.secadoActual && e.prenada &&
-        e.diasGest >= par(a).secarDesde && e.diasGest <= par(a).secarHasta) {
-      const quedan = par(a).secarHasta - e.diasGest;
-      push(a, "alta", `Secar la ${par(a).et.toLowerCase()}`,
+    // 3. Cuido preparto: arranca 15 días antes de los nueve meses
+    if (P.preparto && e.prenada && e.diasGest >= P.preparto) {
+      const faltan = Math.max(0, P.gestacion - e.diasGest);
+      push(faltan <= 10 ? "alta" : "media", "Echar cuido preparto",
+        `${e.gestacion} de gestación. Faltan ${faltan} días para el parto ` +
+        `(${fmt(e.fechaProbableParto)}). Empieza el cuido de preparto.`,
+        780 + e.diasGest, `preparto:${srv}`);
+    }
+
+    // 4. Secar: solo dentro de la ventana y si no la han secado
+    if (P.lechero && !e.secadoActual && e.prenada &&
+        e.diasGest >= P.secarDesde && e.diasGest <= P.secarHasta) {
+      const quedan = P.secarHasta - e.diasGest;
+      push("alta", `Secar la ${P.et.toLowerCase()}`,
         `${e.diasGest} días de gestación. Parto probable ${fmt(e.fechaProbableParto)}. ` +
-        `${quedan === 0 ? "Último día de la ventana." : `Quedan ${quedan} día${quedan === 1 ? "" : "s"} de ventana.`}`,
-        800 + e.diasGest);
+        `${quedan === 0 ? "Último día de la ventana." :
+          `Quedan ${quedan} día${quedan === 1 ? "" : "s"} de ventana.`}`,
+        800 + e.diasGest, `secar:${srv}`, "secar");
     }
 
-    // 3b. Se pasó la ventana y nadie registró el secado
-    if (par(a).lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
-        e.diasGest > par(a).secarHasta) {
-      const tarde = e.diasGest - par(a).secarHasta;
-      push(a, "alta", "Secado vencido",
-        `Van ${tarde} día${tarde === 1 ? "" : "s"} pasada la ventana y no hay secado registrado. ` +
-        `Parto probable ${fmt(e.fechaProbableParto)}.`, 850 + tarde);
+    // 5. Se pasó la ventana de secado
+    if (P.lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
+        e.diasGest > P.secarHasta) {
+      const tarde = e.diasGest - P.secarHasta;
+      push("alta", "Secado vencido",
+        `Van ${tarde} día${tarde === 1 ? "" : "s"} pasada la ventana y no hay secado ` +
+        `registrado. Parto probable ${fmt(e.fechaProbableParto)}.`,
+        850 + tarde, `secar:${srv}`, "secar");
     }
 
-    // 4. Parto próximo
-    if (e.prenada && e.diasGest >= par(a).gestacion - 21) {
-      const faltan = par(a).gestacion - e.diasGest;
-      push(a, faltan <= 7 ? "alta" : "media", "Parto próximo",
-        `Faltan ${Math.max(0, faltan)} días. Probable ${fmt(e.fechaProbableParto)}.`, 1100 - faltan);
+    // 6. Parto próximo
+    if (e.prenada && e.diasGest >= P.gestacion - 21) {
+      const faltan = P.gestacion - e.diasGest;
+      push(faltan <= 7 ? "alta" : "media", "Parto próximo",
+        `Faltan ${Math.max(0, faltan)} días. Probable ${fmt(e.fechaProbableParto)}.`,
+        1100 - faltan, `parto:${srv}`);
     }
 
-    // 5. Alerta de celo: parió y nadie la ha vuelto a servir
+    // 7. Alerta de celo
     if (e.alertaCelo) {
       const c = e.alertaCelo;
-      push(a, c.nivel, c.texto.charAt(0).toUpperCase() + c.texto.slice(1),
-        `Parió el ${fmt(e.ultPartoReal.fecha)}, hace ${e.mesesVacia}, y no tiene ningún servicio.`,
-        600 + c.dias);
+      push(c.nivel, c.texto.charAt(0).toUpperCase() + c.texto.slice(1),
+        `Parió el ${fmt(prt)}, hace ${e.mesesVacia}, y no tiene ningún servicio.`,
+        600 + c.dias, `celo:${prt}:${c.texto}`);
     }
 
-    // 6. Novillona en edad de servicio sin servir
-    if (par(a).sirve && e.totalPartos === 0 && !e.ultInsem && e.edadMeses >= par(a).edadServicio) {
-      push(a, "media", `${par(a).et} lista para servir`,
-        `${e.edadMeses} meses de edad y sin ningún servicio registrado.`, 550);
+    // 8. Servicio sin desenlace
+    if (e.diasDesdeServicio !== null && e.diasDesdeServicio > P.gestacion + 25 && !e.prenada) {
+      push("alta", "Servicio sin desenlace",
+        `${e.gestacion} desde el servicio del ${fmt(e.ultInsem.fecha)} y no hay parto ` +
+        `registrado. Revisa si parió, abortó o quedó vacía.`, 950, `desenlace:${srv}`);
     }
 
-    // 7. Servicio que quedó sin desenlace: ni parto, ni palpación, ni servicio nuevo
-    if (e.diasDesdeServicio !== null && e.diasDesdeServicio > par(a).gestacion + 25 && !e.prenada) {
-      push(a, "alta", "Servicio sin desenlace",
-        `${e.gestacion} desde el servicio del ${fmt(e.ultInsem.fecha)} y no hay parto registrado. ` +
-        `Revisa si parió, abortó o quedó vacía.`, 950);
+    // 9. Lista para servir
+    if (P.sirve && e.totalPartos === 0 && !e.ultInsem && e.edadMeses >= P.edadServicio) {
+      push("media", `${P.et} lista para servir`,
+        `${e.edadMeses} meses de edad y sin ningún servicio registrado.`,
+        550, `servir:${a.fechaNacimiento || ""}`);
     }
 
-    // 8. Tratamiento en curso
+    // 10. Tratamiento en curso
     for (const t of tratDe(a.id)) {
       if (t.fin && dias(t.fin) <= 0 && dias(t.inicio) >= 0) {
-        push(a, "baja", "Tratamiento en curso",
-          `${t.tipo}. Termina el ${fmt(t.fin)}.`, 200);
+        push("baja", "Tratamiento en curso",
+          `${t.tipo}. Termina el ${fmt(t.fin)}.`, 200, `trat:${t.id}`);
       }
     }
   }
   return out.sort((a, b) => b.orden - a.orden);
 }
 
+/**
+ * Marca una alerta como cumplida. En el caso del secado no basta con
+ * silenciarla: hay que dejar el registro en la tabla de secados, que es
+ * lo que de verdad cambia el estado del animal.
+ */
+function marcarAlertaHecha(animalId, clave, accion) {
+  const a = animal(animalId);
+  if (!a) return null;
+
+  if (accion === "secar" && !estado(a).secadoActual) {
+    D.secados.push({
+      id: uid(), animalId, fincaId: a.fincaId, fecha: hoyISO(),
+      motivo: "ventana", observaciones: "Registrado desde la alerta",
+      creadoPor: S.persona?.id || null,
+    });
+    (a.hechas ||= {})[clave] = hoyISO();
+    return "secado";
+  }
+
+  (a.hechas ||= {})[clave] = hoyISO();
+  return "hecha";
+}
+
+function deshacerAlerta(animalId, clave) {
+  const a = animal(animalId);
+  if (a && a.hechas) delete a.hechas[clave];
+}
 
 /* ==========================================================
    SERVICIO — intento y estatus se calculan, no se digitan.
@@ -1312,8 +1658,9 @@ function idxAnimal(a) {
       e.prenada ? "preñada gestando" : "vacía",
       e.totalPartos ? `${e.totalPartos} partos` : "sin partos",
       a.foto ? "con foto" : "sin foto",
-      ...insemDe(a.id).flatMap(i => [i.pajilla, i.detalles, fechaBuscable(i.fecha),
-        RESULTADOS[servicioCalc(i).resultado]?.et, "inseminación servicio"]),
+      ...insemDe(a.id).flatMap(i => [
+        ...(i.aplicaciones || []).flatMap(x => [x.pajilla, x.detalles, fechaBuscable(x.fecha)]),
+        i.detalles, RESULTADOS[servicioCalc(i).resultado]?.et, "inseminación servicio"]),
       ...partosDe(a.id).flatMap(p => [p.tipo, p.detalles, p.sexoCria, fechaBuscable(p.fecha)]),
       ...palpDe(a.id).flatMap(p => [p.resultado === "prenada" ? "preñada" : "vacía",
         p.observaciones, fechaBuscable(p.fecha), "palpación"]),
@@ -1335,7 +1682,8 @@ function idxDeAnimal(animalId) {
 function idxInsem(i) {
   return indice("in:" + i.id, () => {
     const c = servicioCalc(i);
-    return [idxDeAnimal(i.animalId), i.pajilla, i.detalles, fechaBuscable(i.fecha),
+    return [idxDeAnimal(i.animalId), pajillasDe(i), i.detalles, fechaBuscable(i.fecha),
+      ...(i.aplicaciones || []).flatMap(x => [x.pajilla, x.detalles, fechaBuscable(x.fecha)]),
       `intento ${c.intento}`, c.repitio ? "repitió" : "no aplica",
       RESULTADOS[c.resultado]?.et, i.tipo === "monta" ? "monta natural" : "inseminación"
     ].filter(Boolean).join(" ");
@@ -1385,6 +1733,63 @@ function idxNota(n) {
 function idxAlerta(x) {
   return [x.nombre, x.chapeta, x.titulo, x.detalle, nombreFinca(x.fincaId), x.nivel]
     .filter(Boolean).join(" ");
+}
+
+/* ==========================================================
+   ¿CUÁNTAS VACAS ESTABAN EN PRODUCCIÓN EN UNA FECHA?
+   No sirve el conteo de hoy: el hato cambia, y un promedio de
+   marzo tiene que dividirse entre las vacas que ordeñaban en
+   marzo, no entre las de ahora.
+   ========================================================== */
+
+const MAX_LACTANCIA = 500;   // más de esto es un parto sin registrar
+
+/** Si ese animal estaba dando leche en esa fecha. */
+function enProduccionEn(a, fecha) {
+  const P = par(a);
+  if (!P.lechero || !P.sirve) return false;
+
+  // Tenía que estar en el hato ese día.
+  if (a.estado !== "activo" && (!a.fechaSalida || a.fechaSalida <= fecha)) return false;
+  if (a.fechaNacimiento && a.fechaNacimiento > fecha) return false;
+
+  // El último parto anterior a esa fecha abre la lactancia.
+  const partos = partosDe(a.id).filter(p => p.tipo === "parto" && p.fecha <= fecha);
+  const previo = a.ultimoPartoPrevio && a.ultimoPartoPrevio <= fecha
+    ? { fecha: a.ultimoPartoPrevio } : null;
+  const parto = partos[0] || previo;
+  if (!parto) return false;
+
+  const desdeParto = dias(parto.fecha, aFecha(fecha));
+  if (desdeParto < 0 || desdeParto > MAX_LACTANCIA) return false;
+
+  // Un secado posterior al parto y anterior a la fecha la cierra.
+  if (secadosDe(a.id).some(s => s.fecha > parto.fecha && s.fecha <= fecha)) return false;
+
+  // O el calendario: si ese día ya venía muy avanzada de otra preñez.
+  const srv = insemDe(a.id).find(i => i.fecha > parto.fecha && i.fecha <= fecha);
+  if (srv && dias(srv.fecha, aFecha(fecha)) > P.secarHasta) return false;
+
+  return true;
+}
+
+/* Se consulta muchas veces por registro, así que se guarda el resultado. */
+let _prodVer = -1;
+const _prodCache = new Map();
+
+function vacasEnProduccion(fincaId, fecha) {
+  if (_prodVer !== VERSION_DATOS) { _prodCache.clear(); _prodVer = VERSION_DATOS; }
+  const k = (fincaId || "*") + "|" + fecha;
+  if (_prodCache.has(k)) return _prodCache.get(k);
+  const base = fincaId ? D.animales.filter(a => a.fincaId === fincaId) : D.animales;
+  const n = base.filter(a => enProduccionEn(a, fecha)).length;
+  _prodCache.set(k, n);
+  return n;
+}
+
+/** Cuántas vacas cubre un registro: una si es de un animal, las de la finca si es del tanque. */
+function vacasDeRegistro(r) {
+  return r.animalId ? 1 : vacasEnProduccion(r.fincaId, r.fecha);
 }
 
 /* ==========================================================
@@ -1468,6 +1873,24 @@ const puedoEditarPersona = (p) => {
   const mias = misFincas();
   return p.creadoPor === S.persona.id || (p.fincas || []).some(f => mias.includes(f));
 };
+
+/**
+ * Un animal vendido o muerto es un cierre contable: solo el dueño o el
+ * superadministrador lo tocan. El resto lo ve pero no lo modifica.
+ */
+function puedoEditarAnimal(a) {
+  if (!a) return false;
+  if (!puede("editaAnimal")) return false;
+  if (!veAnimal(a)) return false;
+  if (a.estado !== "activo") return miRango() >= RANGO.dueno;
+  return true;
+}
+
+function mensajeBloqueo(a) {
+  const e = a?.estado === "vendido" ? "vendido" : "muerto";
+  return `${a?.nombre || "Ese animal"} está marcado como ${e}. ` +
+         `Solo un dueño o un superadministrador puede modificarlo o eliminarlo.`;
+}
 
 const puedoEditarFinca = (f) => {
   if (!f) return false;
@@ -1905,10 +2328,79 @@ function haySesionGuardada() {
   } catch { return false; }
 }
 
+
+/* ==========================================================
+   LÍMITES DE CREACIÓN
+   Cuántas fincas, administradores y empleados puede crear cada
+   dueño. Cero significa sin límite.
+   ========================================================== */
+
+const QUE_SE_LIMITA = {
+  fincas:          { et: "Fincas",          singular: "finca" },
+  administradores: { et: "Administradores", singular: "administrador" },
+  empleados:       { et: "Empleados",       singular: "empleado" },
+};
+
+function limiteDe(personaId, que) {
+  const c = D.config.limites || {};
+  const propio = (c.por || {})[personaId] || {};
+  const v = propio[que] ?? (c.global || {})[que] ?? 0;
+  return Math.max(0, Number(v) || 0);
+}
+
+function cuantosCreo(personaId, que) {
+  if (que === "fincas") return D.fincas.filter(f => f.creadoPor === personaId).length;
+  const rol = que === "administradores" ? "administrador" : "empleado";
+  return D.personas.filter(p => p.creadoPor === personaId && p.rol === rol).length;
+}
+
+/** ¿Le queda cupo? Devuelve el detalle para poder explicarlo. */
+function cupo(que, personaId) {
+  const id = personaId || S.persona?.id;
+  if (!id) return { ok: false, lim: 0, n: 0 };
+  if (esSuper() && !personaId) return { ok: true, lim: 0, n: 0 };
+  const lim = limiteDe(id, que);
+  const n = cuantosCreo(id, que);
+  return { ok: !lim || n < lim, lim, n, restan: lim ? Math.max(0, lim - n) : null };
+}
+
+function mensajeCupo(que) {
+  const c = cupo(que);
+  const q = QUE_SE_LIMITA[que];
+  return `Llegaste al límite de ${c.lim} ${q.et.toLowerCase()}. ` +
+         `Ya creaste ${c.n}. Pídele a un superadministrador que te amplíe el cupo.`;
+}
+
+/* ==========================================================
+   ACCESO A LA CONFIGURACIÓN AVANZADA
+   ========================================================== */
+
+const miCorreo = () => (S.persona?.correo || "").toLowerCase();
+
+/** Ve la conexión con Firebase, las reglas y la publicación. */
+function verConfigAvanzada() {
+  if (esMaestro()) return true;
+  return (D.config.accesoConfig || []).map(c => c.toLowerCase()).includes(miCorreo());
+}
+
+/* ==========================================================
+   INTERRUPTORES POR CORREO
+   Cierran secciones a personas concretas. Solo restan: nunca
+   abren algo que el rol ya no permita, porque las reglas de
+   Firestore mandan por encima de la pantalla.
+   ========================================================== */
+
+function seccionCerrada(vistaId) {
+  const p = (D.config.permisos || {})[miCorreo()];
+  return !!(p && p[vistaId] === false);
+}
+
 /* ==========================================================
    ESTADO DE LA INTERFAZ
    ========================================================== */
-let V = { vista: "activos", busca: "", finca: "todas", especie: "todas", sub: "todos", railAbierto: false };
+let V = { vista: "activos", busca: "", finca: "todas", especie: "todas", sub: "todos",
+          sel: null, railAbierto: false, acordeon: null, permisosQuien: "",
+          epoca: "semana", graficoLeche: "total" };
 const $ = (s) => document.querySelector(s);
 
 const VISTAS = [
@@ -1924,6 +2416,7 @@ const VISTAS = [
   { id: "inseminacion",et: "Inseminaciones",  grupo: "Reproducción" },
   { id: "partos",      et: "Partos-Abortos",  grupo: "Reproducción" },
   { id: "secados",     et: "Secados",         grupo: "Reproducción" },
+  { id: "leche",       et: "Leche",           grupo: "Producción" },
   { id: "tratamientos",et: "Tratamientos",    grupo: "Manejo" },
   { id: "anotaciones", et: "Anotaciones",     grupo: "Manejo" },
   { id: "configuracion",  et: "Configuración",  grupo: "Ajustes" },
@@ -1955,6 +2448,7 @@ function sinFincas() {
 }
 
 function vistaPermitida(id) {
+  if (id !== "configuracion" && seccionCerrada(id)) return false;
   // Cada quien ve las secciones de personal por debajo de su rango.
   const seccion = { superadmins:"superadmin", duenos:"dueno",
                     administradores:"administrador", empleados:"empleado" }[id];
@@ -1975,6 +2469,7 @@ function conteoVista(id) {
     case "inseminacion": return misEventos("inseminaciones").length;
     case "partos":       return misEventos("partos").length;
     case "secados":      return misEventos("secados").length;
+    case "leche":        return (D.leche || []).filter(r => misFincas().includes(r.fincaId)).length;
     case "tratamientos": return misEventos("tratamientos").length;
     case "anotaciones":  return D.anotaciones.filter(n => veFinca(n.fincaId)).length;
     case "superadmins":     return misPersonas().filter(p => p.rol === "superadmin").length;
@@ -2137,7 +2632,7 @@ function cuerpo(v) {
   const mapa = {
     alertas: vAlertas, activos: vActivos, salidas: vSalidas, fincas: vFincas,
     palpacion: vPalpacion, inseminacion: vInseminacion, partos: vPartos,
-    secados: vSecados, tratamientos: vTratamientos, anotaciones: vAnotaciones,
+    secados: vSecados, leche: vLeche, tratamientos: vTratamientos, anotaciones: vAnotaciones,
     superadmins: () => vPersonas("superadmin"),
     duenos: () => vPersonas("dueno"),
     administradores: () => vPersonas("administrador"),
@@ -2149,21 +2644,42 @@ function cuerpo(v) {
 
 /* ---------- ALERTAS ---------- */
 function vAlertas() {
-  let L = alertas().filter(x => filtroFinca(x.fincaId) && busca(idxAlerta(x)));
-  if (V.sub !== "todos") L = L.filter(x => x.nivel === V.sub);
-  const t = alertas();
+  const todas = alertas(true);
+  const pend = todas.filter(x => !x.hecha);
+  let L = (V.sub === "hechas" ? todas.filter(x => x.hecha) : pend)
+    .filter(x => filtroFinca(x.fincaId) && busca(idxAlerta(x)));
+  if (["alta","media","baja"].includes(V.sub)) L = L.filter(x => x.nivel === V.sub);
+
   return `
   <header class="cab"><div><h1>Alertas</h1>
-    <p>Se calculan solas a partir de los eventos. No hay nada que digitar.</p></div></header>
+    <p>Se calculan solas a partir de los eventos. Marca «Listo» cuando la resuelvas.</p></div></header>
   <div class="barra">${buscador("Buscar en las alertas")}${selectorFinca()}</div>
-  ${fichas([["todos","Todas",t.length],["alta","Urgente",t.filter(x=>x.nivel==="alta").length],
-            ["media","Pronto",t.filter(x=>x.nivel==="media").length],["baja","Aviso",t.filter(x=>x.nivel==="baja").length]])}
+  ${fichas([["todos","Pendientes",pend.length],
+            ["alta","Urgente",pend.filter(x=>x.nivel==="alta").length],
+            ["media","Pronto",pend.filter(x=>x.nivel==="media").length],
+            ["baja","Aviso",pend.filter(x=>x.nivel==="baja").length],
+            ["hechas","Hechas",todas.filter(x=>x.hecha).length]])}
   ${L.length === 0
-    ? vacio("Sin alertas", "Todo al día con los filtros actuales.")
-    : L.map(x => `<div class="alerta-caja" data-n="${x.nivel}" data-abrir="${x.animalId}">
-        <span class="chap">${esc(x.chapeta)}</span>
-        <div class="cu"><strong>${esc(x.nombre)} — ${esc(x.titulo)}</strong><span>${esc(x.detalle)}</span></div>
-        <div class="q">${esc(nombreFinca(x.fincaId))}</div></div>`).join("")}`;
+    ? vacio(V.sub === "hechas" ? "Nada marcado como hecho" : "Sin alertas pendientes",
+            V.sub === "hechas" ? "Aquí aparecen las que vayas resolviendo."
+                               : "Todo al día con los filtros actuales.")
+    : L.map(x => `<div class="alerta-caja" data-n="${x.hecha ? "hecha" : x.nivel}">
+        <span class="chap" data-abrir="${x.animalId}">${esc(x.chapeta)}</span>
+        <div class="cu" data-abrir="${x.animalId}">
+          <strong>${esc(x.nombre)} — ${esc(x.titulo)}</strong>
+          <span>${esc(x.detalle)}</span>
+          ${x.hecha ? `<span class="hecha-el">Hecha el ${fmt(x.hecha)}</span>` : ""}
+        </div>
+        <div class="alerta-acc">
+          <span class="q">${esc(nombreFinca(x.fincaId))}</span>
+          ${x.hecha
+            ? `<button class="btn btn-sm" data-deshacer="${x.animalId}|${esc(x.clave)}">Deshacer</button>`
+            : x.clave && puede("eventos")
+              ? `<button class="btn btn-sm btn-listo"
+                   data-listo="${x.animalId}|${esc(x.clave)}|${x.accion || ""}">Listo</button>`
+              : ""}
+        </div>
+      </div>`).join("")}`;
 }
 
 /* ---------- ACTIVOS ---------- */
@@ -2239,7 +2755,12 @@ function vFincas() {
   return `
   <header class="cab"><div><h1>Fincas</h1>
     <p>${misFincasObj().length} finca${misFincasObj().length===1?"":"s"} asignada${misFincasObj().length===1?"":"s"}</p></div>
-    ${puede("editaFinca") ? '<button class="btn btn-firme" data-nuevo="finca">Añadir finca</button>' : ""}</header>
+    ${!puede("editaFinca") ? ""
+      : cupo("fincas").ok
+        ? `<button class="btn btn-firme" data-nuevo="finca">Añadir finca</button>${
+            cupo("fincas").restan !== null ? `<div class="sub" style="text-align:right;margin-top:4px">
+            Te quedan ${cupo("fincas").restan} de ${cupo("fincas").lim}</div>` : ""}`
+        : `<span class="p roja">Sin cupo · ${cupo("fincas").n} de ${cupo("fincas").lim}</span>`}</header>
   <div class="barra">${buscador("Buscar finca, encargado, correo o animal")}</div>
   ${L.length === 0 ? vacio(
       D.fincas.length ? "Ninguna finca te tiene asignado" : "Todavía no hay fincas",
@@ -2307,7 +2828,7 @@ function vInseminacion() {
   if (V.sub !== "todos") L = L.filter(x => x.c.resultado === V.sub);
   L.sort((x, y) => y.i.fecha.localeCompare(x.i.fecha));
 
-  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Fecha"},{et:"N.º intento",num:1},{et:"Pajilla"},{et:"Detalles"},{et:"Estatus servicio"}];
+  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Fecha"},{et:"N.º intento",num:1},{et:"Pajillas"},{et:"Detalles"},{et:"Estatus servicio"}];
   const todos = misEventos("inseminaciones").map(i => servicioCalc(i).resultado);
   return `
   <header class="cab"><div><h1>Inseminaciones</h1>
@@ -2321,7 +2842,9 @@ function vInseminacion() {
       ${celdaAnimal(a)}
       <td>${fmtCorto(i.fecha)}</td>
       <td class="num"><span class="apilado">${c.intento}${c.repitio ? "<em>repitió</em>" : ""}</span></td>
-      <td>${esc(i.pajilla)}</td>
+      <td>${esc(pajillasDe(i))}${(i.aplicaciones || []).length > 1
+        ? `<div class="sub">${(i.aplicaciones || []).length} aplicaciones · ${esc(aplicacionesTexto(i))}</div>`
+        : ((i.aplicaciones || [])[0]?.hora ? `<div class="sub">${horaBonita(i.aplicaciones[0].hora)}</div>` : "")}</td>
       <td><span class="sub">${esc(i.detalles)}</span></td>
       <td><span class="p ${RESULTADOS[c.resultado].cl}">${RESULTADOS[c.resultado].et}</span></td>
       <td class="flecha">›</td></tr>`))}`;
@@ -2419,8 +2942,15 @@ function vPersonas(rol) {
   return `
   <header class="cab"><div><h1>${R.plural}</h1>
     <p>${L.length} de ${tot.length} registrados</p></div>
-    ${puede("editaPersona") && rolesQuePuedoCrear().includes(rol)
-      ? `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>` : ""}</header>
+    ${(() => {
+      if (!puede("editaPersona") || !rolesQuePuedoCrear().includes(rol)) return "";
+      const clave = rol === "administrador" ? "administradores" : rol === "empleado" ? "empleados" : null;
+      if (!clave) return `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>`;
+      const c = cupo(clave);
+      if (!c.ok) return `<span class="p roja">Sin cupo · ${c.n} de ${c.lim}</span>`;
+      return `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>${
+        c.restan !== null ? `<div class="sub" style="text-align:right;margin-top:4px">Te quedan ${c.restan} de ${c.lim}</div>` : ""}`;
+    })()}</header>
   <div class="barra">${buscador("Buscar nombre, correo, teléfono, finca…")}${selectorFinca()}</div>
   ${fichas([["todos","Todos",tot.length],
             ["activos","Activos",tot.filter(p=>p.activo!==false).length],
@@ -2478,6 +3008,147 @@ function vSecados() {
       <td><span class="sub">${esc(s.observaciones) || "—"}</span></td>
       <td class="flecha">›</td></tr>`;
   }))}`;
+}
+
+/* ---------- LECHE ---------- */
+function vLeche() {
+  const mias = misFincas();
+  let L = (D.leche || []).filter(r => mias.includes(r.fincaId) && filtroFinca(r.fincaId))
+    .filter(r => busca(idxLeche(r)));
+  if (V.sub === "animal") L = L.filter(r => r.animalId);
+  if (V.sub === "finca")  L = L.filter(r => !r.animalId);
+  L.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  const epoca = V.epoca || "semana";
+  const res = resumenLeche(L, epoca);
+  const modo = V.graficoLeche === "vaca" ? "porVaca" : "promedio";
+  const tope = Math.max(1, ...res.map(r => r[modo]));
+
+  // Totales de los últimos 30 días, para tener una referencia rápida.
+  const ult30 = L.filter(r => dias(r.fecha) <= 30);
+  const litros30 = ult30.reduce((t, r) => t + (Number(r.litros) || 0), 0);
+  const dias30 = ult30.reduce((t, r) => t + Math.max(1, Number(r.dias) || 1), 0);
+  const hayPrecio = L.some(r => Number(r.precio) > 0);
+  const total = D.leche.filter(r => mias.includes(r.fincaId));
+
+  // Vacas en producción hoy, solo en las fincas que se estén viendo.
+  const alcance = V.finca === "todas" ? mias : [V.finca];
+  const vacasHoy = alcance.reduce((t, f) => t + vacasEnProduccion(f, hoyISO()), 0);
+
+  // Y el promedio ponderado de los últimos 30 días.
+  const vacasDia30 = ult30.reduce((t, r) => t + vacasDeRegistro(r) * Math.max(1, r.dias || 1), 0);
+  const vacas30 = dias30 ? vacasDia30 / dias30 : 0;
+  const porVaca30 = vacas30 ? (litros30 / dias30) / vacas30 : 0;
+
+  return `
+  <header class="cab"><div><h1>Leche</h1>
+    <p>${L.length} registros · el promedio diario se saca sobre los días que cubre cada entrega</p></div>
+    ${puede("eventos") ? '<button class="btn btn-firme" data-nuevo="leche">Registrar leche</button>' : ""}</header>
+
+  <dl class="conteos">
+    <div class="conteo"><dt>Últimos 30 días</dt><dd>${litros(litros30)}</dd>
+      <span class="sub">litros en ${dias30} días</span></div>
+    <div class="conteo"><dt>Promedio diario</dt><dd>${litros(dias30 ? litros30 / dias30 : 0)}</dd>
+      <span class="sub">litros por día</span></div>
+    <div class="conteo"><dt>Litros por vaca</dt><dd>${litros(porVaca30)}</dd>
+      <span class="sub">al día, últimos 30</span></div>
+    <div class="conteo"><dt>Vacas en producción</dt><dd>${vacasHoy}</dd>
+      <span class="sub">hoy${V.finca === "todas" && mias.length > 1 ? " · todas tus fincas" : ""}</span></div>
+    ${hayPrecio ? `<div class="conteo"><dt>Ingreso 30 días</dt>
+      <dd style="font-size:19px">${pesos(ult30.reduce((t,r)=>t+(Number(r.litros)||0)*(Number(r.precio)||0),0))}</dd></div>` : ""}
+  </dl>
+
+  <div class="barra">${buscador("Buscar por fecha, finca o nota")}${selectorFinca()}
+    <select data-f="epoca">
+      ${Object.entries(EPOCAS).map(([k, et]) =>
+        `<option value="${k}" ${epoca === k ? "selected" : ""}>${et}</option>`).join("")}
+    </select>
+  </div>
+  ${fichas([["todos","Todo",total.length],
+            ["finca","De la finca",total.filter(r=>!r.animalId).length],
+            ["animal","Por animal",total.filter(r=>r.animalId).length]])}
+
+  ${res.length === 0
+    ? vacio("Todavía no hay leche registrada",
+        "Anota cuántos litros salieron y cuántos días cubre esa entrega. Con eso la app " +
+        "calcula los promedios sola.",
+        puede("eventos") ? '<button class="btn btn-firme" data-nuevo="leche">Registrar la primera</button>' : "")
+    : `
+    <div class="seccion">
+      <h3>${modo === "vaca" ? "Litros por vaca al día" : "Promedio diario"} por ${NOMBRE_EPOCA[epoca]}
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-sm ${modo === "promedio" ? "btn-firme" : ""}"
+            data-graf="total">Total</button>
+          <button class="btn btn-sm ${modo === "porVaca" ? "btn-firme" : ""}"
+            data-graf="vaca">Por vaca</button>
+        </span></h3>
+      <div class="grafico">
+        ${res.slice(0, 14).reverse().map(r => `
+          <div class="barra-col" title="${esc(r.et)}: ${litros(r[modo])} litros${modo === "porVaca" ? " por vaca" : ""} al día">
+            <span class="barra-val">${litros(r[modo])}</span>
+            <div class="barra-cuerpo" style="height:${Math.max(4, (r[modo] / tope) * 100)}%"></div>
+            <span class="barra-et">${esc(r.et)}</span>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    ${tabla([{et:"Periodo"},{et:"Litros",num:1},{et:"Días",num:1},
+             {et:"Promedio diario",num:1},{et:"Vacas",num:1},{et:"Litros por vaca",num:1},
+             ...(hayPrecio ? [{et:"Ingreso",num:1}] : [])],
+      res.map(r => `<tr>
+        <td>${esc(r.et)}</td>
+        <td class="num">${litros(r.litros)}</td>
+        <td class="num">${r.dias}</td>
+        <td class="num">${litros(r.promedio)}</td>
+        <td class="num">${r.vacas ? litros(r.vacas) : "—"}</td>
+        <td class="num"><strong>${r.porVaca ? litros(r.porVaca) : "—"}</strong></td>
+        ${hayPrecio ? `<td class="num">${pesos(r.ingreso)}</td>` : ""}
+      </tr>`).join(""))}
+
+    ${V.finca === "todas" && misFincasObj().length > 1 ? (() => {
+      const pf = resumenPorFinca(L);
+      return pf.length < 2 ? "" : `
+      <div class="seccion" style="margin-top:20px">
+        <h3>Comparativo entre tus fincas</h3>
+        <p class="expl" style="margin:0 0 10px">Ordenadas por litros por vaca, que es lo que
+        de verdad compara: una finca con más vacas produce más sin ser mejor.</p>
+        ${tabla([{et:"Finca"},{et:"Litros",num:1},{et:"Promedio diario",num:1},
+                 {et:"Vacas",num:1},{et:"Litros por vaca",num:1}],
+          pf.map(g => `<tr>
+            <td><div class="nom">${esc(g.nombre)}</div></td>
+            <td class="num">${litros(g.litros)}</td>
+            <td class="num">${litros(g.promedio)}</td>
+            <td class="num">${litros(g.vacas)}</td>
+            <td class="num"><strong>${litros(g.porVaca)}</strong></td>
+          </tr>`).join(""))}
+      </div>`;
+    })() : ""}
+
+    <div class="seccion" style="margin-top:20px">
+      <h3>Registros</h3>
+      ${tabla([{et:"Fecha"},{et:"Litros",num:1},{et:"Días",num:1},{et:"Momento"},
+               {et:"Origen"},{et:"Nota"}],
+        L.slice(0, 120).map(r => `<tr class="fila" data-ev="leche:${r.id}">
+          <td>${fmtCorto(r.fecha)}</td>
+          <td class="num"><strong>${litros(r.litros)}</strong></td>
+          <td class="num">${Math.max(1, r.dias || 1)}${(r.dias || 1) > 1
+            ? `<div class="sub">${litros(r.litros / r.dias)}/día</div>` : ""}</td>
+          <td>${MOMENTOS_LECHE[r.momento] || "Todo el día"}</td>
+          <td>${r.animalId
+            ? `<span class="chap">${esc(animal(r.animalId)?.chapeta || "?")}</span> ${esc(animal(r.animalId)?.nombre || "")}`
+            : esc(nombreFinca(r.fincaId))}</td>
+          <td><span class="sub">${esc(r.observaciones) || "—"}</span></td>
+          <td class="flecha">›</td></tr>`).join(""))}
+      ${L.length > 120 ? `<p class="mini">Se muestran los 120 más recientes de ${L.length}.</p>` : ""}
+    </div>`}`;
+}
+
+function idxLeche(r) {
+  return indice("le:" + r.id, () => [
+    fechaBuscable(r.fecha), nombreFinca(r.fincaId), r.observaciones,
+    MOMENTOS_LECHE[r.momento], r.animalId ? idxDeAnimal(r.animalId) : "tanque finca",
+    `${r.litros} litros`,
+  ].filter(Boolean).join(" "));
 }
 
 /* ==========================================================
@@ -2580,7 +3251,9 @@ function fichaAnimal(id) {
       <button class="cerrar" data-cerrar aria-label="Cerrar">×</button>
     </div>
     <div class="hoja-cuerpo">
-      ${a.estado !== "activo" ? `<div class="aviso">${a.estado === "vendido" ? "Vendido" : "Muerto"} el ${fmt(a.fechaSalida)}. ${esc(a.motivoSalida)}</div>` : ""}
+      ${a.estado !== "activo" ? `<div class="aviso">${a.estado === "vendido" ? "Vendido" : "Muerto"}
+        el ${fmt(a.fechaSalida)}. ${esc(a.motivoSalida)}
+        ${!puedoEditarAnimal(a) ? "<br>Este registro está cerrado: solo un dueño puede modificarlo." : ""}</div>` : ""}
 
       <div class="ficha-top">
         <div class="retrato">${foto}</div>
@@ -2636,16 +3309,18 @@ function fichaAnimal(id) {
       ${a.detalles ? `<div class="seccion"><h3>Detalles</h3><p class="mini" style="font-style:normal;color:var(--tinta2)">${esc(a.detalles)}</p></div>` : ""}
 
       ${subTabla("Inseminaciones", insems.length,
-        `<button class="btn btn-sm" data-nuevo="inseminacion" data-an="${id}">Añadir</button>`,
-        ["Fecha","Intento","Pajilla","Detalles","Estatus"],
+        (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="inseminacion" data-an="${id}">Añadir</button>` : ""),
+        ["Fecha","Intento","Pajillas","Detalles","Estatus"],
         insems.map(i => { const c = servicioCalc(i); const r = RESULTADOS[c.resultado];
           return `<tr class="fila" data-ev="insem:${i.id}">
             <td>${fmtCorto(i.fecha)}</td><td class="num">${c.intento}</td>
-            <td>${esc(i.pajilla) || "—"}</td><td><span class="sub">${esc(i.detalles) || "—"}</span></td>
+            <td>${esc(pajillasDe(i))}${(i.aplicaciones || []).length > 1
+              ? `<div class="sub">${esc(aplicacionesTexto(i))}</div>` : ""}</td>
+            <td><span class="sub">${esc(i.detalles) || "—"}</span></td>
             <td><span class="p ${r.cl}">${r.et}</span></td></tr>`; }).join(""))}
 
       ${subTabla("Partos-Abortos", partos.length,
-        `<button class="btn btn-sm" data-nuevo="parto" data-an="${id}">Añadir</button>`,
+        (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="parto" data-an="${id}">Añadir</button>` : ""),
         ["Fecha","Tipo","Sexo cría","Detalles"],
         partos.map(p => `<tr class="fila" data-ev="parto:${p.id}">
             <td>${fmtCorto(p.fecha)}</td>
@@ -2653,7 +3328,7 @@ function fichaAnimal(id) {
             <td>${esc(p.sexoCria) || "—"}</td><td><span class="sub">${esc(p.detalles) || "—"}</span></td></tr>`).join(""))}
 
       ${subTabla("Palpaciones", palps.length,
-        `<button class="btn btn-sm" data-nuevo="palpacion" data-an="${id}">Añadir</button>`,
+        (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="palpacion" data-an="${id}">Añadir</button>` : ""),
         ["Fecha","Resultado","Días gestación","Observaciones"],
         palps.map(p => `<tr class="fila" data-ev="palp:${p.id}">
             <td>${fmtCorto(p.fecha)}</td>
@@ -2661,14 +3336,14 @@ function fichaAnimal(id) {
             <td class="num">${p.diasGestacion || "—"}</td><td><span class="sub">${esc(p.observaciones) || "—"}</span></td></tr>`).join(""))}
 
       ${!P.lechero && secadosDe(id).length === 0 ? "" : subTabla("Secados", secadosDe(id).length,
-        `<button class="btn btn-sm" data-nuevo="secado" data-an="${id}">Añadir</button>`,
+        (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="secado" data-an="${id}">Añadir</button>` : ""),
         ["Fecha","Motivo","Observaciones"],
         secadosDe(id).map(x => `<tr class="fila" data-ev="secado:${x.id}">
             <td>${fmtCorto(x.fecha)}</td><td>${MOTIVOS_SECADO[x.motivo] || "—"}</td>
             <td><span class="sub">${esc(x.observaciones) || "—"}</span></td></tr>`).join(""))}
 
       ${subTabla("Tratamientos", trats.length,
-        `<button class="btn btn-sm" data-nuevo="tratamiento" data-an="${id}">Añadir</button>`,
+        (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="tratamiento" data-an="${id}">Añadir</button>` : ""),
         ["Inicio","Fin","Tipo","Detalles"],
         trats.map(t => `<tr class="fila" data-ev="trat:${t.id}">
             <td>${fmtCorto(t.inicio)}</td><td>${t.fin ? fmtCorto(t.fin) : "—"}</td>
@@ -2676,7 +3351,11 @@ function fichaAnimal(id) {
     </div>
     <div class="hoja-pie">
       <button class="btn" data-cerrar>Cerrar</button>
-      ${puede("editaAnimal") ? `<button class="btn btn-firme" data-editar="animal:${id}">Editar animal</button>` : ""}
+      ${puedoEditarAnimal(a)
+        ? `<button class="btn btn-firme" data-editar="animal:${id}">Editar animal</button>`
+        : a.estado !== "activo"
+          ? `<span class="ayuda" style="align-self:center">Solo un dueño puede editar un animal ${a.estado}.</span>`
+          : ""}
     </div>`, true);
 }
 
@@ -2701,9 +3380,6 @@ function formAnimal(id) {
   const a = id ? animal(id) : { nombre:"", chapeta:"", fincaId:D.fincas[0]?.id, categoria:"vaca",
     estado:"activo", fechaNacimiento:"", raza:"", detalles:"", partosPrevios:0, ultimoPartoPrevio:"",
     fechaSalida:"", motivoSalida:"", observaciones:"" };
-  const razas = [...new Set([...D.animales.map(x => x.raza).filter(Boolean),
-    "Holstein","Gir","Girolando","Jersey","Normando","Brahman","Angus","F1","Criollo"])].sort();
-
   abrirHoja(`
     <div class="hoja-cab"><h2>${id ? "Editar animal" : "Añadir animal"}</h2>
       <button class="cerrar" data-cerrar>×</button></div>
@@ -2711,15 +3387,14 @@ function formAnimal(id) {
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div><div class="rej">
         <div class="campo"><label>Chapeta</label><input name="chapeta" value="${esc(a.chapeta)}" required></div>
         <div class="campo"><label>Nombre</label><input name="nombre" value="${esc(a.nombre)}" required></div>
-        <div class="campo"><label>Finca</label><select name="fincaId">${opFincas(a.fincaId)}</select></div>
+        <div class="campo"><label>Finca</label>${comboFincas("fincaId", a.fincaId)}</div>
         <div class="campo"><label>Especie</label><select name="especie" data-esp>
           ${Object.entries(ESPECIES).map(([k,v])=>
             `<option value="${k}" ${especieDe(a)===k?"selected":""}>${v.et}</option>`).join("")}
         </select></div>
-        <div class="campo"><label>Categoría</label><select name="categoria" data-cat></select>
+        <div class="campo"><label>Categoría</label><div data-cat-caja></div>
           <span class="ayuda" data-gest></span></div>
-        <div class="campo"><label>Raza</label><input name="raza" value="${esc(a.raza)}" list="razas">
-          <datalist id="razas">${razas.map(r=>`<option value="${esc(r)}">`).join("")}</datalist></div>
+        <div class="campo"><label>Raza</label><div data-raza-caja></div></div>
         <div class="campo"><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento" value="${a.fechaNacimiento||""}"></div>
 
         <!-- Solo para Vaca: historia previa a la app -->
@@ -2749,28 +3424,39 @@ function formAnimal(id) {
 
   // Especie manda: la categoría se repuebla y los campos de historia
   // solo salen en hembras adultas, que son las que traen partos.
-  const selEsp = hojaAbierta.querySelector("[data-esp]");
-  const selCat = hojaAbierta.querySelector("[data-cat]");
-  const ayuda  = hojaAbierta.querySelector("[data-gest]");
+  const selEsp   = hojaAbierta.querySelector("[data-esp]");
+  const cajaCat  = hojaAbierta.querySelector("[data-cat-caja]");
+  const cajaRaza = hojaAbierta.querySelector("[data-raza-caja]");
+  const ayuda    = hojaAbierta.querySelector("[data-gest]");
+
+  const valorCat = () => cajaCat.querySelector("input[type=hidden]")?.value;
 
   const poblar = (mantener) => {
     const esp = selEsp.value;
     const ops = Object.entries(CATEGORIAS).filter(([, c]) => c.especie === esp);
-    selCat.innerHTML = ops.map(([k, c]) => `<option value="${k}">${c.et}</option>`).join("");
     const previa = mantener && ops.some(([k]) => k === a.categoria) ? a.categoria : null;
-    selCat.value = previa || ops.find(([, c]) => c.etapa === "adulta")?.[0] || ops[0][0];
+    const elegida = previa || ops.find(([, c]) => c.etapa === "adulta")?.[0] || ops[0][0];
+
+    // La categoría y la raza dependen de la especie: se rehacen las dos.
+    cajaCat.innerHTML  = comboCategorias("categoria", esp, elegida);
+    cajaRaza.innerHTML = comboRazas("raza", esp, mantener ? a.raza : "");
+    conectarCombos(cajaCat);
+    conectarCombos(cajaRaza);
+    cajaCat.querySelector("[data-combo]").addEventListener("change", alternar);
+
     const p = parEspecie(esp);
     ayuda.textContent = `Gesta ${p.gestacion} días · palpación a los ${p.palpar}` +
       (p.lechero ? ` · secado del día ${p.secarDesde} al ${p.secarHasta}` : " · no lechera");
     alternar();
   };
+
   const alternar = () => {
-    const c = CATEGORIAS[selCat.value];
+    const c = CATEGORIAS[valorCat()];
     const traeHistoria = c && c.sexo === "H" && c.etapa === "adulta";
     hojaAbierta.querySelectorAll("[data-solo-vaca]").forEach(el => el.hidden = !traeHistoria);
   };
+
   selEsp.onchange = () => poblar(false);
-  selCat.onchange = alternar;
   poblar(true);
 }
 
@@ -2800,6 +3486,8 @@ function formFinca(id) {
         <div class="campo"><label>Ubicación</label><input name="ubicacion" value="${esc(f.ubicacion)}"></div>
         <div class="campo ancho"><div class="nota" style="margin:0">Marca a todas las personas que atienden esta finca.
           El correo sale de la ficha de cada una, no se escribe aquí.</div></div>
+        ${D.personas.length > 6 ? `<div class="campo ancho">
+          <input type="text" data-filtro-chips placeholder="Buscar persona por nombre o correo…"></div>` : ""}
         ${esSuper() ? bloque("superadmin") : ""}${bloque("dueno")}${bloque("administrador")}${bloque("empleado")}
       </div></div>
       <div class="hoja-pie">
@@ -2849,11 +3537,38 @@ function formPersona(id, rol) {
       </div></form>`);
 }
 
+/** Una fila de pajilla dentro del servicio. */
+function filaPajilla(ap, sugerencias) {
+  ap = ap || { fecha: hoyISO(), hora: "", pajilla: "", detalles: "" };
+  return `<div class="pajilla-fila">
+    <div class="campo"><label>Fecha</label>
+      <input type="date" name="ap_fecha" value="${ap.fecha || hoyISO()}" required></div>
+    <div class="campo"><label>Hora</label>
+      <input type="time" name="ap_hora" value="${esc(ap.hora || "")}"></div>
+    <div class="campo pajilla-ancha"><label>Pajilla</label>
+      ${combo("ap_pajilla", sugerencias.map(p => ({ v: p, et: p })), ap.pajilla,
+              { libre: true, ph: "Elige o escribe la pajilla…" })}</div>
+    <div class="campo pajilla-ancha"><label>Detalles de esta pajilla</label>
+      <input name="ap_detalles" value="${esc(ap.detalles || "")}"
+        placeholder="Toro ladrillo por Jorge"></div>
+    <button type="button" class="quita-pajilla" data-quita-pajilla
+      aria-label="Quitar esta pajilla">×</button>
+  </div>`;
+}
+
 function formInsem(id, anId) {
   const i = id ? D.inseminaciones.find(x => x.id === id)
-              : { animalId: anId || "", fecha: hoyISO(), pajilla: "", detalles: "", tipo: "inseminacion" };
+              : { animalId: anId || "", fecha: hoyISO(), detalles: "", tipo: "inseminacion",
+                  aplicaciones: [{ fecha: hoyISO(), hora: "", pajilla: "", detalles: "" }] };
   const c = id ? servicioCalc(i) : null;
-  const pajillas = [...new Set(D.inseminaciones.map(x => x.pajilla).filter(Boolean))].sort();
+
+  const sugerencias = [...new Set([
+    ...D.inseminaciones.flatMap(x => (x.aplicaciones || []).map(a => a.pajilla)).filter(Boolean),
+    ...Object.values(RAZAS).flat(),
+  ])].sort((x, y) => x.localeCompare(y, "es"));
+
+  const aps = (i.aplicaciones && i.aplicaciones.length)
+    ? i.aplicaciones : [{ fecha: hoyISO(), hora: "", pajilla: "", detalles: "" }];
 
   abrirHoja(`
     <div class="hoja-cab"><h2>${id ? "Editar servicio" : "Registrar servicio"}</h2>
@@ -2862,25 +3577,57 @@ function formInsem(id, anId) {
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div>
         ${c ? `<div class="nota">Intento ${c.intento} del ciclo actual · ${RESULTADOS[c.resultado].et}.
                Ambos se calculan solos a partir de las fechas.</div>`
-            : `<div class="nota">El número de intento y el estatus no se digitan: salen de los partos
-               y servicios anteriores. La palpación queda programada a los ${DIAS_PALPAR} días.</div>`}
+            : `<div class="nota">Un servicio puede llevar varias pajillas: si repites en el mismo
+               día o al día siguiente, añádelas aquí abajo. Sigue contando como un solo intento,
+               y la gestación cuenta desde la primera.</div>`}
         <div class="rej">
-        <div class="campo ancho"><label>Nombre</label><select name="animalId" required>
-          <option value="">Selecciona…</option>${opAnimales(i.animalId, a => par(a).sirve)}</select></div>
-        <div class="campo"><label>Fecha</label><input type="date" name="fecha" value="${i.fecha}" required></div>
-        <div class="campo"><label>Pajilla</label><input name="pajilla" value="${esc(i.pajilla)}" required
-          list="pajillas" placeholder="Holstein, Gir, Angus…">
-          <datalist id="pajillas">${pajillas.map(p=>`<option value="${esc(p)}">`).join("")}</datalist></div>
-        <div class="campo ancho"><label>Detalles</label><input name="detalles" value="${esc(i.detalles)}"
-          placeholder="Toro ladrillo por Jorge"></div>
-        <div class="campo ancho"><label>Tipo registro</label>
-          ${seg("tipo", [["inseminacion","Inseminación"],["monta","Monta natural"]], i.tipo || "inseminacion")}</div>
-      </div></div>
+          <div class="campo ancho"><label>Nombre</label>
+            ${comboAnimales("animalId", i.animalId, a => par(a).sirve)}</div>
+        </div>
+
+        <h4 class="sub-titulo">Pajillas aplicadas</h4>
+        <div data-pajillas>${aps.map(a => filaPajilla(a, sugerencias)).join("")}</div>
+        <div class="fila-btn" style="margin-bottom:14px">
+          <button type="button" class="btn btn-sm" data-mas-pajilla>Añadir otra pajilla</button>
+        </div>
+
+        <div class="rej">
+          <div class="campo ancho"><label>Notas del servicio</label>
+            <input name="detalles" value="${esc(i.detalles)}"
+              placeholder="Quién inseminó, observaciones generales…"></div>
+          <div class="campo ancho"><label>Tipo registro</label>
+            ${seg("tipo", [["inseminacion","Inseminación"],["monta","Monta natural"]],
+                  i.tipo || "inseminacion")}</div>
+        </div>
+      </div>
       <div class="hoja-pie">
-        ${id ? '<button type="button" class="btn btn-baja" data-borrar="insem:'+id+'">Eliminar</button>' : ""}
+        ${id && puede("borra") ? '<button type="button" class="btn btn-baja" data-borrar="insem:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
+
+  // Añadir y quitar filas sobre la marcha.
+  const caja = hojaAbierta.querySelector("[data-pajillas]");
+  const refrescarQuitar = () => {
+    const filas = caja.querySelectorAll(".pajilla-fila");
+    filas.forEach(f2 => {
+      const b = f2.querySelector("[data-quita-pajilla]");
+      b.hidden = filas.length < 2;
+      b.onclick = () => { f2.remove(); refrescarQuitar(); };
+    });
+  };
+  hojaAbierta.querySelector("[data-mas-pajilla]").onclick = () => {
+    // La nueva hereda la fecha de la última, que suele ser la misma o la del día siguiente.
+    const ultima = [...caja.querySelectorAll("[name=ap_fecha]")].pop();
+    const div = document.createElement("div");
+    div.innerHTML = filaPajilla({ fecha: ultima?.value || hoyISO() }, sugerencias);
+    const fila = div.firstElementChild;
+    caja.appendChild(fila);
+    conectarCombos(fila);
+    refrescarQuitar();
+    fila.querySelector("[name=ap_hora]")?.focus();
+  };
+  refrescarQuitar();
 }
 
 function formPalpacion(id, anId) {
@@ -2920,8 +3667,7 @@ function formParto(id, anId) {
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div>
         <div class="nota">El parto cierra la gestación, reinicia el conteo de intentos y arranca los días vacía.</div>
         <div class="rej">
-        <div class="campo ancho"><label>Nombre</label><select name="animalId" required>
-          <option value="">Selecciona…</option>${opAnimales(p.animalId, a => par(a).sirve)}</select></div>
+        <div class="campo ancho"><label>Nombre</label>${comboAnimales("animalId", p.animalId, a => par(a).sirve)}</div>
         <div class="campo ancho"><label>Fecha</label><input type="date" name="fecha" value="${p.fecha}" required></div>
         <div class="campo ancho" data-solo-parto><label>Sexo cría</label>
           ${seg("sexoCria", [["Macho","Macho"],["Hembra","Hembra"],["Gemelos","Gemelos"]], p.sexoCria || "Macho")}</div>
@@ -2964,8 +3710,7 @@ function formSecado(id, anId) {
               ? ` La estás secando ${par(a).secarDesde - e.diasGest} días antes de tiempo.` : ""}</span>
         </div></div>` : ""}
         <div class="rej">
-        <div class="campo ancho"><label>Nombre</label><select name="animalId" required>
-          <option value="">Selecciona…</option>${opAnimales(s.animalId, x => par(x).sirve && par(x).lechero)}</select></div>
+        <div class="campo ancho"><label>Nombre</label>${comboAnimales("animalId", s.animalId, x => par(x).sirve && par(x).lechero)}</div>
         <div class="campo"><label>Fecha del secado</label>
           <input type="date" name="fecha" value="${s.fecha}" required></div>
         <div class="campo"><label>Motivo</label><select name="motivo">
@@ -2991,13 +3736,14 @@ function formTratamiento(id, anId) {
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-guardar="trat:${id||""}">
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div><div class="rej">
-        <div class="campo ancho"><label>Animal</label><select name="animalId" required>
-          <option value="">Selecciona…</option>${opAnimales(t.animalId)}</select></div>
-        <div class="campo ancho"><label>Tipo de tratamiento</label><input name="tipo" value="${esc(t.tipo)}" required
-          list="tipos-trat" placeholder="Sincronización, Para que se caloreé…">
-          <datalist id="tipos-trat">
-            ${[...new Set(D.tratamientos.map(x=>x.tipo))].map(x=>`<option value="${esc(x)}">`).join("")}
-          </datalist></div>
+        <div class="campo ancho"><label>Animal</label>${comboAnimales("animalId", t.animalId)}</div>
+        <div class="campo ancho"><label>Tipo de tratamiento</label>
+          ${combo("tipo", [...new Set([...D.tratamientos.map(x => x.tipo).filter(Boolean),
+            "Sincronización", "Vacunación", "Vermífugo", "Vitaminas", "Antibiótico",
+            "Antiinflamatorio", "Baño garrapaticida", "Mastitis", "Cojera",
+            "Para que se caloreé"])].sort((x,y)=>x.localeCompare(y,"es"))
+            .map(x => ({ v:x, et:x })), t.tipo,
+            { libre:true, ph:"Elige o escribe el tratamiento…" })}</div>
         <div class="campo"><label>Fecha de inicio</label><input type="date" name="inicio" value="${t.inicio}" required></div>
         <div class="campo"><label>Fecha de fin</label><input type="date" name="fin" value="${t.fin||""}"></div>
         <div class="campo ancho"><label>Detalles</label><textarea name="detalles">${esc(t.detalles)}</textarea></div>
@@ -3017,7 +3763,7 @@ function formAnotacion(id) {
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-guardar="nota:${id||""}">
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div><div class="rej">
-        <div class="campo"><label>Finca</label><select name="fincaId">${opFincas(n.fincaId)}</select></div>
+        <div class="campo"><label>Finca</label>${comboFincas("fincaId", n.fincaId)}</div>
         <div class="campo"><label>Fecha</label><input type="date" name="fecha" value="${n.fecha}" required></div>
         <div class="campo ancho"><label>Anotación</label><textarea name="texto" rows="5">${esc(n.texto)}</textarea></div>
       </div></div>
@@ -3066,6 +3812,820 @@ function fichaFinca(id) {
     </div>`);
 }
 
+/* ---------- LECHE ---------- */
+function formLeche(id, anId) {
+  const r = id ? D.leche.find(x => x.id === id)
+              : { fincaId: misFincasObj()[0]?.id || "", fecha: hoyISO(), litros: "",
+                  dias: 1, momento: "total", animalId: anId || "", precio: "", observaciones: "" };
+  const ultimoPrecio = [...D.leche].sort((a,b)=>b.fecha.localeCompare(a.fecha))
+    .find(x => Number(x.precio) > 0)?.precio;
+
+  abrirHoja(`
+    <div class="hoja-cab"><h2>${id ? "Editar registro de leche" : "Registrar leche"}</h2>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <form data-guardar="leche:${id||""}">
+      <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div>
+        <div class="nota">Si la leche sale cada dos días, pon los litros totales y marca
+        <strong>2 días</strong>. La app divide sola para sacar el promedio diario.</div>
+        <div class="rej">
+          <div class="campo"><label>Fecha</label>
+            <input type="date" name="fecha" value="${r.fecha}" required></div>
+          <div class="campo"><label>Litros</label>
+            <input type="number" name="litros" step="0.1" min="0" value="${r.litros}"
+              required inputmode="decimal" placeholder="0"></div>
+
+          <div class="campo ancho"><label>¿Cuántos días cubre?</label>
+            ${seg("dias", [["1","1 día"],["2","2 días"],["3","3 días"],["7","Una semana"]],
+                  String(r.dias || 1))}
+            <span class="ayuda" data-promedio></span></div>
+
+          <div class="campo ancho"><label>Momento</label>
+            ${seg("momento", Object.entries(MOMENTOS_LECHE).map(([k,v]) => [k, v]),
+                  r.momento || "total")}</div>
+
+          <div class="campo ancho"><label>Finca</label>${comboFincas("fincaId", r.fincaId)}</div>
+
+          <div class="campo ancho"><label>¿De un animal en particular?</label>
+            ${combo("animalId", misAnimales().filter(a => a.estado === "activo" && par(a).lechero)
+              .sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"))
+              .map(a => ({ v:a.id, et:`${a.nombre} · ${a.chapeta}`, sub:nombreFinca(a.fincaId) })),
+              r.animalId, { ph:"No, es de toda la finca", vacio:"No, es de toda la finca" })}
+            <span class="ayuda">Déjalo vacío si estás anotando lo del tanque.</span></div>
+
+          <div class="campo"><label>Precio por litro</label>
+            <input type="number" name="precio" step="1" min="0" value="${r.precio || ""}"
+              inputmode="numeric" placeholder="${ultimoPrecio ? "Último: " + ultimoPrecio : "Opcional"}">
+            <span class="ayuda">Opcional. Sirve para calcular el ingreso.</span></div>
+          <div class="campo"><label>Nota</label>
+            <input name="observaciones" value="${esc(r.observaciones || "")}"
+              placeholder="Se cortó un poco, calidad…"></div>
+        </div>
+      </div>
+      <div class="hoja-pie">
+        ${id && puede("borra") ? '<button type="button" class="btn btn-baja" data-borrar="leche:'+id+'">Eliminar</button>' : ""}
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button class="btn btn-firme">Guardar</button>
+      </div></form>`);
+
+  // Mostrar el promedio mientras escribe, para que se note el efecto de los días.
+  const li = hojaAbierta.querySelector("[name=litros]");
+  const ay = hojaAbierta.querySelector("[data-promedio]");
+  const calc = () => {
+    const n = Number(li.value) || 0;
+    const d = Number(hojaAbierta.querySelector("[name=dias]:checked")?.value) || 1;
+    ay.textContent = n ? `Son ${litros(n / d)} litros por día.` : "";
+  };
+  li.oninput = calc;
+  hojaAbierta.querySelectorAll("[name=dias]").forEach(x => x.onchange = calc);
+  calc();
+}
+
+/* ==========================================================
+   INTEGRIDAD
+   Qué depende de qué, y qué hay que arrastrar al borrar.
+   ========================================================== */
+
+/** Colecciones de eventos que cuelgan de un animal. */
+const EVENTOS_DE_ANIMAL = ["inseminaciones", "palpaciones", "partos", "secados", "tratamientos"];
+
+/** La leche puede ser de un animal o del tanque de la finca. */
+const EVENTOS_DE_FINCA = ["leche"];
+
+/** Cuenta lo que se llevaría por delante borrar algo. */
+function dependencias(tipo, id) {
+  if (tipo === "animal") {
+    const n = EVENTOS_DE_ANIMAL.reduce((t, c) => t + D[c].filter(x => x.animalId === id).length, 0);
+    const a = animal(id);
+    const crias = D.animales.filter(x => x.id !== id &&
+      (x.madre === a?.chapeta || x.padre === a?.chapeta)).length;
+    return { eventos: n, crias };
+  }
+  if (tipo === "finca") {
+    const animales = D.animales.filter(a => a.fincaId === id).length;
+    const lech = D.leche.filter(x => x.fincaId === id).length;
+    D.leche = D.leche.filter(x => x.fincaId !== id);
+    if (lech) quitados.leche = lech;
+
+    const notas = D.anotaciones.filter(n => n.fincaId === id).length;
+    const gente = D.personas.filter(p => (p.fincas || []).includes(id)).length;
+    return { animales, notas, gente };
+  }
+  if (tipo === "persona") {
+    const fincas = fincasDe(id).length;
+    const creo = ["fincas", "animales", "personas", ...EVENTOS_DE_ANIMAL, "anotaciones"]
+      .reduce((t, c) => t + (D[c] || []).filter(x => x.creadoPor === id).length, 0);
+    return { fincas, creo };
+  }
+  return {};
+}
+
+/**
+ * Borra un registro con todo lo que cuelga de él.
+ * Devuelve un resumen de lo que se llevó, o null si no se pudo.
+ */
+function borrarEnCascada(tipo, id, opciones) {
+  opciones = opciones || {};
+  const quitados = {};
+
+  if (tipo === "animal") {
+    for (const c of EVENTOS_DE_ANIMAL) {
+      const antes = D[c].length;
+      D[c] = D[c].filter(x => x.animalId !== id);
+      if (antes !== D[c].length) quitados[c] = antes - D[c].length;
+    }
+    // La leche del tanque no se borra: solo deja de estar atada a ese animal.
+    D.leche.forEach(x => { if (x.animalId === id) x.animalId = null; });
+    D.animales = D.animales.filter(x => x.id !== id);
+    return quitados;
+  }
+
+  if (tipo === "finca") {
+    const animales = D.animales.filter(a => a.fincaId === id);
+    if (animales.length && !opciones.arrastrarAnimales) return null;
+    for (const a of animales) borrarEnCascada("animal", a.id);
+    if (animales.length) quitados.animales = animales.length;
+
+    const lech = D.leche.filter(x => x.fincaId === id).length;
+    D.leche = D.leche.filter(x => x.fincaId !== id);
+    if (lech) quitados.leche = lech;
+
+    const notas = D.anotaciones.filter(n => n.fincaId === id).length;
+    D.anotaciones = D.anotaciones.filter(n => n.fincaId !== id);
+    if (notas) quitados.anotaciones = notas;
+
+    // Nadie debe quedar asignado a una finca que ya no existe.
+    D.personas.forEach(p => { p.fincas = (p.fincas || []).filter(f => f !== id); });
+    D.fincas = D.fincas.filter(f => f.id !== id);
+    return quitados;
+  }
+
+  if (tipo === "persona") {
+    const p = persona(id);
+    D.fincas.forEach(f => { f.personas = (f.personas || []).filter(x => x !== id); });
+    // Lo que registró no se borra: se queda sin autor conocido.
+    for (const c of ["fincas", "animales", "personas", ...EVENTOS_DE_ANIMAL, "anotaciones"]) {
+      (D[c] || []).forEach(x => { if (x.creadoPor === id) x.creadoPor = null; });
+    }
+    D.personas = D.personas.filter(x => x.id !== id);
+    // Y sobre todo: quitarle el acceso en Firestore.
+    if (p?.correo) borrarUsuarioRemoto(p.correo);
+    return quitados;
+  }
+
+  const mapa = { insem:"inseminaciones", palp:"palpaciones", parto:"partos",
+                 secado:"secados", trat:"tratamientos", nota:"anotaciones", leche:"leche" };
+  const col = mapa[tipo];
+  if (!col) return null;
+  D[col] = D[col].filter(x => x.id !== id);
+  return quitados;
+}
+
+/**
+ * Revisa que nada apunte a algo que ya no existe. Devuelve el informe;
+ * con arreglar=true además lo corrige.
+ */
+function revisarIntegridad(arreglar) {
+  const ids = (c) => new Set((D[c] || []).map(x => x.id));
+  const animales = ids("animales"), fincas = ids("fincas"), personas = ids("personas");
+  const informe = [];
+
+  const anota = (t, n, fn) => { if (n) { informe.push({ que: t, n }); if (arreglar) fn(); } };
+
+  for (const c of EVENTOS_DE_ANIMAL) {
+    const sueltos = (D[c] || []).filter(x => !animales.has(x.animalId));
+    anota(`${c} sin animal`, sueltos.length, () => {
+      D[c] = D[c].filter(x => animales.has(x.animalId));
+    });
+  }
+
+  anota("animales sin finca", D.animales.filter(a => !fincas.has(a.fincaId)).length, () => {});
+  anota("anotaciones sin finca", D.anotaciones.filter(n => !fincas.has(n.fincaId)).length, () => {
+    D.anotaciones = D.anotaciones.filter(n => fincas.has(n.fincaId));
+  });
+  anota("registros de leche sin finca", D.leche.filter(r => !fincas.has(r.fincaId)).length, () => {
+    D.leche = D.leche.filter(r => fincas.has(r.fincaId));
+  });
+  anota("leche atada a un animal borrado",
+    D.leche.filter(r => r.animalId && !animales.has(r.animalId)).length, () => {
+      D.leche.forEach(r => { if (r.animalId && !animales.has(r.animalId)) r.animalId = null; });
+    });
+
+  const asignacionesRotas = D.fincas.reduce((t, f) =>
+    t + (f.personas || []).filter(p => !personas.has(p)).length, 0);
+  anota("personas asignadas que ya no existen", asignacionesRotas, () => {
+    D.fincas.forEach(f => { f.personas = (f.personas || []).filter(p => personas.has(p)); });
+  });
+
+  const autoresRotos = ["fincas", "animales", "personas", ...EVENTOS_DE_ANIMAL, "anotaciones"]
+    .reduce((t, c) => t + (D[c] || []).filter(x => x.creadoPor && !personas.has(x.creadoPor)).length, 0);
+  anota("registros con autor borrado", autoresRotos, () => {
+    for (const c of ["fincas", "animales", "personas", ...EVENTOS_DE_ANIMAL, "anotaciones"]) {
+      (D[c] || []).forEach(x => { if (x.creadoPor && !personas.has(x.creadoPor)) x.creadoPor = null; });
+    }
+  });
+
+  // Eventos cuyo fincaId no coincide con el de su animal.
+  const desalineados = EVENTOS_DE_ANIMAL.reduce((t, c) =>
+    t + (D[c] || []).filter(x => {
+      const a = D.animales.find(y => y.id === x.animalId);
+      return a && x.fincaId !== a.fincaId;
+    }).length, 0);
+  anota("eventos con finca desalineada", desalineados, () => recalcularAccesos());
+
+  if (arreglar && informe.length) { recalcularAccesos(); guardar(); }
+  return informe;
+}
+
+/**
+ * Cuando cambia la chapeta de un animal, las crías que lo tenían por madre
+ * o padre lo guardaban por ese número. Hay que moverlas con él.
+ */
+function renombrarChapeta(anterior, nueva) {
+  if (!anterior || !nueva || anterior === nueva) return 0;
+  let n = 0;
+  D.animales.forEach(a => {
+    if (a.madre === anterior) { a.madre = nueva; n++; }
+    if (a.padre === anterior) { a.padre = nueva; n++; }
+  });
+  return n;
+}
+
+/* ==========================================================
+   MODO SELECCIÓN
+   Se inyecta sobre la tabla ya dibujada, así funciona igual
+   en todas las vistas sin duplicar código en cada una.
+   ========================================================== */
+
+/** Qué colección corresponde a cada vista, y qué se puede hacer en ella. */
+const SELECCIONABLE = {
+  activos:      { tipo:"animal",  et:"animales",       edita:1 },
+  salidas:      { tipo:"animal",  et:"animales",       edita:1 },
+  palpacion:    { tipo:"animal",  et:"animales",       edita:1 },
+  fincas:       { tipo:"finca",   et:"fincas",         edita:0 },
+  duenos:       { tipo:"persona", et:"personas",       edita:1 },
+  administradores:{ tipo:"persona", et:"personas",     edita:1 },
+  empleados:    { tipo:"persona", et:"personas",       edita:1 },
+  inseminacion: { tipo:"insem",   et:"inseminaciones", edita:0 },
+  partos:       { tipo:"parto",   et:"registros",      edita:0 },
+  secados:      { tipo:"secado",  et:"secados",        edita:0 },
+  tratamientos: { tipo:"trat",    et:"tratamientos",   edita:0 },
+  anotaciones:  { tipo:"nota",    et:"anotaciones",    edita:0 },
+  leche:        { tipo:"leche",   et:"registros",      edita:0 },
+};
+
+/** Saca el identificador de una fila, sea del tipo que sea. */
+function idDeFila(el) {
+  if (el.dataset.abrir) return el.dataset.abrir;
+  if (el.dataset.finca) return el.dataset.finca;
+  if (el.dataset.ev) return el.dataset.ev.split(":")[1];
+  return null;
+}
+
+function montarSeleccion() {
+  const cfg = SELECCIONABLE[V.vista];
+  const barra = document.querySelector(".barra");
+  const filas = [...document.querySelectorAll("tbody tr.fila, .tarjeta")];
+  if (!cfg || !barra || !filas.length) { V.sel = null; return; }
+
+  // Botón para entrar y salir del modo
+  const btn = document.createElement("button");
+  btn.className = "btn" + (V.sel ? " btn-firme" : "");
+  btn.textContent = V.sel ? "Salir de selección" : "Seleccionar";
+  btn.onclick = () => { V.sel = V.sel ? null : { tipo: cfg.tipo, ids: new Set() }; pintar(); };
+  barra.appendChild(btn);
+  if (!V.sel) return;
+
+  // Casilla en el encabezado
+  const cab = document.querySelector("thead tr");
+  if (cab && !cab.querySelector(".celda-sel")) {
+    const th = document.createElement("th");
+    th.className = "celda-sel";
+    th.innerHTML = '<input type="checkbox" aria-label="Seleccionar todo">';
+    cab.insertBefore(th, cab.firstChild);
+    th.querySelector("input").onclick = (e) => {
+      e.stopPropagation();
+      const todos = e.target.checked;
+      filas.forEach(f => { const i = idDeFila(f); if (i) todos ? V.sel.ids.add(i) : V.sel.ids.delete(i); });
+      pintar();
+    };
+  }
+
+  // Casilla en cada fila
+  filas.forEach(f => {
+    const id = idDeFila(f);
+    if (!id) return;
+    const marcado = V.sel.ids.has(id);
+    f.classList.toggle("marcada", marcado);
+
+    if (f.tagName === "TR") {
+      const td = document.createElement("td");
+      td.className = "celda-sel";
+      td.innerHTML = `<input type="checkbox" ${marcado ? "checked" : ""}>`;
+      f.insertBefore(td, f.firstChild);
+    } else {
+      const marca = document.createElement("span");
+      marca.className = "marca-tarjeta" + (marcado ? " on" : "");
+      marca.textContent = marcado ? "✓" : "";
+      f.appendChild(marca);
+    }
+    // En modo selección, tocar la fila marca en vez de abrir.
+    f.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      V.sel.ids.has(id) ? V.sel.ids.delete(id) : V.sel.ids.add(id);
+      pintar();
+    };
+  });
+
+  if (V.sel.ids.size) pintarBarraSeleccion(cfg);
+}
+
+/** ¿Puede editar en grupo esta clase de registro? */
+function puedeEditarLote(cfg) {
+  if (!cfg.edita) return false;
+  if (cfg.tipo === "persona") return puede("editaPersona");
+  if (cfg.tipo === "animal") return puede("editaAnimal");
+  return false;
+}
+
+function pintarBarraSeleccion(cfg) {
+  const n = V.sel.ids.size;
+  const d = document.createElement("div");
+  d.className = "barra-sel";
+  d.innerHTML = `
+    <span><strong>${n}</strong> ${n === 1 ? "seleccionado" : "seleccionados"}</span>
+    <div class="barra-sel-btns">
+      ${puedeEditarLote(cfg) ? '<button class="btn btn-sm" data-sel-editar>Editar en grupo</button>' : ""}
+      ${puede("borra") ? '<button class="btn btn-sm btn-baja" data-sel-borrar>Eliminar</button>' : ""}
+      <button class="btn btn-sm" data-sel-cancelar>Cancelar</button>
+    </div>`;
+  document.body.appendChild(d);
+  d.querySelector("[data-sel-cancelar]").onclick = () => { V.sel = null; pintar(); };
+  d.querySelector("[data-sel-borrar]")?.addEventListener("click", () => borrarSeleccion(cfg));
+  d.querySelector("[data-sel-editar]")?.addEventListener("click", () => editarSeleccion(cfg));
+}
+
+/* ---------- eliminar en grupo ---------- */
+function borrarSeleccion(cfg) {
+  const ids = [...V.sel.ids];
+  const bloqueados = [];
+  const permitidos = [];
+
+  for (const id of ids) {
+    if (cfg.tipo === "animal") {
+      const a = animal(id);
+      if (!puedoEditarAnimal(a)) { bloqueados.push(`${a.nombre} (${a.estado})`); continue; }
+    }
+    if (cfg.tipo === "persona") {
+      const p = persona(id);
+      if (!puedoEditarPersona(p) || p.id === S.persona?.id) { bloqueados.push(p.nombre); continue; }
+    }
+    if (cfg.tipo === "finca" && !puedoBorrarFinca(finca(id))) {
+      bloqueados.push(finca(id).nombre); continue;
+    }
+    permitidos.push(id);
+  }
+
+  if (!permitidos.length) {
+    return alert("No puedes eliminar ninguno de los seleccionados.\n\n" +
+                 bloqueados.slice(0, 8).join("\n"));
+  }
+
+  // Contar el arrastre antes de preguntar.
+  let arrastre = 0, animalesFinca = 0;
+  for (const id of permitidos) {
+    const dep = dependencias(cfg.tipo, id);
+    arrastre += dep.eventos || 0;
+    animalesFinca += dep.animales || 0;
+  }
+
+  let msg = `¿Eliminar ${permitidos.length} ${cfg.et}?`;
+  if (arrastre) msg += `\n\nSe borran también ${arrastre} registros asociados.`;
+  if (animalesFinca) msg += `\n\nOJO: se borran ${animalesFinca} animales con todo su historial.`;
+  if (bloqueados.length) msg += `\n\nQuedan fuera ${bloqueados.length} que no puedes tocar.`;
+  msg += "\n\nNo se puede deshacer.";
+  if (!confirm(msg)) return;
+  if ((arrastre > 20 || animalesFinca) &&
+      !confirm("Última confirmación. Es un borrado grande y no hay vuelta atrás.")) return;
+
+  let n = 0;
+  for (const id of permitidos) {
+    if (borrarEnCascada(cfg.tipo, id, { arrastrarAnimales: true }) !== null) n++;
+  }
+  V.sel = null;
+  recalcularAccesos(); guardar(); pintar();
+  avisar(`${n} ${cfg.et} eliminados`);
+}
+
+/* ---------- editar en grupo ---------- */
+function editarSeleccion(cfg) {
+  const n = V.sel.ids.size;
+  if (cfg.tipo === "animal") {
+    abrirHoja(`
+      <div class="hoja-cab"><h2>Editar ${n} animales</h2>
+        <button class="cerrar" data-cerrar>×</button></div>
+      <form data-lote="animal">
+        <div class="hoja-cuerpo">
+          <div class="aviso" data-error hidden></div>
+          <div class="nota">Solo se cambia lo que marques. Lo demás queda como está en
+          cada animal.</div>
+          <div class="rej">
+            <div class="campo ancho"><label>
+              <input type="checkbox" name="usarFinca"> Mover a otra finca</label>
+              ${comboFincas("fincaId", "")}</div>
+            <div class="campo ancho"><label>
+              <input type="checkbox" name="usarCategoria"> Cambiar la categoría</label>
+              ${combo("categoria", Object.entries(CATEGORIAS).map(([k,c])=>
+                ({ v:k, et:c.et, grupo: ESPECIES[c.especie].plural })), "",
+                { ph:"Elige la categoría…" })}</div>
+            <div class="campo ancho"><label>
+              <input type="checkbox" name="usarEstado"> Cambiar el estado</label>
+              <select name="estado">
+                <option value="activo">En el hato</option>
+                <option value="vendido">Vendido</option>
+                <option value="muerto">Muerto</option>
+              </select>
+              <span class="ayuda">Al marcar vendido o muerto se pide la fecha de salida.</span></div>
+            <div class="campo ancho"><label>Fecha de salida</label>
+              <input type="date" name="fechaSalida"></div>
+            <div class="campo ancho"><label>
+              <input type="checkbox" name="usarRaza"> Cambiar la raza</label>
+              ${combo("raza", Object.entries(RAZAS).flatMap(([e,l]) =>
+                l.map(r => ({ v:r, et:r, grupo: ESPECIES[e].plural }))), "",
+                { libre:true, ph:"Elige o escribe la raza…" })}</div>
+          </div>
+        </div>
+        <div class="hoja-pie">
+          <button type="button" class="btn" data-cerrar>Cancelar</button>
+          <button class="btn btn-firme">Aplicar a los ${n}</button>
+        </div>
+      </form>`);
+    return;
+  }
+
+  if (cfg.tipo === "persona") {
+    abrirHoja(`
+      <div class="hoja-cab"><h2>Editar ${n} personas</h2>
+        <button class="cerrar" data-cerrar>×</button></div>
+      <form data-lote="persona">
+        <div class="hoja-cuerpo">
+          <div class="aviso" data-error hidden></div>
+          <div class="nota">Solo se cambia lo que marques.</div>
+          <div class="rej">
+            <div class="campo ancho"><label>
+              <input type="checkbox" name="usarActivo"> Cambiar el estado</label>
+              <select name="activo">
+                <option value="si">Activo</option>
+                <option value="no">Inactivo</option>
+              </select></div>
+            ${esSuper() ? `<div class="campo ancho"><label>
+              <input type="checkbox" name="usarRol"> Cambiar el rol</label>
+              <select name="rol">${Object.entries(ROLES)
+                .filter(([k]) => rolesQuePuedoCrear().includes(k))
+                .map(([k,v])=>`<option value="${k}">${v.et}</option>`).join("")}</select></div>` : ""}
+            <div class="campo ancho"><label>
+              <input type="checkbox" name="usarFinca"> Asignarlos a una finca</label>
+              ${comboFincas("fincaId", "")}
+              <span class="ayuda">Se añade la finca; no se quitan las que ya tengan.</span></div>
+          </div>
+        </div>
+        <div class="hoja-pie">
+          <button type="button" class="btn" data-cerrar>Cancelar</button>
+          <button class="btn btn-firme">Aplicar a los ${n}</button>
+        </div>
+      </form>`);
+  }
+}
+
+function aplicarLote(f) {
+  const tipo = f.dataset.lote;
+  const v = datos(f);
+  const ids = [...(V.sel?.ids || [])];
+  if (!ids.length) return cerrarHoja();
+  let n = 0, bloqueados = 0;
+
+  if (tipo === "animal") {
+    if (v.usarEstado && v.estado !== "activo" && !v.fechaSalida) {
+      return error(f, "Pon la fecha de salida para marcarlos como vendidos o muertos.");
+    }
+    for (const id of ids) {
+      const a = animal(id);
+      if (!a || !puedoEditarAnimal(a)) { bloqueados++; continue; }
+      if (v.usarFinca) a.fincaId = v.fincaId;
+      if (v.usarCategoria) a.categoria = v.categoria;
+      if (v.usarRaza) a.raza = v.raza;
+      if (v.usarEstado) {
+        a.estado = v.estado;
+        a.fechaSalida = v.estado === "activo" ? null : v.fechaSalida;
+        if (v.estado === "activo") a.motivoSalida = "";
+      }
+      n++;
+    }
+  }
+
+  if (tipo === "persona") {
+    for (const id of ids) {
+      const p = persona(id);
+      if (!p || !puedoEditarPersona(p)) { bloqueados++; continue; }
+      if (v.usarActivo) p.activo = v.activo !== "no";
+      if (v.usarRol && esSuper() && p.id !== S.persona?.id) p.rol = v.rol;
+      if (v.usarFinca) {
+        const fi = finca(v.fincaId);
+        if (fi && !(fi.personas || []).includes(p.id)) (fi.personas ||= []).push(p.id);
+      }
+      n++;
+    }
+  }
+
+  V.sel = null;
+  recalcularAccesos(); guardar(); cerrarHoja(); pintar();
+  avisar(bloqueados ? `${n} actualizados · ${bloqueados} sin permiso` : `${n} actualizados`);
+}
+
+/* ==========================================================
+   DESPLEGABLE CON BUSCADOR
+   Un <select> con cuarenta razas o doscientos animales es
+   inmanejable, sobre todo en el celular. Este lo reemplaza:
+   se escribe y la lista se filtra sola, sin tildes.
+   ========================================================== */
+
+let _combo = 0;
+
+/**
+ * opciones: [{ v, et, sub, grupo }]
+ * opts: { libre, ph, vacio }
+ *   libre  → deja usar lo que se escriba aunque no esté en la lista
+ *   ph     → texto cuando no hay nada elegido
+ *   vacio  → etiqueta de la opción "ninguno"
+ */
+function combo(nombre, opciones, valor, opts) {
+  opts = opts || {};
+  const id = "cb" + (++_combo);
+  const sel = opciones.find(o => o.v === valor);
+  const texto = sel ? sel.et : (valor && opts.libre ? valor : "");
+
+  return `<div class="combo" data-combo id="${id}"
+      data-libre="${opts.libre ? 1 : 0}" data-ph="${esc(opts.ph || "Selecciona…")}">
+    <input type="hidden" name="${nombre}" value="${esc(valor || "")}">
+    <button type="button" class="combo-btn ${texto ? "" : "vacio"}">
+      <span class="combo-txt">${esc(texto || opts.ph || "Selecciona…")}</span>
+      <span class="combo-flecha">▾</span>
+    </button>
+    <div class="combo-panel" hidden>
+      <input class="combo-busca" type="text" placeholder="Escribe para buscar…"
+        autocomplete="off" inputmode="search">
+      <ul class="combo-lista">
+        ${opts.vacio ? `<li data-v="" class="combo-vacio">${esc(opts.vacio)}</li>` : ""}
+        ${filasCombo(opciones)}
+      </ul>
+      <div class="combo-nada" hidden></div>
+    </div>
+  </div>`;
+}
+
+function filasCombo(opciones) {
+  let html = "", grupoActual = null;
+  for (const o of opciones) {
+    if (o.grupo && o.grupo !== grupoActual) {
+      grupoActual = o.grupo;
+      html += `<li class="combo-grupo" data-grupo>${esc(o.grupo)}</li>`;
+    }
+    html += `<li data-v="${esc(o.v)}" data-busca="${esc([o.et, o.sub, o.grupo].filter(Boolean).join(" "))}">
+      <span>${esc(o.et)}</span>${o.sub ? `<em>${esc(o.sub)}</em>` : ""}</li>`;
+  }
+  return html;
+}
+
+/** Cambia las opciones de un combo ya dibujado (p. ej. razas al cambiar de especie). */
+function rellenarCombo(el, opciones, valor, ph) {
+  const lista = el.querySelector(".combo-lista");
+  const vacio = lista.querySelector(".combo-vacio");
+  lista.innerHTML = (vacio ? vacio.outerHTML : "") + filasCombo(opciones);
+  const sel = opciones.find(o => o.v === valor);
+  el.querySelector("input[type=hidden]").value = sel ? sel.v : "";
+  const btn = el.querySelector(".combo-btn");
+  btn.classList.toggle("vacio", !sel);
+  el.querySelector(".combo-txt").textContent = sel ? sel.et : (ph || el.dataset.ph);
+  conectarUnCombo(el);
+}
+
+function conectarUnCombo(el) {
+  const btn    = el.querySelector(".combo-btn");
+  const panel  = el.querySelector(".combo-panel");
+  const busca  = el.querySelector(".combo-busca");
+  const lista  = el.querySelector(".combo-lista");
+  const nada   = el.querySelector(".combo-nada");
+  const oculto = el.querySelector("input[type=hidden]");
+  const txt    = el.querySelector(".combo-txt");
+  const libre  = el.dataset.libre === "1";
+
+  const cerrar = () => { panel.hidden = true; el.classList.remove("abierto"); };
+  const abrir = () => {
+    document.querySelectorAll(".combo.abierto").forEach(o => {
+      if (o !== el) { o.classList.remove("abierto"); o.querySelector(".combo-panel").hidden = true; }
+    });
+    panel.hidden = false; el.classList.add("abierto");
+    busca.value = ""; filtrar("");
+    // En el celular no enfocamos: abriría el teclado tapando la lista.
+    if (window.innerWidth > 860) busca.focus();
+  };
+
+  const filtrar = (q) => {
+    let visibles = 0;
+    lista.querySelectorAll("li[data-v]").forEach(li => {
+      const ok = contiene(li.dataset.busca || li.textContent, q);
+      li.hidden = !ok;
+      if (ok && li.dataset.v) visibles++;
+    });
+    // Los títulos de grupo se ocultan si no quedó nada debajo.
+    lista.querySelectorAll("li[data-grupo]").forEach(g => {
+      let n = 0;
+      for (let s = g.nextElementSibling; s && !s.hasAttribute("data-grupo"); s = s.nextElementSibling) {
+        if (!s.hidden) n++;
+      }
+      g.hidden = n === 0;
+    });
+    if (!visibles && q.trim()) {
+      nada.hidden = false;
+      nada.innerHTML = libre
+        ? `<button type="button" class="btn btn-sm" data-usar>Usar «${esc(q.trim())}»</button>`
+        : "Sin resultados";
+      nada.querySelector("[data-usar]")?.addEventListener("click", () => {
+        oculto.value = q.trim();
+        txt.textContent = q.trim();
+        btn.classList.remove("vacio");
+        cerrar();
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    } else nada.hidden = true;
+  };
+
+  btn.onclick = (e) => { e.preventDefault(); panel.hidden ? abrir() : cerrar(); };
+  busca.oninput = () => filtrar(busca.value);
+  busca.onkeydown = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); cerrar(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const primera = [...lista.querySelectorAll("li[data-v]")].find(li => !li.hidden);
+      if (primera) primera.click();
+      else nada.querySelector("[data-usar]")?.click();
+    }
+  };
+  lista.onclick = (e) => {
+    const li = e.target.closest("li[data-v]");
+    if (!li) return;
+    oculto.value = li.dataset.v;
+    txt.textContent = li.dataset.v ? li.querySelector("span").textContent : el.dataset.ph;
+    btn.classList.toggle("vacio", !li.dataset.v);
+    cerrar();
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+}
+
+function conectarCombos(raiz) {
+  (raiz || document).querySelectorAll("[data-combo]").forEach(conectarUnCombo);
+}
+
+// Un clic fuera cierra el que esté abierto.
+document.addEventListener("mousedown", (e) => {
+  if (!e.target.closest(".combo")) {
+    document.querySelectorAll(".combo.abierto").forEach(o => {
+      o.classList.remove("abierto"); o.querySelector(".combo-panel").hidden = true;
+    });
+  }
+});
+
+/* ---------- atajos para las listas que más se repiten ---------- */
+
+const comboAnimales = (nombre, valor, filtro) => combo(nombre,
+  misAnimales().filter(a => a.estado === "activo" && (!filtro || filtro(a)))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+    .map(a => ({ v: a.id, et: `${a.nombre} · ${a.chapeta}`,
+                 sub: `${CATEGORIAS[a.categoria]?.et || ""} · ${nombreFinca(a.fincaId)}` })),
+  valor, { ph: "Busca por nombre o chapeta…" });
+
+const comboFincas = (nombre, valor) => combo(nombre,
+  misFincasObj().sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+    .map(f => ({ v: f.id, et: f.nombre, sub: f.ubicacion })),
+  valor, { ph: "Elige la finca…" });
+
+const comboRazas = (nombre, especie, valor) => combo(nombre,
+  razasDe(especie).map(r => ({ v: r, et: r })),
+  valor, { libre: true, ph: "Sin especificar", vacio: "Sin especificar" });
+
+const comboCategorias = (nombre, especie, valor) => combo(nombre,
+  Object.entries(CATEGORIAS).filter(([, c]) => c.especie === especie)
+    .map(([k, c]) => ({ v: k, et: c.et, sub: c.sexo === "H" ? "hembra" : "macho" })),
+  valor, { ph: "Elige la categoría…" });
+
+/* ==========================================================
+   RESUMEN DE LECHE
+   ========================================================== */
+
+/** Semana ISO: lunes a domingo. */
+function semanaISO(d) {
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7));
+  const primera = new Date(t.getFullYear(), 0, 4);
+  const n = 1 + Math.round(((t - primera) / 86400000 - 3 + ((primera.getDay() + 6) % 7)) / 7);
+  return { anio: t.getFullYear(), n };
+}
+
+function lunesDe(d) {
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  t.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+  return t;
+}
+
+const EPOCAS = { semana:"Semanal", quincena:"Quincenal", mes:"Mensual", anio:"Anual" };
+const NOMBRE_EPOCA = { semana:"semana", quincena:"quincena", mes:"mes", anio:"año" };
+
+/** A qué periodo pertenece una fecha, con una etiqueta legible. */
+function periodoDe(fecha, epoca) {
+  const d = aFecha(fecha);
+  const a = d.getFullYear(), m = d.getMonth(), dia = d.getDate();
+
+  if (epoca === "anio") return { k: String(a), et: String(a), orden: `${a}` };
+
+  if (epoca === "mes") return {
+    k: `${a}-${String(m + 1).padStart(2, "0")}`,
+    et: `${MESES[m][0].toUpperCase()}${MESES[m].slice(1)} ${a}`,
+    orden: `${a}-${String(m + 1).padStart(2, "0")}`,
+  };
+
+  if (epoca === "quincena") {
+    const q = dia <= 15 ? 1 : 2;
+    const fin = new Date(a, m + 1, 0).getDate();
+    return {
+      k: `${a}-${String(m + 1).padStart(2, "0")}-Q${q}`,
+      et: `${q === 1 ? "1 al 15" : `16 al ${fin}`} de ${MESES[m]} ${a}`,
+      orden: `${a}-${String(m + 1).padStart(2, "0")}-${q}`,
+    };
+  }
+
+  const s = semanaISO(d);
+  const lun = lunesDe(d);
+  const dom = new Date(lun); dom.setDate(dom.getDate() + 6);
+  const corto = (x) => `${x.getDate()} ${MESES[x.getMonth()].slice(0, 3)}`;
+  return {
+    k: `${s.anio}-W${String(s.n).padStart(2, "0")}`,
+    et: `${corto(lun)} – ${corto(dom)}`,
+    orden: `${s.anio}-${String(s.n).padStart(2, "0")}`,
+  };
+}
+
+/**
+ * Agrupa los registros por periodo. El promedio diario se saca sobre los
+ * días que cubren los registros, no sobre el número de entregas.
+ */
+function resumenLeche(registros, epoca) {
+  const por = {};
+  for (const r of registros) {
+    const p = periodoDe(r.fecha, epoca);
+    const g = (por[p.k] ||= { ...p, litros: 0, dias: 0, n: 0, ingreso: 0, vacasDia: 0 });
+    const d = Math.max(1, Number(r.dias) || 1);
+    g.litros += Number(r.litros) || 0;
+    g.dias   += d;
+    g.ingreso += (Number(r.litros) || 0) * (Number(r.precio) || 0);
+    // Las vacas se ponderan por los días que cubre el registro: así un
+    // periodo con el hato creciendo da el promedio correcto.
+    g.vacasDia += vacasDeRegistro(r) * d;
+    g.n++;
+  }
+  return Object.values(por)
+    .map(g => {
+      const vacas = g.dias ? g.vacasDia / g.dias : 0;
+      return { ...g,
+        promedio: g.dias ? g.litros / g.dias : 0,
+        vacas,
+        porVaca: g.dias && vacas ? (g.litros / g.dias) / vacas : 0 };
+    })
+    .sort((a, b) => b.orden.localeCompare(a.orden));
+}
+
+/** Comparativo entre las fincas a las que se tiene acceso. */
+function resumenPorFinca(registros) {
+  const por = {};
+  for (const r of registros) {
+    const g = (por[r.fincaId] ||= { fincaId: r.fincaId, litros: 0, dias: 0, vacasDia: 0, n: 0, ingreso: 0 });
+    const d = Math.max(1, Number(r.dias) || 1);
+    g.litros += Number(r.litros) || 0;
+    g.dias += d;
+    g.vacasDia += vacasDeRegistro(r) * d;
+    g.ingreso += (Number(r.litros) || 0) * (Number(r.precio) || 0);
+    g.n++;
+  }
+  return Object.values(por).map(g => {
+    const vacas = g.dias ? g.vacasDia / g.dias : 0;
+    return { ...g, nombre: nombreFinca(g.fincaId),
+      promedio: g.dias ? g.litros / g.dias : 0,
+      vacas, porVaca: g.dias && vacas ? (g.litros / g.dias) / vacas : 0 };
+  }).sort((a, b) => b.porVaca - a.porVaca);
+}
+
+const litros = (n) => (Math.round((Number(n) || 0) * 10) / 10)
+  .toLocaleString("es-CO", { maximumFractionDigits: 1 });
+const pesos = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
+
 /* ==========================================================
    FIREBASE — conexión opcional.
    La app funciona sola sin esto. Al conectar, los datos pasan
@@ -3073,7 +4633,7 @@ function fichaFinca(id) {
    ========================================================== */
 
 const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
-                     "palpaciones", "partos", "secados", "tratamientos", "anotaciones"];
+                     "palpaciones", "partos", "secados", "tratamientos", "leche", "anotaciones"];
 
 const FB = {
   mods: null, app: null, db: null, auth: null, user: null,
@@ -3291,13 +4851,23 @@ function escucharColecciones(mias) {
   escuchar("personas", todo ? col("personas")
     : fs.query(col("personas"), fs.where("fincas", "array-contains-any", trozo)));
   for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
-                   "secados", "tratamientos", "anotaciones"]) {
+                   "secados", "tratamientos", "leche", "anotaciones"]) {
     escuchar(n, todo ? col(n) : fs.query(col(n), fs.where("fincaId", "in", trozo)));
   }
 
   FB.estado = "listo";
   pintar();
   // La configuración se queda local: cada equipo tiene la suya.
+}
+
+/** Le quita el acceso a un correo. Sin esto seguiría entrando a la finca. */
+async function borrarUsuarioRemoto(correo) {
+  const c = (correo || "").trim().toLowerCase();
+  if (!c || !FB.db || !FB.user || !manda()) return;
+  try {
+    const { fs } = FB.mods;
+    await fs.deleteDoc(fs.doc(FB.db, "usuarios", c));
+  } catch (e) { console.warn("usuarios:", errorFB(e)); }
 }
 
 /** Mantiene /usuarios en Firestore al día con las asignaciones de la app. */
@@ -3882,6 +5452,13 @@ service cloud.firestore {
       allow delete: if registrado() && manda() && mia();
     }
 
+    match /leche/{id} {
+      allow read:   if registrado() && mia();
+      allow create: if registrado() && seraMia();
+      allow update: if registrado() && mia() && seraMia();
+      allow delete: if registrado() && manda() && mia();
+    }
+
     match /anotaciones/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
@@ -3898,7 +5475,8 @@ Colección: inseminaciones  → fincaId (Ascendente) + fecha (Descendente)
 Colección: partos          → fincaId (Ascendente) + fecha (Descendente)
 Colección: palpaciones     → fincaId (Ascendente) + fecha (Descendente)
 Colección: secados         → fincaId (Ascendente) + fecha (Descendente)
-Colección: tratamientos    → fincaId (Ascendente) + inicio (Descendente)`;
+Colección: tratamientos    → fincaId (Ascendente) + inicio (Descendente)
+Colección: leche           → fincaId (Ascendente) + fecha (Descendente)`;
 
 function paso(n, titulo, cuerpo) {
   return `<div class="paso"><div class="paso-n">${n}</div>
@@ -3914,7 +5492,12 @@ function bloqueCodigo(txt, etiqueta) {
     <pre>${esc(txt)}</pre></div>`;
 }
 
+/* El acordeón recuerda qué paneles dejaste abiertos. */
+V.acordeon ??= new Set([0]);
+const abierto = (n) => V.acordeon.has(n) ? "open" : "";
+
 function vConfiguracion() {
+  let ACORD = 0;
   const cfg = D.config.firebase;
   const con = !!cfg?.apiKey;
   const incluida = !!(typeof CONFIG_INCLUIDA === "object" && CONFIG_INCLUIDA
@@ -3935,15 +5518,15 @@ function vConfiguracion() {
 
   return `
   <header class="cab"><div><h1>Configuración</h1>
-    <p>${esMaestro() ? "Conexión con Firebase, reglas de seguridad y parámetros de la finca"
+    <p>${verConfigAvanzada() ? "Conexión con Firebase, reglas de seguridad y parámetros de la finca"
        : puede("config") ? "Parámetros de la finca, invitaciones e instalación"
        : "Versión de la app e instalación en el celular"}</p></div>
     <span class="p gris">v${VERSION} · ${FECHA_VERSION}</span></header>
 
   <!-- ============ 0. VERSIÓN ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Versión ${VERSION}</h2>
-      <span class="p gris">${FECHA_VERSION}</span></div>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Versión ${VERSION}</h2>
+      <span class="p gris">${FECHA_VERSION}</span><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">La app revisa sola si hay versión nueva al abrirla y cada vez que
       vuelves a la pestaña. Si aparece un aviso arriba, pulsa Actualizar.</p>
@@ -3957,19 +5540,19 @@ function vConfiguracion() {
         <ul class="cambios">${lista.map(x => `<li>${x}</li>`).join("")}</ul>
       `).join("")}
     </div>
-  </section>
+  </details>
 
-  ${!esMaestro() ? `<div class="nota">La conexión con la base de datos la administra
+  ${verConfigAvanzada() ? "" : `<div class="nota">La conexión con la base de datos la administra
     ${D.config.maestro ? `<strong>${esc(D.config.maestro)}</strong>` : "el dueño principal"}.
-    Aquí ves solo lo que puedes cambiar sin afectar a los demás.</div>` : ""}
+    Aquí ves solo lo que puedes cambiar sin afectar a los demás.</div>`}
 
-  ${!esMaestro() ? "" : `
+  ${!verConfigAvanzada() ? "" : `
   <!-- ============ 1. FIREBASE ============ -->
-  <section class="panel">
-    <div class="panel-cab">
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab">
       <h2>Conexión con Firebase</h2>
       <span class="p ${insignia[0]}">${insignia[1]}</span>
-    </div>
+    <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       ${enArchivoLocal() ? `<div class="aviso">Abriste el archivo con doble clic (<code>file://</code>).
         Los navegadores bloquean la descarga del SDK de Firebase en ese modo. Para que la conexión
@@ -4058,11 +5641,11 @@ function vConfiguracion() {
         `}
       `}
     </div>
-  </section>
+  </details>
 
   <!-- ============ 2. PASOS ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Cómo dejarlo funcionando</h2></div>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Cómo dejarlo funcionando</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       ${paso(1, "Crear el proyecto", `<p>Entra a <code>console.firebase.google.com</code> y crea un proyecto.
         No necesitas Analytics.</p>`)}
@@ -4118,13 +5701,13 @@ function vConfiguracion() {
         <strong>Subir datos de este equipo</strong>. En los demás computadores basta con pegar la
         misma configuración y entrar con su propio correo: cada quien verá únicamente sus fincas.</p>`)}
     </div>
-  </section>
+  </details>
 
   `}
   ${!puede("personas") ? "" : `
   <!-- ============ 2b. INVITAR ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Cómo entra cada persona</h2></div>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Cómo entra cada persona</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">No tienes que crear cuentas a mano ni repartir contraseñas. Registras a
       la persona con su correo, la asignas a una finca, y le mandas la invitación desde su
@@ -4161,13 +5744,13 @@ function vConfiguracion() {
       <strong>Olvidé mi contraseña</strong> y le llega un correo para cambiarla. No tienes que
       intervenir.</div>
     </div>
-  </section>
+  </details>
 
   `}
   ${!puede("config") ? "" : `
   <!-- ============ 3. PARÁMETROS ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Parámetros de la finca</h2></div>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Parámetros de la finca</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">De estos números salen las fechas de palpación, secado y parto probable,
       y también las alertas. Cada especie tiene los suyos: una marrana gesta 114 días y una
@@ -4182,6 +5765,10 @@ function vConfiguracion() {
               <input type="number" name="${k}_gestacion" min="1" value="${g.gestacion}"></div>
             <div class="campo"><label>Palpar a los … días</label>
               <input type="number" name="${k}_palpar" min="1" value="${g.palpar}"></div>
+            <div class="campo"><label>Cuido preparto desde el día</label>
+              <input type="number" name="${k}_preparto" min="0" value="${g.preparto || 0}">
+              <span class="ayuda">${g.preparto
+                ? `${g.gestacion - g.preparto} días antes del parto` : "sin alerta"}</span></div>
             ${base.lechero ? `
               <div class="campo"><label>Secado: desde el día</label>
                 <input type="number" name="${k}_secarD" min="1" value="${g.secarDesde}">
@@ -4209,15 +5796,15 @@ function vConfiguracion() {
         </div>
       </form>
     </div>
-  </section>
+  </details>
 
   `}
-  ${!esMaestro() ? "" : `
+  ${!verConfigAvanzada() ? "" : `
   <!-- ============ 4. PUBLICAR ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Publicar la app para el equipo</h2>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Publicar la app para el equipo</h2>
       ${incluida ? '<span class="p verde">Configuración incluida</span>' : '<span class="p gris">Solo en este equipo</span>'}
-    </div>
+    <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">Genera una copia de la app con la configuración de Firebase adentro.
       Quien abra esa copia ya queda apuntando a la misma base; solo tiene que entrar con su
@@ -4257,16 +5844,16 @@ function vConfiguracion() {
         después de haber hecho los pasos 4 y 5 de la sección anterior.</div>
       `}
     </div>
-  </section>
+  </details>
 
   `}
   <!-- ============ 5. INSTALAR ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Instalar en el celular</h2>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Instalar en el celular</h2>
       ${instalada() ? '<span class="p verde">Instalada</span>'
         : SW_ACTIVO ? '<span class="p verde">Lista para instalar</span>'
         : '<span class="p gris">Sin modo sin conexión</span>'}
-    </div>
+    <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">El ícono y el manifiesto ya vienen dentro del archivo, así que la app se
       puede instalar en la pantalla de inicio sin subir nada más. Queda con su propio ícono y
@@ -4297,11 +5884,122 @@ function vConfiguracion() {
       por su cuenta. Lo que el <code>sw.js</code> resuelve es que el propio archivo de la app
       cargue estando sin señal.</div>
     </div>
-  </section>
+  </details>
+
+  ${!esSuper() ? "" : `
+  <!-- ============ LÍMITES ============ -->
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Límites por dueño</h2>
+      <span class="p gris">${D.personas.filter(p => p.rol === "dueno").length} dueños</span>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Cuántas fincas, administradores y empleados puede crear cada dueño.
+      Deja un cero para no ponerle límite. El superadministrador nunca tiene tope.</p>
+      <form data-guardar-limites>
+        <h4 class="sub-titulo">Por defecto, para todos los dueños</h4>
+        <div class="rej">
+          ${Object.entries(QUE_SE_LIMITA).map(([k, q]) => `
+            <div class="campo"><label>${q.et}</label>
+              <input type="number" min="0" name="g_${k}"
+                value="${(D.config.limites.global || {})[k] || 0}"></div>`).join("")}
+        </div>
+
+        ${D.personas.filter(p => p.rol === "dueno").length === 0
+          ? '<p class="expl">Todavía no hay dueños registrados.</p>'
+          : D.personas.filter(p => p.rol === "dueno")
+              .sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(p => `
+          <h4 class="sub-titulo">${esc(p.nombre)}${p.correo ? ` · ${esc(p.correo)}` : ""}</h4>
+          <div class="rej">
+            ${Object.entries(QUE_SE_LIMITA).map(([k, q]) => {
+              const c = cupo(k, p.id);
+              return `<div class="campo"><label>${q.et}</label>
+                <input type="number" min="0" name="p_${p.id}_${k}"
+                  value="${((D.config.limites.por || {})[p.id] || {})[k] ?? ""}"
+                  placeholder="por defecto">
+                <span class="ayuda">Lleva ${c.n}${c.lim ? ` de ${c.lim}` : ""}</span></div>`;
+            }).join("")}
+          </div>`).join("")}
+
+        <div class="fila-btn"><button class="btn btn-firme">Guardar límites</button></div>
+      </form>
+    </div>
+  </details>
+
+  <!-- ============ ACCESO A CONFIGURACIÓN ============ -->
+  ${!esMaestro() ? "" : `
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Quién ve la configuración avanzada</h2>
+      <span class="p gris">${(D.config.accesoConfig || []).length + 1}</span>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Estos correos ven la conexión con Firebase, las reglas y la publicación,
+      además de poder importar y borrar datos. Tú lo ves siempre por ser el dueño principal.</p>
+      <div class="aviso">Dar este acceso es delicado: quien lo tenga puede apuntar la app a
+      otra base de datos o borrar todo lo de su equipo. Dáselo solo a quien de verdad
+      administre el sistema.</div>
+
+      <ul class="lista-correos">
+        <li><span>${esc(D.config.maestro || "sin definir")}</span>
+          <span class="p ambar">Dueño principal</span></li>
+        ${(D.config.accesoConfig || []).map(c => `
+          <li><span>${esc(c)}</span>
+            <button class="btn btn-sm btn-baja" data-quitar-acceso="${esc(c)}">Quitar</button></li>
+        `).join("")}
+      </ul>
+
+      <div class="rej" style="margin-top:14px">
+        <div class="campo ancho"><label>Añadir un correo</label>
+          <input id="nuevo-acceso" type="email" list="correos-app" placeholder="correo@ejemplo.com">
+          <datalist id="correos-app">
+            ${D.personas.filter(p => p.correo).map(p =>
+              `<option value="${esc(p.correo)}">${esc(p.nombre)}</option>`).join("")}
+          </datalist></div>
+      </div>
+      <div class="fila-btn"><button class="btn" data-acc="dar-acceso">Dar acceso</button></div>
+    </div>
+  </details>`}
+
+  <!-- ============ INTERRUPTORES POR CORREO ============ -->
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Secciones por persona</h2>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Cierra secciones concretas a una persona. Sirve para simplificarle la app
+      a quien solo hace una tarea. Los interruptores solo quitan: no pueden abrir algo que su
+      rol ya no permite, porque las reglas de Firestore mandan por encima de la pantalla.</p>
+
+      <div class="rej">
+        <div class="campo ancho"><label>¿A quién?</label>
+          <select id="permisos-quien">
+            <option value="">Selecciona una persona…</option>
+            ${misPersonas().filter(p => p.correo && p.id !== S.persona?.id)
+              .sort((a,b)=>a.nombre.localeCompare(b.nombre))
+              .map(p => `<option value="${esc(p.correo.toLowerCase())}"
+                ${V.permisosQuien === p.correo.toLowerCase() ? "selected" : ""}>
+                ${esc(p.nombre)} · ${ROLES[p.rol].et}</option>`).join("")}
+          </select></div>
+      </div>
+
+      ${!V.permisosQuien ? '<p class="expl">Elige a alguien para ver sus secciones.</p>' : `
+        <div class="interruptores">
+          ${VISTAS.filter(v => v.id !== "configuracion").map(v => {
+            const cerrada = ((D.config.permisos || {})[V.permisosQuien] || {})[v.id] === false;
+            return `<label class="interruptor">
+              <input type="checkbox" data-permiso="${v.id}" ${cerrada ? "" : "checked"}>
+              <span><strong>${v.et}</strong><em>${v.grupo}</em></span></label>`;
+          }).join("")}
+        </div>
+        <div class="fila-btn" style="margin-top:14px">
+          <button class="btn" data-acc="permisos-todo">Abrir todas</button>
+          <button class="btn" data-acc="permisos-nada">Cerrar todas</button>
+        </div>`}
+    </div>
+  </details>
+  `}
 
   <!-- ============ 6. DATOS ============ -->
-  <section class="panel">
-    <div class="panel-cab"><h2>Datos de este equipo</h2></div>
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Datos de este equipo</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <ul class="datos" style="margin-bottom:14px">
         <li><dt>Animales</dt><dd>${D.animales.length}</dd></li>
@@ -4311,17 +6009,23 @@ function vConfiguracion() {
       </ul>
       ${tam > 3500 ? `<div class="aviso">El navegador guarda unos 5 MB. Vas en ${tam} KB, casi siempre
         por las fotos. Conecta Firebase o exporta y borra fotos viejas.</div>` : ""}
+      <div class="fila-btn" style="margin-bottom:12px">
+        <button class="btn" data-acc="revisar-datos">Revisar y reparar datos</button>
+      </div>
+      <p class="expl">Busca registros que apunten a algo que ya no existe: eventos de animales
+      borrados, gente asignada a fincas eliminadas, autores desaparecidos. Te dice qué encontró
+      antes de tocar nada.</p>
       <div class="fila-btn">
         <button class="btn" data-acc="exportar">Exportar copia</button>
-        ${esMaestro() ? `
+        ${verConfigAvanzada() ? `
           <button class="btn" data-acc="importar">Importar copia</button>
           <button class="btn btn-baja" data-acc="reiniciar">Borrar todo y empezar de cero</button>
         ` : ""}
       </div>
-      ${!esMaestro() ? `<p class="expl" style="margin:10px 0 0">Importar y borrar están
-      reservados al dueño principal, porque reemplazan los datos de todos.</p>` : ""}
+      ${verConfigAvanzada() ? "" : `<p class="expl" style="margin:10px 0 0">Importar y borrar están
+      reservados al dueño principal, porque reemplazan los datos de todos.</p>`}
     </div>
-  </section>`;
+  </details>`;
 }
 
 /* ==========================================================
@@ -4330,11 +6034,12 @@ function vConfiguracion() {
 const ABRIR_NUEVO = {
   animal: formAnimal, finca: formFinca, inseminacion: formInsem,
   palpacion: formPalpacion, parto: formParto, tratamiento: formTratamiento,
-  anotacion: formAnotacion, persona: formPersona, secado: formSecado,
+  anotacion: formAnotacion, persona: formPersona, secado: formSecado, leche: formLeche,
 };
 const ABRIR_EV = {
   insem: formInsem, palp: formPalpacion, parto: formParto,
   trat: formTratamiento, nota: formAnotacion, persona: formPersona, secado: formSecado,
+  leche: formLeche,
 };
 
 /**
@@ -4357,6 +6062,7 @@ function etiquetarTablas(raiz) {
 
 function conectar() {
   etiquetarTablas();
+  document.querySelectorAll(".barra-sel").forEach(e => e.remove());
 
   const menu = document.querySelector("[data-menu]");
   if (menu) menu.onclick = () => {
@@ -4372,7 +6078,8 @@ function conectar() {
   };
 
   document.querySelectorAll("[data-ir]").forEach(b =>
-    b.onclick = () => { V.vista = b.dataset.ir; V.sub = "todos"; V.busca = ""; V.especie = "todas"; V.railAbierto = false; pintar(); });
+    b.onclick = () => { V.vista = b.dataset.ir; V.sub = "todos"; V.busca = ""; V.especie = "todas";
+    V.sel = null; V.railAbierto = false; pintar(); });
 
   document.querySelectorAll("[data-sub]").forEach(b =>
     b.onclick = () => { V.sub = b.dataset.sub; pintar(); });
@@ -4394,6 +6101,13 @@ conectarFirebase(true);
   const sf = $("[data-f=finca]");
   if (sf) sf.onchange = (e) => { V.finca = e.target.value; pintar(); };
 
+  document.querySelectorAll("[data-graf]").forEach(b => b.onclick = () => {
+    V.graficoLeche = b.dataset.graf; pintar();
+  });
+
+  const sep = $("[data-f=epoca]");
+  if (sep) sep.onchange = (e) => { V.epoca = e.target.value; pintar(); };
+
   const se = $("[data-f=especie]");
   if (se) se.onchange = (e) => { V.especie = e.target.value; pintar(); };
 
@@ -4405,6 +6119,26 @@ conectarFirebase(true);
     el.onclick = () => { const [t, id] = el.dataset.ev.split(":"); ABRIR_EV[t](id); });
   document.querySelectorAll("[data-nuevo]").forEach(el =>
     el.onclick = () => ABRIR_NUEVO[el.dataset.nuevo](null, el.dataset.an || el.dataset.rol));
+
+  document.querySelectorAll("[data-listo]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    const [animalId, clave, accion] = b.dataset.listo.split("|");
+    const a = animal(animalId);
+    if (accion === "secar") {
+      if (!confirm(`¿Confirmas que ya secaste a ${a.nombre} (${a.chapeta})?\n\n` +
+                   `Se va a registrar el secado con la fecha de hoy y la vaca pasa a Seca.`)) return;
+    }
+    const r = marcarAlertaHecha(animalId, clave, accion);
+    recalcularAccesos(); guardar(); pintar();
+    avisar(r === "secado" ? `Secado registrado para ${a.nombre}` : "Marcada como hecha");
+  });
+
+  document.querySelectorAll("[data-deshacer]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    const [animalId, clave] = b.dataset.deshacer.split("|");
+    deshacerAlerta(animalId, clave);
+    guardar(); pintar(); avisar("Alerta reactivada");
+  });
 
   document.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => acciones(b.dataset.acc));
   const bs = document.querySelector("[data-salir]");
@@ -4422,6 +6156,47 @@ conectarFirebase(true);
     setTimeout(() => b.textContent = "Copiar", 1800);
   });
 
+  // Va de último a propósito: en modo selección sus clics deben pisar
+  // a los que abren la ficha.
+  montarSeleccion();
+
+  // El acordeón recuerda qué paneles dejaste abiertos.
+  document.querySelectorAll("details.panel").forEach((el, i) => {
+    el.ontoggle = () => { el.open ? V.acordeon.add(i) : V.acordeon.delete(i); };
+  });
+
+  const sq = document.getElementById("permisos-quien");
+  if (sq) sq.onchange = (e) => { V.permisosQuien = e.target.value; pintar(); };
+
+  document.querySelectorAll("[data-permiso]").forEach(chk => chk.onchange = () => {
+    const c = V.permisosQuien; if (!c) return;
+    (D.config.permisos[c] ||= {})[chk.dataset.permiso] = chk.checked ? true : false;
+    guardar(); avisar(chk.checked ? "Sección abierta" : "Sección cerrada");
+  });
+
+  document.querySelectorAll("[data-quitar-acceso]").forEach(b => b.onclick = () => {
+    const c = b.dataset.quitarAcceso;
+    if (!confirm(`¿Quitarle a ${c} el acceso a la configuración avanzada?`)) return;
+    D.config.accesoConfig = (D.config.accesoConfig || []).filter(x => x !== c);
+    guardar(); pintar(); avisar("Acceso retirado");
+  });
+
+  const fl2 = document.querySelector("[data-guardar-limites]");
+  if (fl2) fl2.onsubmit = (e) => {
+    e.preventDefault();
+    const v = datos(fl2), n = (x) => Math.max(0, Number(x) || 0);
+    const g = {}, por = {};
+    for (const k in QUE_SE_LIMITA) g[k] = n(v["g_" + k]);
+    for (const p of D.personas.filter(x => x.rol === "dueno")) {
+      for (const k in QUE_SE_LIMITA) {
+        const bruto = v[`p_${p.id}_${k}`];
+        if (bruto !== undefined && bruto !== "") (por[p.id] ||= {})[k] = n(bruto);
+      }
+    }
+    D.config.limites = { global: g, por };
+    guardar(); pintar(); avisar("Límites guardados");
+  };
+
   const fp = document.querySelector("[data-guardar-params]");
   if (fp) fp.onsubmit = (e) => {
     e.preventDefault();
@@ -4429,6 +6204,7 @@ conectarFirebase(true);
     const out = {};
     for (const k in ESPECIES) {
       const g = { gestacion:n(v[k+"_gestacion"]), palpar:n(v[k+"_palpar"]),
+                  preparto: Math.max(0, Number(v[k+"_preparto"]) || 0),
                   edadServicio:n(v[k+"_edad"]), estro:n(v[k+"_estro"]),
                   celo:{ uno:n(v[k+"_celo1"]), dos:n(v[k+"_celo2"]), tres:n(v[k+"_celo3"]) } };
       if (ESPECIES[k].lechero) {
@@ -4523,6 +6299,23 @@ function conectarHoja(d) {
     }
   });
 
+  conectarCombos(d);
+
+  const fc2 = d.querySelector("[data-filtro-chips]");
+  if (fc2) fc2.oninput = () => {
+    d.querySelectorAll(".chip").forEach(ch => {
+      ch.hidden = !contiene(ch.textContent, fc2.value);
+    });
+    // Los títulos de grupo sin nadie visible se esconden.
+    d.querySelectorAll(".chips").forEach(g => {
+      const campo = g.closest(".campo");
+      if (campo) campo.hidden = ![...g.querySelectorAll(".chip")].some(c => !c.hidden);
+    });
+  };
+
+  const fl = d.querySelector("form[data-lote]");
+  if (fl) fl.onsubmit = (e) => { e.preventDefault(); aplicarLote(fl); };
+
   const fc = d.querySelector("form[data-clave]");
   if (fc) fc.onsubmit = async (e) => {
     e.preventDefault();
@@ -4566,16 +6359,26 @@ function enviar(f) {
     if (!cat || cat.sexo !== "H" || cat.etapa !== "adulta") {
       v.partosPrevios = 0; v.ultimoPartoPrevio = null;
     }
+    if (id) {
+      const antes = animal(id);
+      if (!puedoEditarAnimal(antes)) return error(f, mensajeBloqueo(antes));
+    }
     if (D.animales.some(a => a.chapeta === v.chapeta && a.id !== id))
       return error(f, `La chapeta ${v.chapeta} ya está registrada.`);
     if (v.estado !== "activo" && !v.fechaSalida)
       return error(f, "Pon la fecha de salida para un animal vendido o muerto.");
-    if (id) Object.assign(animal(id), v);
-    else D.animales.push(nuevo(v));
+    let movidas = 0;
+    if (id) {
+      const antes = animal(id);
+      movidas = renombrarChapeta(antes.chapeta, v.chapeta);
+      Object.assign(antes, v);
+    } else D.animales.push(nuevo(v));
+    if (movidas) setTimeout(() => avisar(`Se actualizó la chapeta en ${movidas} cría(s)`), 400);
     return persistir(id ? "Animal actualizado" : "Animal añadido");
   }
 
   if (tipo === "finca") {
+    if (!id && !cupo("fincas").ok) return error(f, mensajeCupo("fincas"));
     v.personas = v.personas || [];
     if (!id && S.persona && !v.personas.includes(S.persona.id)) v.personas.push(S.persona.id);
     if (id) Object.assign(finca(id), v);
@@ -4585,6 +6388,11 @@ function enviar(f) {
 
   if (tipo === "persona") {
     v.activo = v.activo !== "no";
+    if (!id) {
+      const clave = v.rol === "administrador" ? "administradores"
+                  : v.rol === "empleado" ? "empleados" : null;
+      if (clave && !cupo(clave).ok) return error(f, mensajeCupo(clave));
+    }
     if (!esSuper()) {
       const previo = id ? persona(id) : null;
       if (previo) v.rol = previo.rol;                               // el rol no se toca
@@ -4597,16 +6405,53 @@ function enviar(f) {
     }
     if (v.correo && D.personas.some(p => p.correo && p.correo.toLowerCase() === v.correo.toLowerCase() && p.id !== id))
       return error(f, `Ya hay una persona con el correo ${v.correo}.`);
-    if (id) Object.assign(persona(id), v);
-    else D.personas.push(nuevo(v));
+    if (id) {
+      const antes = persona(id);
+      const correoViejo = (antes.correo || "").toLowerCase();
+      Object.assign(antes, v);
+      // Si le cambiaron el correo, el anterior no debe seguir entrando.
+      if (correoViejo && correoViejo !== (v.correo || "").toLowerCase()) {
+        borrarUsuarioRemoto(correoViejo);
+      }
+    } else D.personas.push(nuevo(v));
     return persistir("Persona guardada");
   }
 
   if (tipo === "insem") {
     // intento y estatus no se guardan: se calculan al mostrar.
+    const fd = new FormData(f);
+    const fechas = fd.getAll("ap_fecha"), horas = fd.getAll("ap_hora");
+    const pajs = fd.getAll("ap_pajilla"), dets = fd.getAll("ap_detalles");
+
+    const aplicaciones = fechas.map((fe, k) => ({
+      fecha: fe, hora: (horas[k] || "").trim(),
+      pajilla: (pajs[k] || "").trim(), detalles: (dets[k] || "").trim(),
+    })).filter(a => a.fecha)
+       .sort((a, b) => (a.fecha + (a.hora || "00:00")).localeCompare(b.fecha + (b.hora || "00:00")));
+
+    if (!aplicaciones.length) return error(f, "Pon al menos una pajilla con su fecha.");
+    if (aplicaciones.some(a => !a.pajilla)) return error(f, "Cada pajilla necesita su nombre.");
+
+    // Dos aplicaciones idénticas serían un error de digitación.
+    const firmas = aplicaciones.map(a => a.fecha + "|" + a.hora + "|" + a.pajilla.toLowerCase());
+    if (new Set(firmas).size !== firmas.length) {
+      return error(f, "Hay dos pajillas iguales a la misma hora. Cambia la hora o quita una.");
+    }
+    // Más de 5 días entre la primera y la última ya no es el mismo servicio.
+    const luz = dias(aplicaciones[0].fecha, aFecha(aplicaciones[aplicaciones.length - 1].fecha));
+    if (luz > 5) {
+      return error(f, `Entre la primera y la última pajilla hay ${luz} días. ` +
+        `Eso son servicios distintos: regístralos por separado para que los intentos cuenten bien.`);
+    }
+
+    delete v.ap_fecha; delete v.ap_hora; delete v.ap_pajilla; delete v.ap_detalles;
+    v.aplicaciones = aplicaciones;
+    v.fecha = aplicaciones[0].fecha;   // la gestación cuenta desde la primera
+
     if (id) Object.assign(D.inseminaciones.find(x => x.id === id), v);
     else D.inseminaciones.push(nuevo(v));
-    return persistir("Servicio registrado");
+    return persistir(aplicaciones.length > 1
+      ? `Servicio con ${aplicaciones.length} pajillas registrado` : "Servicio registrado");
   }
 
   if (tipo === "palp") {
@@ -4639,6 +6484,24 @@ function enviar(f) {
     return persistir("Secado registrado");
   }
 
+  if (tipo === "leche") {
+    v.litros = Number(v.litros) || 0;
+    v.dias = Math.max(1, Number(v.dias) || 1);
+    v.precio = Number(v.precio) || 0;
+    if (v.litros <= 0) return error(f, "Pon cuántos litros salieron.");
+    if (!v.fincaId) return error(f, "Elige la finca.");
+    if (dias(v.fecha) < 0) return error(f, "Esa fecha todavía no ha llegado.");
+    // Dos registros iguales el mismo día casi siempre es un doble guardado.
+    const igual = D.leche.find(x => x.id !== id && x.fecha === v.fecha &&
+      x.fincaId === v.fincaId && x.momento === v.momento &&
+      (x.animalId || "") === (v.animalId || ""));
+    if (igual && !confirm(`Ya hay un registro de ${litros(igual.litros)} litros ese día ` +
+        `con el mismo momento.\n\n¿Guardar otro de todas formas?`)) return;
+    if (id) Object.assign(D.leche.find(x => x.id === id), v);
+    else D.leche.push(nuevo(v));
+    return persistir("Leche registrada");
+  }
+
   if (tipo === "trat") {
     if (id) Object.assign(D.tratamientos.find(x => x.id === id), v);
     else D.tratamientos.push(nuevo(v));
@@ -4653,32 +6516,49 @@ function enviar(f) {
 }
 
 function borrar(tipo, id) {
-  const mapa = { animal:"animales", finca:"fincas", insem:"inseminaciones",
-                 palp:"palpaciones", parto:"partos", trat:"tratamientos",
-                 nota:"anotaciones", persona:"personas", secado:"secados" };
-  if (tipo === "persona") {
-    const p = persona(id), fs = fincasDe(id);
-    if (!confirm(`¿Eliminar a ${p.nombre}?${fs.length ? ` Quedará desasignada de ${fs.length} finca(s).` : ""}`)) return;
-    D.fincas.forEach(f => f.personas = (f.personas || []).filter(x => x !== id));
-  }
+  const dep = dependencias(tipo, id);
+
   if (tipo === "animal") {
     const a = animal(id);
-    const n = partosDe(id).length + insemDe(id).length + palpDe(id).length + tratDe(id).length;
-    if (!confirm(`¿Eliminar a ${a.nombre} (${a.chapeta}) y sus ${n} registros? No se puede deshacer.`)) return;
-    D.partos = D.partos.filter(x => x.animalId !== id);
-    D.inseminaciones = D.inseminaciones.filter(x => x.animalId !== id);
-    D.palpaciones = D.palpaciones.filter(x => x.animalId !== id);
-    D.tratamientos = D.tratamientos.filter(x => x.animalId !== id);
-    D.secados = D.secados.filter(x => x.animalId !== id);
-  } else if (tipo === "finca") {
-    if (D.animales.some(a => a.fincaId === id))
-      return alert("Esa finca todavía tiene animales. Muévelos primero a otra finca.");
-    if (!confirm("¿Eliminar la finca?")) return;
-    D.anotaciones = D.anotaciones.filter(x => x.fincaId !== id);
-  } else {
-    if (!confirm("¿Eliminar este registro?")) return;
+    if (!puedoEditarAnimal(a)) return alert(mensajeBloqueo(a));
+    let msg = `¿Eliminar a ${a.nombre} (${a.chapeta})?`;
+    if (dep.eventos) msg += `\n\nSe borran también sus ${dep.eventos} registros de ` +
+      `inseminación, parto, palpación, secado y tratamiento.`;
+    if (dep.crias) msg += `\n\n${dep.crias} animal(es) lo tienen anotado como madre o padre; ` +
+      `esa anotación se queda como está.`;
+    msg += "\n\nNo se puede deshacer.";
+    if (!confirm(msg)) return;
   }
-  D[mapa[tipo]] = D[mapa[tipo]].filter(x => x.id !== id);
+
+  else if (tipo === "finca") {
+    const f = finca(id);
+    if (!puedoBorrarFinca(f)) return alert("Solo quien creó la finca, o un superadministrador, puede eliminarla.");
+    if (dep.animales) {
+      if (!confirm(`La finca ${f.nombre} tiene ${dep.animales} animal(es).\n\n` +
+        `Si continúas se borran ellos y todos sus eventos. Si prefieres conservarlos, ` +
+        `cancela y muévelos antes a otra finca.\n\n¿Borrar la finca con todo lo que tiene?`)) return;
+      if (!confirm(`Última confirmación: se van a borrar ${dep.animales} animales con su historial.`)) return;
+    } else if (!confirm(`¿Eliminar la finca ${f.nombre}?` +
+        (dep.notas ? `\n\nSe borran sus ${dep.notas} anotación(es).` : "") +
+        (dep.gente ? `\n\n${dep.gente} persona(s) quedan sin esta finca asignada.` : ""))) return;
+    if (borrarEnCascada("finca", id, { arrastrarAnimales: true }) === null) return;
+    return persistir("Finca eliminada");
+  }
+
+  else if (tipo === "persona") {
+    const p = persona(id);
+    if (!puedoEditarPersona(p)) return alert("Esa persona no está bajo tu cargo.");
+    if (p.id === S.persona?.id) return alert("No puedes eliminarte a ti mismo.");
+    let msg = `¿Eliminar a ${p.nombre}?`;
+    if (p.correo) msg += `\n\nPierde el acceso a la app de inmediato.`;
+    if (dep.fincas) msg += `\n\nQueda desasignada de ${dep.fincas} finca(s).`;
+    if (dep.creo) msg += `\n\nLos ${dep.creo} registros que hizo NO se borran; quedan sin autor.`;
+    if (!confirm(msg)) return;
+  }
+
+  else if (!confirm("¿Eliminar este registro?")) return;
+
+  if (borrarEnCascada(tipo, id) === null) return;
   persistir("Registro eliminado");
 }
 
@@ -4715,6 +6595,34 @@ conectarFirebase(true);
   if (a === "bajar-sw")     { descargarSW(); return; }
   if (a === "actualizar")   { aplicarActualizacion(); return; }
   if (a === "revisar-version") { await buscarActualizacion(true); return; }
+  if (a === "dar-acceso") {
+    const c = val("nuevo-acceso").toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c)) return alert("Escribe un correo válido.");
+    if (c === (D.config.maestro || "").toLowerCase()) return alert("Ese ya es el dueño principal.");
+    if ((D.config.accesoConfig || []).includes(c)) return alert("Ese correo ya tiene acceso.");
+    if (!confirm(`Vas a darle a ${c} acceso a la conexión con Firebase, las reglas y la ` +
+                 `publicación.\n\n¿Seguro?`)) return;
+    (D.config.accesoConfig ||= []).push(c);
+    guardar(); pintar(); avisar("Acceso concedido");
+    return;
+  }
+  if (a === "permisos-todo" || a === "permisos-nada") {
+    const c = V.permisosQuien; if (!c) return;
+    const abrir = a === "permisos-todo";
+    D.config.permisos[c] = {};
+    if (!abrir) VISTAS.filter(v => v.id !== "configuracion")
+      .forEach(v => { D.config.permisos[c][v.id] = false; });
+    guardar(); pintar(); avisar(abrir ? "Todas abiertas" : "Todas cerradas");
+    return;
+  }
+  if (a === "revisar-datos") {
+    const inf = revisarIntegridad(false);
+    if (!inf.length) return alert("Todo en orden: no hay registros huérfanos ni enlaces rotos.");
+    const lista = inf.map(x => `• ${x.n} ${x.que}`).join("\n");
+    if (!confirm(`Se encontraron problemas:\n\n${lista}\n\n¿Corregirlos ahora?`)) return;
+    revisarIntegridad(true); pintar(); avisar("Datos corregidos");
+    return;
+  }
   if (a === "guardar-maestro") {
     const m = val("maestro").toLowerCase();
     if (m && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) return alert("Ese correo no es válido.");
