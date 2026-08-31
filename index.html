@@ -633,11 +633,25 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.13.0";
+const VERSION = "1.15.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.15.0", "30 ago 2026", [
+    "Una persona sin finca queda disponible: cualquier dueño o administrador de rango " +
+      "mayor puede recogerla y asignarla.",
+    "En la lista sale marcada como «Sin finca · disponible».",
+    "Al asignarla desaparece del bolsón y queda a cargo de quien la tomó.",
+    "Las reglas de Firestore cambiaron para permitirlo: hay que volver a publicarlas.",
+  ]],
+  ["1.14.0", "30 ago 2026", [
+    "Las fincas se asignan desde la ficha de la persona, sin tener que ir a la sección de Fincas.",
+    "Se puede hacer al crearla, en un solo paso.",
+    "Solo aparecen las fincas que tú administras; si esa persona está en otras, se muestran " +
+      "como aviso y no se tocan.",
+    "Arreglado: cuando no había límite configurado, decía «Te quedan undefined de 0».",
+  ]],
   ["1.13.0", "30 ago 2026", [
     "Tu nombre se puede editar: pulsa tu nombre abajo en el menú y se abre tu ficha.",
     "Arreglado: el superadministrador no veía su propia sección y no podía corregir sus datos.",
@@ -1261,6 +1275,8 @@ function recalcularAccesos(d) {
   }
   (d.personas || []).forEach(p => {
     p.fincas = (d.fincas || []).filter(f => (f.personas || []).includes(p.id)).map(f => f.id);
+    // Firestore no puede consultar "arreglo vacío", así que se marca aparte.
+    p.sinFinca = p.fincas.length === 0;
   });
   return d;
 }
@@ -1865,7 +1881,9 @@ const misPersonas = () => {
   return D.personas.filter(p =>
     p.id === S.persona.id ||
     ((RANGO[p.rol] ?? 0) < r &&
-      (p.creadoPor === S.persona.id || (p.fincas || []).some(f => mias.includes(f))))
+      (p.creadoPor === S.persona.id ||
+       (p.fincas || []).some(f => mias.includes(f)) ||
+       sinAsignar(p)))          // sin finca: está en el bolsón, cualquiera la toma
   );
 };
 
@@ -1874,14 +1892,19 @@ const rolesQuePuedoCrear = () =>
   esSuper() ? Object.keys(ROLES)
             : Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
 
+/** Sin finca asignada, cualquiera de rango mayor puede recogerla. */
+const sinAsignar = (p) => !((p.fincas || []).length);
+
 const puedoEditarPersona = (p) => {
   if (!p) return false;
   if (esSuper()) return true;
   if (!puede("editaPersona")) return false;
   if (p.id === S.persona.id) return true;
   if ((RANGO[p.rol] ?? 0) >= miRango()) return false;
+  if (p.creadoPor === S.persona.id) return true;
   const mias = misFincas();
-  return p.creadoPor === S.persona.id || (p.fincas || []).some(f => mias.includes(f));
+  if ((p.fincas || []).some(f => mias.includes(f))) return true;
+  return sinAsignar(p);
 };
 
 /**
@@ -2370,7 +2393,7 @@ function cuantosCreo(personaId, que) {
 function cupo(que, personaId) {
   const id = personaId || S.persona?.id;
   if (!id) return { ok: false, lim: 0, n: 0 };
-  if (esSuper() && !personaId) return { ok: true, lim: 0, n: 0 };
+  if (esSuper() && !personaId) return { ok: true, lim: 0, n: 0, restan: null };
   const lim = limiteDe(id, que);
   const n = cuantosCreo(id, que);
   return { ok: !lim || n < lim, lim, n, restan: lim ? Math.max(0, lim - n) : null };
@@ -2784,7 +2807,7 @@ function vFincas() {
     ${!puede("editaFinca") ? ""
       : cupo("fincas").ok
         ? `<button class="btn btn-firme" data-nuevo="finca">Añadir finca</button>${
-            cupo("fincas").restan !== null ? `<div class="sub" style="text-align:right;margin-top:4px">
+            cupo("fincas").restan != null ? `<div class="sub" style="text-align:right;margin-top:4px">
             Te quedan ${cupo("fincas").restan} de ${cupo("fincas").lim}</div>` : ""}`
         : `<span class="p roja">Sin cupo · ${cupo("fincas").n} de ${cupo("fincas").lim}</span>`}</header>
   <div class="barra">${buscador("Buscar finca, encargado, correo o animal")}</div>
@@ -2975,7 +2998,7 @@ function vPersonas(rol) {
       const c = cupo(clave);
       if (!c.ok) return `<span class="p roja">Sin cupo · ${c.n} de ${c.lim}</span>`;
       return `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>${
-        c.restan !== null ? `<div class="sub" style="text-align:right;margin-top:4px">Te quedan ${c.restan} de ${c.lim}</div>` : ""}`;
+        c.restan != null ? `<div class="sub" style="text-align:right;margin-top:4px">Te quedan ${c.restan} de ${c.lim}</div>` : ""}`;
     })()}</header>
   <div class="barra">${buscador("Buscar nombre, correo, teléfono, finca…")}${selectorFinca()}</div>
   ${fichas([["todos","Todos",tot.length],
@@ -2991,7 +3014,7 @@ function vPersonas(rol) {
           <td>${p.correo ? esc(p.correo) : '<span class="sub">—</span>'}</td>
           <td>${p.telefono ? esc(p.telefono) : '<span class="sub">—</span>'}</td>
           <td>${fs.length ? fs.map(f => `<span class="p">${esc(f.nombre)}</span>`).join(" ")
-                          : '<span class="sub">Sin asignar</span>'}</td>
+            : '<span class="p ambar">Sin finca · disponible</span>'}</td>
           <td><span class="sub">${esc(p.notas) || "—"}</span>${
             p.creadoPor === S.persona?.id ? '<div class="sub">lo registraste tú</div>' : ""}</td>
           <td class="flecha">›</td></tr>`;
@@ -3558,9 +3581,32 @@ function formPersona(id, rol) {
             contraseña y puede ponerse una. También puede entrar con su cuenta de Google si
             usa ese mismo correo.</span>
           </div></div>` : ""}
-        ${id ? `<div class="campo ancho"><label>Fincas asignadas</label>
-          <div>${fincasDe(id).length ? fincasDe(id).map(f=>`<span class="p">${esc(f.nombre)}</span>`).join(" ")
-            : '<span class="ayuda">Ninguna. Se asignan desde la ficha de cada finca.</span>'}</div></div>` : ""}
+        ${(() => {
+          const disponibles = misFincasObj();
+          if (!puede("editaPersona") && id !== S.persona?.id) return "";
+          const suyas = id ? new Set(fincasDe(id).map(f => f.id)) : new Set();
+          // Las que tiene asignadas pero yo no administro: se muestran y no se tocan.
+          const ajenas = id ? fincasDe(id).filter(f => !disponibles.some(x => x.id === f.id)) : [];
+
+          if (!disponibles.length) return `<div class="campo ancho"><label>Fincas</label>
+            <span class="ayuda">Todavía no hay fincas que puedas asignar.</span></div>`;
+
+          return `<div class="campo ancho"><label>Fincas asignadas</label>
+            <span class="ayuda">${id && sinAsignar(p) && p.id !== S.persona?.id
+              ? "Esta persona no tiene finca todavía, por eso la ves. Al asignarla queda a tu cargo."
+              : "Sin al menos una, entra a la app pero no ve nada."}</span>
+            ${disponibles.length > 6 ? `<input type="text" data-filtro-fincas
+              placeholder="Buscar finca…" style="margin-bottom:7px">` : ""}
+            <div class="chips">${disponibles
+              .sort((a,b)=>a.nombre.localeCompare(b.nombre,"es")).map(f => `
+              <label class="chip">
+                <input type="checkbox" name="fincas" value="${f.id}" ${suyas.has(f.id)?"checked":""}>
+                <span>${esc(f.nombre)}${f.ubicacion?`<i>${esc(f.ubicacion)}</i>`:""}</span>
+              </label>`).join("")}</div>
+            ${ajenas.length ? `<span class="ayuda">También está en
+              ${ajenas.map(f => esc(f.nombre)).join(", ")}, que no administras tú.</span>` : ""}
+          </div>`;
+        })()}
       </div></div>
       <div class="hoja-pie">
         ${id && puedoEditarPersona(p) && id !== S.persona?.id ? '<button type="button" class="btn btn-baja" data-borrar="persona:'+id+'">Eliminar</button>' : ""}
@@ -4815,6 +4861,7 @@ function escucharTodo() {
 
 function escucharColecciones(mias) {
   pararEscuchas();
+  FB.cajones = {};
   limpiarSiCambioDeUsuario(FB.user.email);
   const { fs } = FB.mods;
 
@@ -4833,12 +4880,23 @@ function escucharColecciones(mias) {
                `Se están mostrando las primeras 30.`;
   }
 
-  const escuchar = (nombre, consulta) => {
+  // Algunas colecciones se llenan con más de una consulta (personas: las de
+  // mis fincas y las que todavía no tienen ninguna). Cada una escribe en su
+  // propio cajón y al final se unen, para que no se pisen entre ellas.
+  FB.cajones = FB.cajones || {};
+
+  const escuchar = (nombre, consulta, cajon) => {
+    const via = cajon || "principal";
     const u = fs.onSnapshot(consulta, { includeMetadataChanges: true },
       (snap) => {
         FB.aplicando = true;
 
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        ((FB.cajones[nombre] ||= {}))[via] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const juntos = new Map();
+        for (const lista of Object.values(FB.cajones[nombre])) {
+          for (const doc of lista) juntos.set(doc.id, doc);
+        }
+        const docs = [...juntos.values()];
         const vistos = new Set(docs.map(d => d.id));
 
         // Lo que se creó aquí y todavía no aparece en la consulta se conserva.
@@ -4880,8 +4938,15 @@ function escucharColecciones(mias) {
 
   escuchar("fincas", todo ? col("fincas")
     : fs.query(col("fincas"), fs.where(fs.documentId(), "in", trozo)));
-  escuchar("personas", todo ? col("personas")
-    : fs.query(col("personas"), fs.where("fincas", "array-contains-any", trozo)));
+  if (todo) {
+    escuchar("personas", col("personas"));
+  } else {
+    escuchar("personas", fs.query(col("personas"),
+      fs.where("fincas", "array-contains-any", trozo)), "misFincas");
+    // Las que nadie ha asignado: quedan disponibles para cualquier dueño.
+    escuchar("personas", fs.query(col("personas"),
+      fs.where("sinFinca", "==", true)), "sueltas");
+  }
   for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
                    "secados", "tratamientos", "leche", "anotaciones"]) {
     escuchar(n, todo ? col(n) : fs.query(col(n), fs.where("fincaId", "in", trozo)));
@@ -5435,6 +5500,7 @@ service cloud.firestore {
                       esSuper()
                       || (manda() && resource.data.fincas.hasAny(misFincas()))
                       || (manda() && resource.data.creadoPor == yo().persona)
+                      || (manda() && resource.data.sinFinca == true)
                       || resource.data.correo == request.auth.token.email);
       allow create: if registrado() && manda();
       allow update: if registrado() && manda();
@@ -5508,7 +5574,9 @@ Colección: partos          → fincaId (Ascendente) + fecha (Descendente)
 Colección: palpaciones     → fincaId (Ascendente) + fecha (Descendente)
 Colección: secados         → fincaId (Ascendente) + fecha (Descendente)
 Colección: tratamientos    → fincaId (Ascendente) + inicio (Descendente)
-Colección: leche           → fincaId (Ascendente) + fecha (Descendente)`;
+Colección: leche           → fincaId (Ascendente) + fecha (Descendente)
+
+La consulta de personas sin finca usa un solo campo (sinFinca) y no necesita índice.`;
 
 function paso(n, titulo, cuerpo) {
   return `<div class="paso"><div class="paso-n">${n}</div>
@@ -6336,6 +6404,13 @@ function conectarHoja(d) {
 
   conectarCombos(d);
 
+  const ff2 = d.querySelector("[data-filtro-fincas]");
+  if (ff2) ff2.oninput = () => {
+    ff2.closest(".campo").querySelectorAll(".chip").forEach(ch => {
+      ch.hidden = !contiene(ch.textContent, ff2.value);
+    });
+  };
+
   const fc2 = d.querySelector("[data-filtro-chips]");
   if (fc2) fc2.oninput = () => {
     d.querySelectorAll(".chip").forEach(ch => {
@@ -6374,6 +6449,7 @@ function datos(f) {
   const fd = new FormData(f);
   fd.forEach((v, k) => o[k] = typeof v === "string" ? v.trim() : v);
   if (f.querySelector('[name=personas]')) o.personas = fd.getAll("personas");
+  if (f.querySelector('[name=fincas]')) o.fincas = fd.getAll("fincas");
   return o;
 }
 function error(f, msg) {
@@ -6440,6 +6516,10 @@ function enviar(f) {
     }
     if (v.correo && D.personas.some(p => p.correo && p.correo.toLowerCase() === v.correo.toLowerCase() && p.id !== id))
       return error(f, `Ya hay una persona con el correo ${v.correo}.`);
+    const marcadas = v.fincas;      // undefined si el formulario no las mostró
+    delete v.fincas;                // se derivan de finca.personas, no se guardan aquí
+
+    let pid = id;
     if (id) {
       const antes = persona(id);
       const correoViejo = (antes.correo || "").toLowerCase();
@@ -6449,7 +6529,13 @@ function enviar(f) {
       if (correoViejo && correoViejo !== (v.correo || "").toLowerCase()) {
         borrarUsuarioRemoto(correoViejo);
       }
-    } else D.personas.push(nuevo(v));
+    } else {
+      const p = nuevo(v);
+      D.personas.push(p);
+      pid = p.id;
+    }
+
+    if (marcadas) asignarFincas(pid, marcadas);
     return persistir("Persona guardada");
   }
 
@@ -6737,4 +6823,22 @@ pintar();
 const versionPrevia = revisarVersion();
 if (versionPrevia) setTimeout(() => avisar(`Actualizada de la ${versionPrevia} a la ${VERSION}`), 900);
 conectarFirebase(true);
+
+
+/**
+ * Pone o quita a una persona de las fincas marcadas. Solo toca las que
+ * quien está editando administra: las demás quedan como estaban, para no
+ * desasignar a alguien de una finca que ni siquiera puedes ver.
+ */
+function asignarFincas(personaId, marcadas) {
+  const mias = new Set(misFincasObj().map(f => f.id));
+  const quiere = new Set(marcadas || []);
+  for (const f of D.fincas) {
+    if (!mias.has(f.id)) continue;
+    f.personas ||= [];
+    const tiene = f.personas.includes(personaId);
+    if (quiere.has(f.id) && !tiene) f.personas.push(personaId);
+    if (!quiere.has(f.id) && tiene) f.personas = f.personas.filter(x => x !== personaId);
+  }
+}
 </script></body></html>
