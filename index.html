@@ -299,7 +299,9 @@ tr.grupo .n{opacity:.55;margin-left:6px}
   padding-top:14px;border-top:1px solid var(--linea)}
 .solo-movil{display:none}
 
-.quien{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}
+.quien{display:flex;flex-direction:column;gap:3px;margin-bottom:9px;background:none;border:0;
+  padding:7px 8px;border-radius:8px;text-align:left;width:100%;color:inherit}
+.quien:hover{background:rgba(237,239,232,.08)}
 .quien strong{font-size:13px;color:var(--papel)}
 .quien em{font-style:normal;font-family:var(--dato);font-size:10.5px;color:rgba(237,239,232,.45)}
 .quien .p{align-self:flex-start;font-size:9px}
@@ -631,11 +633,18 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.12.0";
+const VERSION = "1.13.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.13.0", "30 ago 2026", [
+    "Tu nombre se puede editar: pulsa tu nombre abajo en el menú y se abre tu ficha.",
+    "Arreglado: el superadministrador no veía su propia sección y no podía corregir sus datos.",
+    "Cuando la ficha se crea sola desde el correo, la app pide el nombre de verdad.",
+    "Un superadministrador ya puede nombrar a otro superadministrador.",
+    "Nadie ve el botón de eliminar en su propia ficha.",
+  ]],
   ["1.12.0", "30 ago 2026", [
     "Litros por vaca al día, que es la medida que de verdad compara.",
     "Las vacas en producción se cuentan a la fecha de cada entrega, no las de hoy: " +
@@ -1862,7 +1871,8 @@ const misPersonas = () => {
 
 /** Roles que esta persona puede otorgar: solo por debajo del suyo. */
 const rolesQuePuedoCrear = () =>
-  Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
+  esSuper() ? Object.keys(ROLES)
+            : Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
 
 const puedoEditarPersona = (p) => {
   if (!p) return false;
@@ -2304,10 +2314,12 @@ function asegurarPersona(email) {
   }
 
   S.persona = crearPrimerUsuario(nombreDesdeCorreo(email), email);
+  S.persona.nombrePorDefecto = true;   // aún no lo ha escrito una persona
   if (FB.rolRemoto) S.persona.rol = FB.rolRemoto;
   S.modo = "firebase"; S.error = "";
   guardar(); guardarSesion();
   ofrecerClave();
+  pedirNombre();
 }
 
 /** Una sola vez: si entró por el enlace del correo, invitarle a poner contraseña. */
@@ -2395,6 +2407,16 @@ function seccionCerrada(vistaId) {
   return !!(p && p[vistaId] === false);
 }
 
+
+/** Una sola vez: si el nombre se sacó del correo, pedir el de verdad. */
+function pedirNombre() {
+  if (S.nombrePedido) return;
+  S.nombrePedido = true;
+  setTimeout(() => {
+    if (S.persona?.nombrePorDefecto && !hojaAbierta) formPersona(S.persona.id);
+  }, 1600);
+}
+
 /* ==========================================================
    ESTADO DE LA INTERFAZ
    ========================================================== */
@@ -2452,7 +2474,11 @@ function vistaPermitida(id) {
   // Cada quien ve las secciones de personal por debajo de su rango.
   const seccion = { superadmins:"superadmin", duenos:"dueno",
                     administradores:"administrador", empleados:"empleado" }[id];
-  if (seccion) return puede("personas") && miRango() > RANGO[seccion];
+  if (seccion) {
+    // El superadministrador también se ve a sí mismo y a sus pares.
+    if (seccion === "superadmin") return esSuper();
+    return puede("personas") && miRango() > RANGO[seccion];
+  }
   if (id === "configuracion") return true;
   return true;
 }
@@ -2525,11 +2551,11 @@ function pintar() {
       </nav>
       <div class="pie">
         <div class="sync ${estadoSync().clase}">${estadoSync().texto}</div>
-        <div class="quien">
+        <button class="quien" data-perfil title="Editar mis datos">
           <span class="p ${ROLES[S.persona.rol].cl}">${ROLES[S.persona.rol].et}</span>
           <strong>${esc(S.persona.nombre)}</strong>
-          <em>${misFincas().length} finca${misFincas().length === 1 ? "" : "s"}</em>
-        </div>
+          <em>${misFincas().length} finca${misFincas().length === 1 ? "" : "s"} · editar</em>
+        </button>
         <button data-salir>Cerrar sesión</button>
       </div>
     </aside>
@@ -3501,11 +3527,17 @@ function formPersona(id, rol) {
   const p = id ? persona(id)
               : { nombre:"", rol: rol || "empleado", correo:"", telefono:"", documento:"", notas:"", activo:true };
   abrirHoja(`
-    <div class="hoja-cab"><h2>${id ? "Editar persona" : `Añadir ${ROLES[p.rol].et.toLowerCase()}`}</h2>
+    <div class="hoja-cab"><h2>${id === S.persona?.id ? "Mis datos"
+        : id ? "Editar persona" : `Añadir ${ROLES[p.rol].et.toLowerCase()}`}</h2>
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-guardar="persona:${id||""}">
-      <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div><div class="rej">
-        <div class="campo"><label>Nombre completo</label><input name="nombre" value="${esc(p.nombre)}" required></div>
+      <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div>
+        ${p.nombrePorDefecto ? `<div class="nota">Tu nombre se sacó del correo al crear la cuenta.
+          Escríbelo bien: es el que van a ver los demás en la app.</div>` : ""}
+        <div class="rej">
+        <div class="campo"><label>Nombre completo</label>
+          <input name="nombre" value="${esc(p.nombre)}" required
+            ${p.nombrePorDefecto ? "autofocus placeholder=\"Juan José Franco\"" : ""}></div>
         <div class="campo"><label>Rol</label><select name="rol" ${!esSuper() && id ? "disabled" : ""}>
           ${Object.entries(ROLES)
             .filter(([k]) => esSuper() || rolesQuePuedoCrear().includes(k) || k === p.rol)
@@ -3531,7 +3563,7 @@ function formPersona(id, rol) {
             : '<span class="ayuda">Ninguna. Se asignan desde la ficha de cada finca.</span>'}</div></div>` : ""}
       </div></div>
       <div class="hoja-pie">
-        ${id && puedoEditarPersona(p) ? '<button type="button" class="btn btn-baja" data-borrar="persona:'+id+'">Eliminar</button>' : ""}
+        ${id && puedoEditarPersona(p) && id !== S.persona?.id ? '<button type="button" class="btn btn-baja" data-borrar="persona:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
@@ -6141,6 +6173,9 @@ conectarFirebase(true);
   });
 
   document.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => acciones(b.dataset.acc));
+  const bp = document.querySelector("[data-perfil]");
+  if (bp) bp.onclick = () => formPersona(S.persona.id);
+
   const bs = document.querySelector("[data-salir]");
   if (bs) bs.onclick = cerrarSesion;
 
@@ -6409,6 +6444,7 @@ function enviar(f) {
       const antes = persona(id);
       const correoViejo = (antes.correo || "").toLowerCase();
       Object.assign(antes, v);
+      delete antes.nombrePorDefecto;   // ya lo escribió una persona
       // Si le cambiaron el correo, el anterior no debe seguir entrando.
       if (correoViejo && correoViejo !== (v.correo || "").toLowerCase()) {
         borrarUsuarioRemoto(correoViejo);
