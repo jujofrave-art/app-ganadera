@@ -157,6 +157,10 @@ tr.grupo .n{opacity:.55;margin-left:6px}
   display:grid;place-items:center;background:var(--papel);color:var(--tenue);gap:5px;
   font-size:11.5px;text-align:center;padding:10px;cursor:pointer;transition:border-color .12s}
 .retrato .sinfoto:hover{border-color:var(--pasto);color:var(--pasto)}
+.cargando-foto{cursor:default;border-style:solid}
+.giro{width:20px;height:20px;border:2px solid var(--linea);border-top-color:var(--pasto);
+  border-radius:50%;animation:girar .8s linear infinite}
+@keyframes girar{to{transform:rotate(360deg)}}
 .retrato .foto-acc{display:flex;gap:5px;margin-top:6px}
 .retrato .foto-acc button{flex:1;font-size:11px;padding:5px 6px;border-radius:6px;
   border:1px solid var(--linea);background:var(--alto);color:var(--tinta2)}
@@ -203,6 +207,9 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .chip i{font-style:normal;font-size:11px;color:var(--tenue);font-family:var(--dato)}
 .invitar{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .aviso{background:rgba(166,67,43,.08);border:1px solid rgba(166,67,43,.25);color:var(--hierro);border-radius:7px;padding:9px 12px;font-size:12.5px;margin-bottom:13px}
+.nota.recorte{background:rgba(245,197,24,.13);border-color:rgba(212,166,8,.35);color:var(--tinta2);
+  display:flex;align-items:center;gap:11px;flex-wrap:wrap;justify-content:space-between}
+.nota.recorte .btn{flex:none}
 .nota{background:rgba(62,107,74,.08);border:1px solid rgba(62,107,74,.22);color:var(--pasto);border-radius:7px;padding:9px 12px;font-size:12.5px;margin-bottom:13px}
 
 /* ---------- ficha detalle ---------- */
@@ -633,11 +640,50 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.15.0";
+const VERSION = "1.20.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.20.0", "30 ago 2026", [
+    "Arreglado: al borrar un animal o una finca, los eventos anteriores al recorte quedaban " +
+      "huérfanos en Firebase. Ahora se barren también, aunque no estén bajados.",
+    "Herramienta para borrar datos antiguos: eliges la fecha de corte y los tipos, te dice " +
+      "cuántos son antes de tocar nada, y pide escribir BORRAR para confirmar.",
+    "Los partos no se pueden borrar por ahí: de ellos dependen el total de partos y el " +
+      "intervalo entre partos.",
+  ]],
+  ["1.19.0", "30 ago 2026", [
+    "Arreglado un riesgo serio: al recortar el historial, la app podía llegar a borrar en " +
+      "Firebase los eventos que quedaban fuera de la ventana. Ahora nunca se borra algo " +
+      "que solo falta por el recorte.",
+    "Las listas de eventos avisan cuando están recortadas, con botón para traer todo.",
+    "El resumen de leche advierte que los periodos viejos salen incompletos.",
+    "Exportar avisa si la copia va recortada, para que no la tomes por un respaldo completo.",
+  ]],
+  ["1.18.0", "30 ago 2026", [
+    "La app baja solo los eventos de los últimos 24 meses, configurable a 12, 36 o todo.",
+    "Los partos nunca se recortan: de ellos salen el total de partos y el intervalo, " +
+      "que deben ser exactos.",
+    "El historial viejo de un animal se baja al abrir su ficha y pedirlo, sin traer el de todos.",
+    "Hay índices nuevos que crear en Firestore; están listados en Configuración.",
+  ]],
+  ["1.17.0", "30 ago 2026", [
+    "Las fotos ya no viajan dentro del animal: van en su propia colección y solo se bajan " +
+      "al abrir la ficha. Cargar la lista pasa de megabytes a kilobytes.",
+    "Al cambiarle la finca a alguien, lo de la finca anterior se suelta de inmediato en " +
+      "vez de quedarse ocupando espacio.",
+    "Las fotos huérfanas se borran del equipo cuando el animal deja de estar a tu alcance.",
+    "Las reglas de Firestore cambiaron por la colección nueva: hay que volver a publicarlas.",
+  ]],
+  ["1.16.0", "30 ago 2026", [
+    "Mucho más rápido al volver la señal. Las fotos, que eran el 84% del peso, ya no se " +
+      "reescriben en cada actualización: van aparte y solo cuando cambian.",
+    "Las actualizaciones que llegan seguidas se agrupan en vez de guardar y redibujar " +
+      "decenas de veces.",
+    "Cuando solo cambian los metadatos de sincronización ya no se rehace todo el trabajo.",
+    "Lo pendiente se escribe al cerrar la app o al mandarla a segundo plano.",
+  ]],
   ["1.15.0", "30 ago 2026", [
     "Una persona sin finca queda disponible: cualquier dueño o administrador de rango " +
       "mayor puede recogerla y asignarla.",
@@ -1124,16 +1170,69 @@ const SIN_ALMACEN = (() => {
   } catch { return true; }
 })();
 
+/* ----------------------------------------------------------
+   GUARDADO LOCAL
+
+   Las fotos son el 84% del peso. Si van dentro del mismo blob,
+   cada actualización que llega obliga a serializar megabytes,
+   y al reconectar llegan decenas seguidas. Por eso van aparte,
+   cada una en su propia clave, y solo se reescriben si cambian.
+   ---------------------------------------------------------- */
+const CLAVE_FOTO = (id) => CLAVE + "-f-" + id;
+const MARCA_FOTO = "@disco";
+let _fotosEnDisco = null;
+
 function guardarLocal() {
   VERSION_DATOS++;
-  try { localStorage.setItem(CLAVE, JSON.stringify(D)); }
-  catch (e) {
+  try {
+    if (!_fotosEnDisco) _fotosEnDisco = new Map();
+
+    const animales = (D.animales || []).map(a => {
+      if (a.foto && a.foto !== MARCA_FOTO) {
+        if (_fotosEnDisco.get(a.id) !== a.foto) {
+          localStorage.setItem(CLAVE_FOTO(a.id), a.foto);
+          _fotosEnDisco.set(a.id, a.foto);
+        }
+        return { ...a, foto: MARCA_FOTO };
+      }
+      if (!a.foto && _fotosEnDisco.has(a.id)) {
+        localStorage.removeItem(CLAVE_FOTO(a.id));
+        _fotosEnDisco.delete(a.id);
+      }
+      return a;
+    });
+
+    localStorage.setItem(CLAVE, JSON.stringify({ ...D, animales }));
+  } catch (e) {
     memoria = JSON.parse(JSON.stringify(D));
     if (String(e).includes("uota")) {
       alert("El navegador se quedó sin espacio, casi siempre por las fotos.\n\n" +
             "Exporta una copia desde Configuración y borra algunas fotos viejas.");
     }
   }
+}
+
+/* Al reconectar llegan muchas actualizaciones seguidas. Sin agrupar,
+   la app se congelaría guardando y redibujando decenas de veces. */
+let _tGuardar = null;
+function guardarPronto() {
+  if (_tGuardar) return;
+  _tGuardar = setTimeout(() => { _tGuardar = null; guardarLocal(); }, 400);
+}
+
+let _tPintar = null;
+function pintarPronto() {
+  if (_tPintar) return;
+  _tPintar = setTimeout(() => { _tPintar = null; pintar(); }, 180);
+}
+
+/** Deja escrito todo lo pendiente antes de cerrar. */
+function vaciarPendientes() {
+  if (_tGuardar) { clearTimeout(_tGuardar); _tGuardar = null; guardarLocal(); }
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", vaciarPendientes);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) vaciarPendientes(); });
 }
 
 /** Guarda en el equipo y, si hay Firebase conectado, sube los cambios. */
@@ -1144,7 +1243,16 @@ function guardar() {
 function cargar() {
   try {
     const s = localStorage.getItem(CLAVE);
-    if (s) return JSON.parse(s);
+    if (!s) return null;
+    const d = JSON.parse(s);
+    _fotosEnDisco = new Map();
+    (d.animales || []).forEach(a => {
+      if (a.foto === MARCA_FOTO) {
+        a.foto = localStorage.getItem(CLAVE_FOTO(a.id)) || null;
+        if (a.foto) _fotosEnDisco.set(a.id, a.foto);
+      }
+    });
+    return d;
   } catch (e) { if (memoria) return memoria; }
   return null;
 }
@@ -1175,6 +1283,7 @@ function migrar(d) {
   d.config.firebase ??= null;
   d.config.sinFirebase ??= false;
   d.config.sesionDe ??= "";
+  d.config.ventanaMeses ??= 24;
   d.config.limites ??= { global: {}, por: {} };
   d.config.limites.global ??= {};
   d.config.limites.por ??= {};
@@ -1240,6 +1349,7 @@ function migrar(d) {
     a.ultimoPartoPrevio ??= null;
     a.raza ??= "";
     a.foto ??= null;
+    a.tieneFoto ??= !!a.foto;
     a.hechas ??= {};   // alertas que alguien ya marcó como cumplidas
   }
   (d.inseminaciones || []).forEach(i => {
@@ -2647,6 +2757,16 @@ function fichas(lista) {
     `<button class="ficha ${V.sub===v?"on":""}" data-sub="${v}">${et}${n!==undefined?`<b>${n}</b>`:""}</button>`
   ).join("")}</div>`;
 }
+/** Avisa cuando la lista puede estar incompleta por el recorte de fechas. */
+function avisoRecorte(coleccion) {
+  if (!historialRecortado() || !CON_VENTANA[coleccion]) return "";
+  return `<div class="nota recorte">
+    Solo se muestran los registros desde el <strong>${fmt(FB.corte)}</strong>.
+    Lo anterior sigue guardado en Firebase.
+    <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
+  </div>`;
+}
+
 function vacio(t, p, btn) {
   return `<div class="vacio"><h2>${t}</h2><p>${p}</p>${btn||""}</div>`;
 }
@@ -2887,6 +3007,7 @@ function vInseminacion() {
   ${fichas([["todos","Todas",misEventos("inseminaciones").length],
             ...Object.entries(RESULTADOS).map(([k,v])=>[k,v.et,todos.filter(r=>r===k).length])
               .filter(x=>x[2]>0)])}
+  ${avisoRecorte("inseminaciones")}
   ${tabla(cols, agrupado(L, ({i, a, c}) => `<tr class="fila" data-ev="insem:${i.id}">
       ${celdaAnimal(a)}
       <td>${fmtCorto(i.fecha)}</td>
@@ -2947,6 +3068,7 @@ function vTratamientos() {
   ${fichas([["todos","Todos",misEventos("tratamientos").length],
             ["curso","En curso",misEventos("tratamientos").filter(activo).length],
             ["final","Terminados",misEventos("tratamientos").filter(t=>!activo(t)).length]])}
+  ${avisoRecorte("tratamientos")}
   ${tabla(cols, agrupado(L, ({t, a}) => `<tr class="fila" data-ev="trat:${t.id}">
       ${celdaAnimal(a)}
       <td>${esc(t.tipo)} ${activo(t) ? '<span class="p verde">En curso</span>' : ""}</td>
@@ -3044,6 +3166,7 @@ function vSecados() {
   ${fichas([["todos","Todos",tot.length],
             ...Object.entries(MOTIVOS_SECADO).map(([k,v])=>[k,v,tot.filter(s=>s.motivo===k).length])
               .filter(x=>x[2]>0)])}
+  ${avisoRecorte("secados")}
   ${tabla(cols, agrupado(L, ({s, a}) => {
     // Días de gestación que llevaba el día que la secaron.
     const srv = insemDe(a.id).find(i => i.fecha <= s.fecha);
@@ -3117,6 +3240,13 @@ function vLeche() {
             ["finca","De la finca",total.filter(r=>!r.animalId).length],
             ["animal","Por animal",total.filter(r=>r.animalId).length]])}
 
+  ${historialRecortado() ? `<div class="nota recorte">
+      ${epoca === "anio" || epoca === "mes"
+        ? "Ojo con este resumen: solo entra la leche desde el " + fmt(FB.corte) + ", " +
+          "así que los periodos más viejos salen incompletos."
+        : "Solo se muestra la leche desde el " + fmt(FB.corte) + "."}
+      <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
+    </div>` : ""}
   ${res.length === 0
     ? vacio("Todavía no hay leche registrada",
         "Anota cuántos litros salieron y cuántos días cubre esa entrega. Con eso la app " +
@@ -3288,6 +3418,9 @@ function fichaAnimal(id) {
     ? `<img src="${a.foto}" alt="Foto de ${esc(a.nombre)}">
        <div class="foto-acc"><button data-foto="${id}">Cambiar</button>
        <button class="quitar" data-quitafoto="${id}">Quitar</button></div>`
+    : a.tieneFoto
+    ? `<div class="sinfoto cargando-foto" data-bajar-foto="${id}">
+         <span class="giro"></span><span>Bajando la foto…</span></div>`
     : `<div class="sinfoto" data-foto="${id}">
          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
            <path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
@@ -3354,6 +3487,10 @@ function fichaAnimal(id) {
         <div><dt>Servicio</dt><dd>${fmt(e.ultInsem.fecha)}</dd></div>
         <div><dt>${dias(e.fechaPalpacion) >= 0 ? "Vencida hace" : "Faltan"}</dt><dd>${Math.abs(dias(e.fechaPalpacion))} días</dd></div>
       </dl>` : ""}
+
+      ${historialRecortado() ? `<div class="nota" data-pedir-historial="${id}">
+        Se están mostrando los últimos ${D.config.ventanaMeses || 24} meses.
+        <button class="btn btn-sm" style="margin-left:8px">Ver todo el historial</button></div>` : ""}
 
       ${a.detalles ? `<div class="seccion"><h3>Detalles</h3><p class="mini" style="font-style:normal;color:var(--tinta2)">${esc(a.detalles)}</p></div>` : ""}
 
@@ -4287,6 +4424,13 @@ function borrarSeleccion(cfg) {
 
   let n = 0;
   for (const id of permitidos) {
+    // Barrer también lo anterior al recorte, si lo hay.
+    if (cfg.tipo === "animal") {
+      const a = animal(id);
+      if (a) barrerAnimalRemoto(id, a.fincaId);
+    } else if (cfg.tipo === "finca") {
+      barrerFincaRemota(id);
+    }
     if (borrarEnCascada(cfg.tipo, id, { arrastrarAnimales: true }) !== null) n++;
   }
   V.sel = null;
@@ -4710,6 +4854,29 @@ const pesos = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
    a vivir en Firestore y se sincronizan entre computadores.
    ========================================================== */
 
+/* ----------------------------------------------------------
+   VENTANA DE SINCRONIZACIÓN
+
+   Los eventos crecen para siempre. Se baja solo lo reciente, que
+   es lo que alimenta las alertas y los cálculos, y el historial
+   viejo se pide al abrir la ficha de un animal.
+
+   Los partos NO se recortan: son pocos y de ellos salen el total
+   de partos y el intervalo entre partos, que deben ser exactos.
+   ---------------------------------------------------------- */
+const CON_VENTANA = {
+  inseminaciones: "fecha", palpaciones: "fecha", secados: "fecha",
+  tratamientos: "inicio", leche: "fecha",
+};
+
+function corteVentana() {
+  const m = Number(D.config?.ventanaMeses ?? 24);
+  if (!m) return null;                       // 0 = traer todo
+  const d = new Date();
+  d.setMonth(d.getMonth() - m);
+  return d.toISOString().slice(0, 10);
+}
+
 const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
                      "palpaciones", "partos", "secados", "tratamientos", "leche", "anotaciones"];
 
@@ -4863,6 +5030,7 @@ function escucharColecciones(mias) {
   pararEscuchas();
   FB.cajones = {};
   limpiarSiCambioDeUsuario(FB.user.email);
+  if (FB.rolRemoto !== "superadmin") soltarFincasAjenas(mias);
   const { fs } = FB.mods;
 
   if (!mias.length && FB.rolRemoto !== "superadmin") {
@@ -4889,14 +5057,34 @@ function escucharColecciones(mias) {
     const via = cajon || "principal";
     const u = fs.onSnapshot(consulta, { includeMetadataChanges: true },
       (snap) => {
+        // Los metadatos cambian muchas veces sin que cambie ningún dato.
+        // En ese caso solo se refresca el indicador, sin volver a guardar.
+        FB.enCache = snap.metadata.fromCache;
+        if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
+          FB.ultimaSync = Date.now();
+        }
+        if (!snap.docChanges().length && FB.cajones[nombre]?.[via]) {
+          recalcularPendientes();
+          pintarPronto();
+          return;
+        }
+
         FB.aplicando = true;
 
         ((FB.cajones[nombre] ||= {}))[via] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const juntos = new Map();
-        for (const lista of Object.values(FB.cajones[nombre])) {
-          for (const doc of lista) juntos.set(doc.id, doc);
+        let docs = recombinar(nombre);
+
+        // El servidor manda los animales sin foto. Se vuelve a pegar la que
+        // haya en este equipo; si no hay, queda pendiente de bajar.
+        if (nombre === "animales") {
+          const locales = new Map((D.animales || []).map(a => [a.id, a.foto]));
+          docs = docs.map(a => {
+            const mia = locales.get(a.id) || null;
+            if (a.tieneFoto && mia) FB.fotosSubidas.set(a.id, mia);
+            if (!a.tieneFoto) FB.fotosSubidas.set(a.id, null);
+            return { ...a, foto: a.foto || mia || null };
+          });
         }
-        const docs = [...juntos.values()];
         const vistos = new Set(docs.map(d => d.id));
 
         // Lo que se creó aquí y todavía no aparece en la consulta se conserva.
@@ -4916,17 +5104,13 @@ function escucharColecciones(mias) {
           snap.docs.forEach(d => propios.delete(d.id));
         }
 
-        FB.enCache = snap.metadata.fromCache;
-        if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
-          FB.ultimaSync = Date.now();
-        }
         recalcularPendientes();
 
-        guardarLocal();
+        guardarPronto();
         FB.aplicando = false;
         if (nombre === "personas") asegurarPersona(FB.user.email);
         else if (S.persona) S.persona = D.personas.find(p => p.id === S.persona.id) || S.persona;
-        pintar();
+        pintarPronto();
       },
       (e) => { FB.estado = "error"; FB.error = errorFB(e); pintar(); });
     FB.escuchas.push(u);
@@ -4947,9 +5131,16 @@ function escucharColecciones(mias) {
     escuchar("personas", fs.query(col("personas"),
       fs.where("sinFinca", "==", true)), "sueltas");
   }
+  const corte = FB.todoElHistorial ? null : corteVentana();
+  FB.corte = corte;
+
   for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
                    "secados", "tratamientos", "leche", "anotaciones"]) {
-    escuchar(n, todo ? col(n) : fs.query(col(n), fs.where("fincaId", "in", trozo)));
+    const campo = CON_VENTANA[n];
+    const filtros = [];
+    if (!todo) filtros.push(fs.where("fincaId", "in", trozo));
+    if (campo && corte) filtros.push(fs.where(campo, ">=", corte));
+    escuchar(n, filtros.length ? fs.query(col(n), ...filtros) : col(n));
   }
 
   FB.estado = "listo";
@@ -4965,6 +5156,15 @@ async function borrarUsuarioRemoto(correo) {
     const { fs } = FB.mods;
     await fs.deleteDoc(fs.doc(FB.db, "usuarios", c));
   } catch (e) { console.warn("usuarios:", errorFB(e)); }
+}
+
+/** Une todos los cajones de una colección: escuchas y historial pedido a mano. */
+function recombinar(nombre) {
+  const juntos = new Map();
+  for (const lista of Object.values(FB.cajones[nombre] || {})) {
+    for (const doc of lista) juntos.set(doc.id, doc);
+  }
+  return [...juntos.values()];
 }
 
 /** Mantiene /usuarios en Firestore al día con las asignaciones de la app. */
@@ -4999,6 +5199,27 @@ function programarEmpuje() {
   FB.pendiente = setTimeout(empujar, 120);
 }
 
+/**
+ * Cómo viaja cada documento. La foto no va dentro del animal: pesa 40 KB
+ * y obligaría a descargarlas todas para ver una lista. Va aparte, en su
+ * propia colección, y solo se baja al abrir la ficha.
+ */
+function paraRemoto(col, doc) {
+  if (col !== "animales") return doc;
+  const { foto, ...resto } = doc;
+  return { ...resto, tieneFoto: !!foto };
+}
+
+/** ¿Ese documento quedó fuera del recorte de fechas? */
+function fueraDeVentana(coleccion, json) {
+  const campo = CON_VENTANA[coleccion];
+  if (!campo || !FB.corte) return false;
+  try {
+    const f = JSON.parse(json)[campo];
+    return !!f && f < FB.corte;
+  } catch { return true; }   // ante la duda, no se borra
+}
+
 function recalcularPendientes() {
   FB.sinSubir = Object.values(FB.sinConfirmar).reduce((n, s) => n + s.size, 0);
 }
@@ -5015,10 +5236,16 @@ async function empujar() {
     const vistos = new Set();
     for (const doc of (D[nombre] || [])) {
       vistos.add(doc.id);
-      const json = JSON.stringify(doc);
+      const json = JSON.stringify(paraRemoto(nombre, doc));
       if (espejo[doc.id] !== json) cambios.push(["set", nombre, doc.id, doc, json]);
     }
-    for (const id in espejo) if (!vistos.has(id)) cambios.push(["del", nombre, id]);
+    for (const id in espejo) {
+      if (vistos.has(id)) continue;
+      // Si el documento solo falta porque quedó fuera de la ventana, NO se borra.
+      // Sin esta guarda, recortar el historial borraría los eventos viejos de todos.
+      if (FB.corte && fueraDeVentana(nombre, espejo[id])) { delete espejo[id]; continue; }
+      cambios.push(["del", nombre, id]);
+    }
   }
   if (!cambios.length) return sincronizarUsuarios();
 
@@ -5030,7 +5257,7 @@ async function empujar() {
 
       for (const [op, col, id, doc, json] of tanda) {
         const ref = fs.doc(FB.db, col, id);
-        if (op === "set") { const { id: _, ...resto } = doc; lote.set(ref, resto); }
+        if (op === "set") { const { id: _, ...resto } = paraRemoto(col, doc); lote.set(ref, resto); }
         else lote.delete(ref);
       }
 
@@ -5054,6 +5281,7 @@ async function empujar() {
     recalcularPendientes();
     pintar();
     sincronizarUsuarios();
+    subirFotos();
   } finally {
     empujando = false;
   }
@@ -5444,6 +5672,250 @@ if (location.protocol.startsWith("http")) {
   });
 }
 
+
+/* ==========================================================
+   FOTOS
+   Van en su propia colección para que la lista de animales sea
+   liviana. Se suben aparte y se bajan solo al abrir la ficha.
+   ========================================================== */
+
+FB.fotosSubidas = new Map();
+
+async function subirFotos() {
+  if (!FB.db || !FB.user) return;
+  const { fs } = FB.mods;
+  for (const a of D.animales) {
+    const actual = a.foto || null;
+    if (FB.fotosSubidas.has(a.id) && FB.fotosSubidas.get(a.id) === actual) continue;
+    if (!actual && !FB.fotosSubidas.has(a.id)) continue;   // nunca tuvo
+    try {
+      const ref = fs.doc(FB.db, "fotos", a.id);
+      if (actual) fs.setDoc(ref, { fincaId: a.fincaId, dato: actual }).catch(() => {});
+      else fs.deleteDoc(ref).catch(() => {});
+      FB.fotosSubidas.set(a.id, actual);
+    } catch (e) { /* sin señal: Firestore la encola */ }
+  }
+}
+
+/** Baja la foto de un animal concreto. Devuelve true si llegó. */
+async function cargarFoto(animalId) {
+  const a = animal(animalId);
+  if (!a || a.foto || !a.tieneFoto || !FB.db) return false;
+  if (FB.bajando?.has(animalId)) return false;
+  (FB.bajando ||= new Set()).add(animalId);
+  try {
+    const s = await FB.mods.fs.getDoc(FB.mods.fs.doc(FB.db, "fotos", animalId));
+    if (s.exists() && s.data().dato) {
+      a.foto = s.data().dato;
+      FB.fotosSubidas.set(animalId, a.foto);
+      guardarLocal();
+      return true;
+    }
+  } catch (e) { /* sin señal: se verá cuando vuelva */ }
+  finally { FB.bajando.delete(animalId); }
+  return false;
+}
+
+
+/**
+ * Cuando a alguien le cambian de finca, lo de la anterior ya no le
+ * corresponde. Se suelta de una: si no, seguiría en pantalla y ocupando
+ * espacio hasta que llegara la primera actualización.
+ */
+function soltarFincasAjenas(mias) {
+  const set = new Set(mias);
+  let n = 0;
+  for (const col of COLECCIONES) {
+    if (col === "personas") continue;          // se filtran por otro criterio
+    if (col === "fincas") {
+      const antes = D.fincas.length;
+      D.fincas = D.fincas.filter(f => set.has(f.id));
+      n += antes - D.fincas.length;
+      continue;
+    }
+    const antes = (D[col] || []).length;
+    D[col] = (D[col] || []).filter(x => !x.fincaId || set.has(x.fincaId));
+    n += antes - D[col].length;
+  }
+  // Y las fotos que quedaron sueltas en el disco.
+  const vivos = new Set(D.animales.map(a => a.id));
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith(CLAVE + "-f-") && !vivos.has(k.slice((CLAVE + "-f-").length))) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {}
+  if (n) { FB.espejo = {}; FB.cajones = {}; guardarLocal(); }
+  return n;
+}
+
+
+/* ==========================================================
+   HISTORIAL A PEDIDO
+   ========================================================== */
+
+/** Trae todo lo de un animal, incluso lo anterior a la ventana. */
+async function cargarHistorialAnimal(animalId) {
+  const a = animal(animalId);
+  if (!a || !FB.db || !FB.user) return false;
+  if (!FB.corte) return false;                    // ya está todo
+  FB.historial ||= new Set();
+  if (FB.historial.has(animalId)) return false;
+  FB.historial.add(animalId);
+
+  const { fs } = FB.mods;
+  let trajo = 0;
+  for (const col of Object.keys(CON_VENTANA)) {
+    if (col === "leche") continue;                // la leche no cuelga del animal
+    try {
+      const s = await fs.getDocs(fs.query(fs.collection(FB.db, col),
+        fs.where("fincaId", "==", a.fincaId),
+        fs.where("animalId", "==", animalId)));
+      const docs = s.docs.map(d => ({ id: d.id, ...d.data() }));
+      ((FB.cajones[col] ||= {}))["hist:" + animalId] = docs;
+      D[col] = recombinar(col);
+      trajo += docs.length;
+    } catch (e) { console.warn("historial:", errorFB(e)); }
+  }
+  guardarLocal();
+  pintar();
+  return trajo;
+}
+
+/** Quita el recorte y vuelve a suscribir con todo el historial. */
+function traerTodoElHistorial() {
+  if (!FB.db || !FB.user) return;
+  FB.todoElHistorial = true;
+  FB.claveFincas = null;         // fuerza a resuscribir
+  const mias = D.personas.find(p => p.id === S.persona?.id)?.fincas || [];
+  escucharColecciones(mias);
+  avisar("Bajando todo el historial…");
+}
+
+/** ¿Hay cosas más viejas que la ventana que no están bajadas? */
+const historialRecortado = () => !!FB.corte && !FB.todoElHistorial && !!FB.user;
+
+/* ==========================================================
+   BORRADO PROFUNDO
+   Lo que está fuera de la ventana no se ve, pero existe. Al
+   borrar un animal o una finca hay que barrer también eso, o
+   quedaría basura en Firebase que nadie puede alcanzar.
+   ========================================================== */
+
+const COLS_DE_ANIMAL = ["inseminaciones", "palpaciones", "partos", "secados", "tratamientos"];
+const COLS_DE_FINCA = [...COLS_DE_ANIMAL, "leche", "anotaciones", "animales"];
+
+async function borrarEnLotes(refs) {
+  const { fs } = FB.mods;
+  for (let i = 0; i < refs.length; i += 450) {
+    const lote = fs.writeBatch(FB.db);
+    refs.slice(i, i + 450).forEach(r => lote.delete(r));
+    await lote.commit();
+  }
+}
+
+/** Barre en Firebase todo lo de un animal, incluido lo anterior al recorte. */
+async function barrerAnimalRemoto(animalId, fincaId) {
+  if (!FB.db || !FB.user) return 0;
+  const { fs } = FB.mods;
+  let n = 0;
+  for (const col of COLS_DE_ANIMAL) {
+    try {
+      const s = await fs.getDocs(fs.query(fs.collection(FB.db, col),
+        fs.where("fincaId", "==", fincaId), fs.where("animalId", "==", animalId)));
+      if (!s.empty) { await borrarEnLotes(s.docs.map(d => d.ref)); n += s.size; }
+      s.docs.forEach(d => { delete (FB.espejo[col] || {})[d.id]; });
+    } catch (e) { console.warn("barrer:", errorFB(e)); }
+  }
+  try { await fs.deleteDoc(fs.doc(FB.db, "fotos", animalId)); } catch {}
+  FB.fotosSubidas.delete(animalId);
+  return n;
+}
+
+/** Lo mismo para una finca entera. */
+async function barrerFincaRemota(fincaId) {
+  if (!FB.db || !FB.user) return 0;
+  const { fs } = FB.mods;
+  let n = 0;
+  for (const col of COLS_DE_FINCA) {
+    try {
+      const s = await fs.getDocs(fs.query(fs.collection(FB.db, col),
+        fs.where("fincaId", "==", fincaId)));
+      if (!s.empty) { await borrarEnLotes(s.docs.map(d => d.ref)); n += s.size; }
+      s.docs.forEach(d => { delete (FB.espejo[col] || {})[d.id]; });
+      if (col === "animales") {
+        for (const doc of s.docs) {
+          try { await fs.deleteDoc(fs.doc(FB.db, "fotos", doc.id)); } catch {}
+        }
+      }
+    } catch (e) { console.warn("barrer:", errorFB(e)); }
+  }
+  return n;
+}
+
+/* ==========================================================
+   LIMPIEZA DE DATOS ANTIGUOS
+   ========================================================== */
+
+const PURGABLES = {
+  leche:          { et: "Leche",          campo: "fecha"  },
+  tratamientos:   { et: "Tratamientos",   campo: "inicio" },
+  inseminaciones: { et: "Inseminaciones", campo: "fecha"  },
+  palpaciones:    { et: "Palpaciones",    campo: "fecha"  },
+  secados:        { et: "Secados",        campo: "fecha"  },
+};
+
+/** Cuenta cuánto se borraría, sin borrar nada. */
+async function contarAntiguos(corte, cols) {
+  if (!FB.db || !FB.user) return null;
+  const { fs } = FB.mods;
+  const mias = misFincas();
+  const out = {};
+  for (const col of cols) {
+    const campo = PURGABLES[col].campo;
+    let n = 0;
+    for (let i = 0; i < mias.length; i += 30) {
+      const s = await fs.getDocs(fs.query(fs.collection(FB.db, col),
+        fs.where("fincaId", "in", mias.slice(i, i + 30)),
+        fs.where(campo, "<", corte)));
+      n += s.size;
+    }
+    out[col] = n;
+  }
+  return out;
+}
+
+/** Borra de verdad, en Firebase y en el equipo. */
+async function purgarAntiguos(corte, cols) {
+  if (!FB.db || !FB.user) return 0;
+  const { fs } = FB.mods;
+  const mias = misFincas();
+  let total = 0;
+  for (const col of cols) {
+    const campo = PURGABLES[col].campo;
+    for (let i = 0; i < mias.length; i += 30) {
+      const s = await fs.getDocs(fs.query(fs.collection(FB.db, col),
+        fs.where("fincaId", "in", mias.slice(i, i + 30)),
+        fs.where(campo, "<", corte)));
+      if (s.empty) continue;
+      await borrarEnLotes(s.docs.map(d => d.ref));
+      s.docs.forEach(d => { delete (FB.espejo[col] || {})[d.id]; });
+      total += s.size;
+    }
+    D[col] = (D[col] || []).filter(x => !(x[campo] && x[campo] < corte));
+    for (const cajon of Object.values(FB.cajones[col] || {})) {
+      // los cajones también, para que no reaparezcan al recombinar
+      const i = cajon.findIndex(x => x[campo] && x[campo] < corte);
+      if (i >= 0) FB.cajones[col][Object.keys(FB.cajones[col]).find(k => FB.cajones[col][k] === cajon)] =
+        cajon.filter(x => !(x[campo] && x[campo] < corte));
+    }
+  }
+  recalcularAccesos();
+  guardarLocal();
+  return total;
+}
+
 /* ==========================================================
    CONFIGURACIÓN
    ========================================================== */
@@ -5508,6 +5980,14 @@ service cloud.firestore {
     }
 
     // ---- ganado y sus eventos: filtrados por finca ----
+    // Las fotos van aparte para que la lista de animales sea liviana.
+    match /fotos/{id} {
+      allow read:   if registrado() && mia();
+      allow create: if registrado() && seraMia();
+      allow update: if registrado() && mia() && seraMia();
+      allow delete: if registrado() && mia();
+    }
+
     match /animales/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
@@ -5575,6 +6055,12 @@ Colección: palpaciones     → fincaId (Ascendente) + fecha (Descendente)
 Colección: secados         → fincaId (Ascendente) + fecha (Descendente)
 Colección: tratamientos    → fincaId (Ascendente) + inicio (Descendente)
 Colección: leche           → fincaId (Ascendente) + fecha (Descendente)
+
+Para pedir el historial de un animal concreto:
+Colección: inseminaciones  → fincaId (Ascendente) + animalId (Ascendente)
+Colección: palpaciones     → fincaId (Ascendente) + animalId (Ascendente)
+Colección: secados         → fincaId (Ascendente) + animalId (Ascendente)
+Colección: tratamientos    → fincaId (Ascendente) + animalId (Ascendente)
 
 La consulta de personas sin finca usa un solo campo (sinFinca) y no necesita índice.`;
 
@@ -5848,6 +6334,38 @@ function vConfiguracion() {
 
   `}
   ${!puede("config") ? "" : `
+  <!-- ============ SINCRONIZACIÓN ============ -->
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Cuánto historial se baja</h2>
+      <span class="p ${(D.config.ventanaMeses ?? 24) ? "gris" : "ambar"}">${
+        (D.config.ventanaMeses ?? 24) ? (D.config.ventanaMeses ?? 24) + " meses" : "Todo"}</span>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Los eventos crecen para siempre. La app baja solo los recientes, que son
+      los que alimentan las alertas y los cálculos; el historial viejo se pide al abrir la
+      ficha de cada animal. Los partos nunca se recortan, porque de ellos salen el total de
+      partos y el intervalo entre partos.</p>
+
+      <form data-guardar-ventana>
+        <div class="rej">
+          <div class="campo ancho"><label>Traer los últimos</label>
+            ${seg("ventanaMeses", [["12","12 meses"],["24","24 meses"],["36","36 meses"],["0","Todo"]],
+                  String(D.config.ventanaMeses ?? 24))}
+            <span class="ayuda">Con menos meses la app abre más rápido y gasta menos datos.
+            Con «Todo» se baja el historial completo en cada equipo.</span></div>
+        </div>
+        <div class="fila-btn">
+          <button class="btn btn-firme">Guardar</button>
+          ${historialRecortado() ? '<button type="button" class="btn" data-acc="todo-historial">Bajar todo ahora</button>' : ""}
+        </div>
+      </form>
+
+      ${historialRecortado() ? `<div class="nota" style="margin-top:12px">
+        Ahora mismo tienes los eventos desde el <strong>${fmt(FB.corte)}</strong>.
+        Lo anterior sigue en Firebase y se baja cuando lo pidas.</div>` : ""}
+    </div>
+  </details>
+
   <!-- ============ 3. PARÁMETROS ============ -->
   <details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Parámetros de la finca</h2><span class="flecha-acord">▾</span></summary>
@@ -6097,6 +6615,49 @@ function vConfiguracion() {
   </details>
   `}
 
+  ${!esMaestro() ? "" : `
+  <!-- ============ LIMPIEZA ============ -->
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Borrar datos antiguos</h2>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Con los años se juntan miles de registros que ya no se consultan.
+      Esto los borra de Firebase de verdad, no solo del equipo. Se puede elegir hasta qué
+      fecha y qué tipos.</p>
+
+      <div class="aviso">Antes de borrar, exporta una copia con todo el historial bajado.
+      Esto no se puede deshacer y no hay papelera.</div>
+
+      <div class="nota">Los <strong>partos</strong> no se pueden borrar por aquí. De ellos
+      salen el total de partos y el intervalo entre partos de cada vaca: si desaparecen,
+      esas cifras quedan mal para siempre. Si quieres deshacerte de un animal completo,
+      bórralo desde su ficha y se lleva todo su historial.</div>
+
+      <form data-purgar>
+        <div class="rej">
+          <div class="campo ancho"><label>Borrar lo anterior a</label>
+            <input type="date" name="corte" value="${(() => {
+              const d = new Date(); d.setFullYear(d.getFullYear() - 3);
+              return d.toISOString().slice(0, 10);
+            })()}" required>
+            <span class="ayuda">Todo lo que sea de antes de esa fecha.</span></div>
+          <div class="campo ancho"><label>Qué borrar</label>
+            <div class="interruptores">
+              ${Object.entries(PURGABLES).map(([k, v]) => `
+                <label class="interruptor">
+                  <input type="checkbox" name="cols" value="${k}">
+                  <span><strong>${v.et}</strong><em>por ${v.campo}</em></span></label>`).join("")}
+            </div></div>
+        </div>
+        <div class="fila-btn">
+          <button type="button" class="btn" data-acc="contar-antiguos">Ver cuántos son</button>
+          <button class="btn btn-baja">Borrar definitivamente</button>
+        </div>
+      </form>
+      <div data-conteo-antiguos></div>
+    </div>
+  </details>`}
+
   <!-- ============ 6. DATOS ============ -->
   <details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Datos de este equipo</h2><span class="flecha-acord">▾</span></summary>
@@ -6300,6 +6861,50 @@ conectarFirebase(true);
     guardar(); pintar(); avisar("Límites guardados");
   };
 
+  const fpu = document.querySelector("[data-purgar]");
+  if (fpu) fpu.onsubmit = async (e) => {
+    e.preventDefault();
+    const v = datos(fpu);
+    const cols = new FormData(fpu).getAll("cols");
+    if (!cols.length) return alert("Marca al menos un tipo de registro.");
+    if (!v.corte) return alert("Pon la fecha de corte.");
+    if (dias(v.corte) < 30) return alert("Esa fecha es muy reciente. Deja al menos un mes de margen.");
+
+    const cuenta = await contarAntiguos(v.corte, cols);
+    if (!cuenta) return alert("Necesitas estar conectado a Firebase.");
+    const total = Object.values(cuenta).reduce((a, b) => a + b, 0);
+    if (!total) return alert("No hay nada anterior a esa fecha.");
+
+    const detalle = Object.entries(cuenta).filter(([, n]) => n)
+      .map(([c, n]) => `• ${n} ${PURGABLES[c].et.toLowerCase()}`).join("\n");
+    if (!confirm(`Se van a borrar ${total} registros anteriores al ${fmt(v.corte)}:\n\n` +
+                 `${detalle}\n\nEsto no se puede deshacer. ¿Continuar?`)) return;
+    const escrito = prompt(`Para confirmar, escribe BORRAR en mayúsculas.`);
+    if (escrito !== "BORRAR") return alert("Cancelado.");
+
+    avisar("Borrando…");
+    const n = await purgarAntiguos(v.corte, cols);
+    pintar();
+    alert(`Listo. Se borraron ${n} registros.`);
+    return;
+  };
+
+  const fv = document.querySelector("[data-guardar-ventana]");
+  if (fv) fv.onsubmit = (e) => {
+    e.preventDefault();
+    const m = Number(datos(fv).ventanaMeses) || 0;
+    const antes = D.config.ventanaMeses ?? 24;
+    D.config.ventanaMeses = m;
+    FB.todoElHistorial = m === 0;
+    guardar();
+    if (m !== antes && FB.user) {
+      FB.claveFincas = null;
+      escucharColecciones(D.personas.find(p => p.id === S.persona?.id)?.fincas || []);
+    }
+    pintar();
+    avisar(m ? `Se bajarán los últimos ${m} meses` : "Se bajará todo el historial");
+  };
+
   const fp = document.querySelector("[data-guardar-params]");
   if (fp) fp.onsubmit = (e) => {
     e.preventDefault();
@@ -6350,7 +6955,9 @@ function pedirFoto(animalId) {
   inp.onchange = async () => {
     const f = inp.files[0]; if (!f) return;
     try {
-      animal(animalId).foto = await comprimirFoto(f);
+      const a = animal(animalId);
+      a.foto = await comprimirFoto(f);
+      a.tieneFoto = true;
       guardar(); fichaAnimal(animalId); avisar("Foto guardada");
     } catch { alert("No se pudo leer esa imagen. Intenta con otra."); }
   };
@@ -6361,10 +6968,34 @@ function conectarHoja(d) {
   d.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = cerrarHoja);
 
   d.querySelectorAll("[data-foto]").forEach(b => b.onclick = () => pedirFoto(b.dataset.foto));
+
+  const bh = d.querySelector("[data-pedir-historial]");
+  if (bh) bh.querySelector("button").onclick = async () => {
+    const idA = bh.dataset.pedirHistorial;
+    bh.querySelector("button").textContent = "Bajando…";
+    const n = await cargarHistorialAnimal(idA);
+    fichaAnimal(idA);
+    avisar(n ? `${n} registros más de su historial` : "No había nada más viejo");
+  };
+
+  // La foto no viene con la lista: se pide al abrir la ficha.
+  const pend = d.querySelector("[data-bajar-foto]");
+  if (pend) {
+    const idf = pend.dataset.bajarFoto;
+    cargarFoto(idf).then(ok => {
+      if (ok && hojaAbierta) fichaAnimal(idf);
+      else if (pend.isConnected) {
+        pend.classList.remove("cargando-foto");
+        pend.innerHTML = "<span>No se pudo bajar la foto.<br>Toca para poner otra.</span>";
+        pend.onclick = () => pedirFoto(idf);
+      }
+    });
+  }
   d.querySelectorAll("[data-quitafoto]").forEach(b => b.onclick = () => {
     const i = b.dataset.quitafoto;
     if (!confirm("¿Quitar la foto?")) return;
-    animal(i).foto = null; guardar(); fichaAnimal(i);
+    const a = animal(i); a.foto = null; a.tieneFoto = false;
+    guardar(); fichaAnimal(i);
   });
   d.querySelectorAll("[data-ev]").forEach(el => el.onclick = () => {
     const [t, i] = el.dataset.ev.split(":"); ABRIR_EV[t](i);
@@ -6637,7 +7268,7 @@ function enviar(f) {
   }
 }
 
-function borrar(tipo, id) {
+async function borrar(tipo, id) {
   const dep = dependencias(tipo, id);
 
   if (tipo === "animal") {
@@ -6663,8 +7294,11 @@ function borrar(tipo, id) {
     } else if (!confirm(`¿Eliminar la finca ${f.nombre}?` +
         (dep.notas ? `\n\nSe borran sus ${dep.notas} anotación(es).` : "") +
         (dep.gente ? `\n\n${dep.gente} persona(s) quedan sin esta finca asignada.` : ""))) return;
+    const barrido = await barrerFincaRemota(id);
     if (borrarEnCascada("finca", id, { arrastrarAnimales: true }) === null) return;
-    return persistir("Finca eliminada");
+    persistir("Finca eliminada");
+    if (barrido) avisar(`Se limpiaron ${barrido} registros, incluidos los más viejos`);
+    return;
   }
 
   else if (tipo === "persona") {
@@ -6680,6 +7314,15 @@ function borrar(tipo, id) {
 
   else if (!confirm("¿Eliminar este registro?")) return;
 
+  // Lo que quedó fuera de la ventana también hay que barrerlo.
+  if (tipo === "animal") {
+    const a = animal(id);
+    const barrido = await barrerAnimalRemoto(id, a.fincaId);
+    if (borrarEnCascada(tipo, id) === null) return;
+    persistir("Animal eliminado");
+    if (barrido) avisar(`Se limpiaron ${barrido} registros suyos, incluidos los más viejos`);
+    return;
+  }
   if (borrarEnCascada(tipo, id) === null) return;
   persistir("Registro eliminado");
 }
@@ -6737,6 +7380,30 @@ conectarFirebase(true);
     guardar(); pintar(); avisar(abrir ? "Todas abiertas" : "Todas cerradas");
     return;
   }
+  if (a === "contar-antiguos") {
+    const f2 = document.querySelector("[data-purgar]");
+    const v = datos(f2), cols = new FormData(f2).getAll("cols");
+    const caja = document.querySelector("[data-conteo-antiguos]");
+    if (!cols.length) return alert("Marca al menos un tipo de registro.");
+    caja.innerHTML = '<p class="expl">Contando…</p>';
+    const cuenta = await contarAntiguos(v.corte, cols);
+    if (!cuenta) { caja.innerHTML = '<div class="aviso">Necesitas estar conectado a Firebase.</div>'; return; }
+    const total = Object.values(cuenta).reduce((a2, b) => a2 + b, 0);
+    caja.innerHTML = total
+      ? `<div class="nota recorte" style="margin-top:12px"><div>
+          <strong>${total} registros anteriores al ${fmt(v.corte)}</strong><br>
+          ${Object.entries(cuenta).filter(([, n]) => n)
+            .map(([c, n]) => `${n} ${PURGABLES[c].et.toLowerCase()}`).join(" · ")}
+         </div></div>`
+      : `<div class="nota" style="margin-top:12px">No hay nada anterior a esa fecha.</div>`;
+    return;
+  }
+  if (a === "todo-historial") {
+    if (!confirm("Se va a bajar todo el historial de tus fincas, sin recorte de fechas.\n\n" +
+                 "En una finca con años de registros puede tardar y consumir datos. ¿Continuar?")) return;
+    traerTodoElHistorial();
+    return;
+  }
   if (a === "revisar-datos") {
     const inf = revisarIntegridad(false);
     if (!inf.length) return alert("Todo en orden: no hay registros huérfanos ni enlaces rotos.");
@@ -6780,6 +7447,11 @@ conectarFirebase(true);
   }
 
   if (a === "exportar") {
+    // Una copia recortada no sirve como respaldo: hay que decirlo.
+    if (historialRecortado() && !confirm(
+        `Esta copia solo llevará los eventos desde el ${fmt(FB.corte)}, que es lo que ` +
+        `tienes bajado.\n\nSi la quieres como respaldo completo, primero pulsa ` +
+        `«Bajar todo ahora» en «Cuánto historial se baja».\n\n¿Exportar así de todos modos?`)) return;
     const b = new Blob([JSON.stringify(D, null, 2)], { type: "application/json" });
     const u = URL.createObjectURL(b);
     const el = document.createElement("a");
@@ -6797,6 +7469,9 @@ conectarFirebase(true);
         try {
           const j = JSON.parse(r.result);
           if (!j.animales || !j.fincas) throw 0;
+          if (historialRecortado() && !confirm(
+              "Tienes el historial recortado. Al importar, esta copia reemplaza lo que hay " +
+              "en pantalla, pero lo anterior al recorte sigue intacto en Firebase.\n\n¿Continuar?")) return;
           D = migrar(j); guardar(); pintar(); avisar("Datos importados");
         } catch { alert("Ese archivo no tiene el formato esperado. Usa uno exportado desde esta misma app."); }
       };
@@ -6808,6 +7483,12 @@ conectarFirebase(true);
     if (!confirm("Esto borra todos los animales, fincas, personas y eventos de este equipo.\n\n" +
                  "Si tienes Firebase conectado, los datos de la nube NO se borran.\n\n¿Seguro?")) return;
     if (!confirm("Última confirmación: no hay forma de deshacer esto.")) return;
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith(CLAVE + "-f-")) localStorage.removeItem(k);
+      }
+    } catch {}
+    _fotosEnDisco = new Map();
     D = migrar(semilla()); guardarLocal();
     S.persona = null; S.modo = null; guardarSesion();
     pantallaAcceso();
