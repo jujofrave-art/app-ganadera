@@ -295,6 +295,12 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .btn.google{display:flex;align-items:center;justify-content:center;gap:9px;background:#fff;
   border-color:#dadce0;color:#3c4043;font-weight:500}
 .btn.google:hover{background:#f7f8f8;border-color:#c6cacd}
+.recordar{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linea);
+  border-radius:8px;padding:11px;cursor:pointer;background:var(--alto);margin-top:2px}
+.recordar:has(input:checked){border-color:var(--pasto);background:rgba(62,107,74,.07)}
+.recordar input{margin:2px 0 0;accent-color:var(--pasto);flex:none;width:16px;height:16px}
+.recordar span{display:flex;flex-direction:column;gap:3px;font-size:13px}
+.recordar em{font-style:normal;font-size:11.5px;color:var(--tenue);line-height:1.45}
 .enlaces{display:flex;flex-direction:column;gap:7px;align-items:flex-start;margin-top:13px}
 .liga{background:none;border:0;padding:2px 0;color:var(--pasto);font-size:12.5px;text-align:left;
   text-decoration:underline;text-underline-offset:2px}
@@ -416,6 +422,42 @@ details.panel:not([open])>summary{border-bottom:0}
   .barra-col{min-width:52px}
   .barra-et{font-size:9px}
 }
+
+/* ---------- carga masiva ---------- */
+.modos{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.modo{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linea);border-radius:9px;
+  padding:12px;cursor:pointer;background:var(--alto)}
+.modo.on{border-color:var(--pasto);background:rgba(62,107,74,.07)}
+.modo input{margin:2px 0 0;accent-color:var(--pasto);flex:none}
+.modo span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.modo strong{font-size:13.5px}
+.modo em{font-style:normal;font-size:11.5px;color:var(--tenue);line-height:1.4}
+
+.guia{list-style:none;counter-reset:g;margin:0 0 14px;padding:0;
+  display:flex;flex-direction:column;gap:7px}
+.guia li{counter-increment:g;position:relative;border:1px solid var(--linea);border-radius:8px;
+  padding:10px 12px 10px 40px;background:var(--alto)}
+.guia li::before{content:counter(g);position:absolute;left:11px;top:10px;width:20px;height:20px;
+  border-radius:50%;background:var(--tinta);color:var(--chapeta);display:grid;place-items:center;
+  font-family:var(--dato);font-size:10.5px}
+.guia-cab{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.guia p{margin:5px 0 0;font-size:12.5px;line-height:1.5;color:var(--tinta2)}
+.guia code{display:inline-block;margin-top:6px;font-family:var(--dato);font-size:11.5px;
+  background:rgba(22,36,28,.06);padding:2px 7px;border-radius:4px;color:var(--tinta2)}
+@media(max-width:860px){.modos{grid-template-columns:1fr}}
+
+/* ---------- mapeo de columnas ---------- */
+.mapeo{display:flex;flex-direction:column;gap:7px}
+.mapeo-fila{display:grid;grid-template-columns:1fr 1fr;gap:11px;align-items:center;
+  border:1px solid var(--linea);border-radius:8px;padding:9px 11px;background:var(--alto)}
+.mapeo-org{min-width:0}
+.mapeo-org strong{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mapeo-org em{font-style:normal;font-family:var(--dato);font-size:10.5px;color:var(--tenue);
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.mapeo-fila select{padding:8px 10px;border:1px solid var(--linea);border-radius:6px;
+  background:var(--alto);font-size:13px}
+#imp-texto{font-family:var(--dato);font-size:11.5px;white-space:pre;overflow-x:auto}
+@media(max-width:860px){.mapeo-fila{grid-template-columns:1fr;gap:7px}}
 
 /* ---------- filas de pajilla ---------- */
 .pajilla-fila{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:11px;
@@ -640,11 +682,36 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.20.0";
+const VERSION = "1.23.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.23.0", "31 ago 2026", [
+    "Cada pestaña es una sesión aparte: al abrir el enlace en otra pestaña pide iniciar sesión.",
+    "Así varias personas pueden usar el mismo computador a la vez sin pisarse.",
+    "Los datos de cada quien se guardan por separado en el equipo; nadie ve la caché del otro.",
+    "Casilla «Mantener la sesión abierta en este equipo» para el celular o el computador " +
+      "de uso personal.",
+    "Al cerrar sesión, la pestaña queda limpia.",
+  ]],
+  ["1.22.0", "31 ago 2026", [
+    "Dos formas de carga masiva: pegar con encabezado, o escribir en un orden fijo " +
+      "separando por comas.",
+    "En el modo de orden fijo se listan todas las columnas, en orden, con qué va en cada una, " +
+      "si es obligatoria y un ejemplo.",
+    "Botón para copiar la plantilla de encabezados de cada tabla.",
+    "Si por costumbre pegas también la fila de títulos en el modo fijo, se descarta sola.",
+  ]],
+  ["1.21.0", "31 ago 2026", [
+    "Carga masiva en todas las tablas: pegas lo copiado de Google Sheets o subes un CSV.",
+    "La app adivina a qué tabla van los datos y qué significa cada columna; se puede corregir.",
+    "Las fincas y los animales se resuelven por nombre, chapeta o por el ID de tu hoja.",
+    "Una hoja que mezcle inseminaciones, partos y abortos se reparte sola a cada tabla.",
+    "Reconoce las fechas de Sheets y avisa si el orden día/mes es ambiguo.",
+    "Muestra cuántos entran, cuántos se actualizan y qué filas fallan, antes de guardar nada.",
+    "Volver a importar el mismo archivo actualiza en vez de duplicar, si trae el ID de tu hoja.",
+  ]],
   ["1.20.0", "30 ago 2026", [
     "Arreglado: al borrar un animal o una finca, los eventos anteriores al recorte quedaban " +
       "huérfanos en Firebase. Ahora se barren también, aunque no estén bajados.",
@@ -1173,20 +1240,73 @@ const SIN_ALMACEN = (() => {
 /* ----------------------------------------------------------
    GUARDADO LOCAL
 
-   Las fotos son el 84% del peso. Si van dentro del mismo blob,
-   cada actualización que llega obliga a serializar megabytes,
-   y al reconectar llegan decenas seguidas. Por eso van aparte,
-   cada una en su propia clave, y solo se reescriben si cambian.
+   Dos almacenes distintos:
+   · La configuración del equipo (Firebase, parámetros) es una
+     sola y la comparten todas las pestañas.
+   · Los datos van bajo el nombre de quien entró, para que dos
+     personas en el mismo computador no se pisen.
+
+   Las fotos son el 84% del peso, así que van cada una en su
+   propia clave y solo se reescriben si cambian.
    ---------------------------------------------------------- */
-const CLAVE_FOTO = (id) => CLAVE + "-f-" + id;
+const CLAVE_CONFIG = CLAVE + "-config";
+let CLAVE_DATOS = null;                     // se fija al entrar
+const CLAVE_FOTO = (id) => (CLAVE_DATOS || CLAVE) + "-f-" + id;
 const MARCA_FOTO = "@disco";
 let _fotosEnDisco = null;
+
+function cargarConfig() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_CONFIG)) || null; } catch { return null; }
+}
+
+/** Abre los datos de una persona. "local" cuando no hay Firebase. */
+function abrirDatosDe(quien) {
+  CLAVE_DATOS = CLAVE + "::" + (quien || "local");
+  _fotosEnDisco = new Map();
+
+  let d = null;
+  try {
+    const s = localStorage.getItem(CLAVE_DATOS);
+    if (s) d = JSON.parse(s);
+  } catch {}
+
+  // Si viene de una versión anterior, los datos estaban en una sola clave.
+  // Se adoptan una única vez, para el primero que entre.
+  if (!d) {
+    try {
+      const viejo = localStorage.getItem(CLAVE);
+      if (viejo && !localStorage.getItem(CLAVE + "-adoptado")) {
+        d = JSON.parse(viejo);
+        localStorage.setItem(CLAVE + "-adoptado", CLAVE_DATOS);
+        (d.animales || []).forEach(a => {
+          if (a.foto === MARCA_FOTO) {
+            const f = localStorage.getItem(CLAVE + "-f-" + a.id);
+            if (f) { localStorage.setItem(CLAVE_DATOS + "-f-" + a.id, f); }
+          }
+        });
+      }
+    } catch {}
+  }
+
+  const cfg = D?.config;                    // la del equipo, ya cargada
+  D = migrar({ ...(d || semilla()), ...(cfg ? { config: cfg } : {}) });
+
+  (D.animales || []).forEach(a => {
+    if (a.foto === MARCA_FOTO) {
+      a.foto = localStorage.getItem(CLAVE_FOTO(a.id)) || null;
+      if (a.foto) _fotosEnDisco.set(a.id, a.foto);
+    }
+  });
+  VERSION_DATOS++;
+}
 
 function guardarLocal() {
   VERSION_DATOS++;
   try {
-    if (!_fotosEnDisco) _fotosEnDisco = new Map();
+    localStorage.setItem(CLAVE_CONFIG, JSON.stringify(D.config));
+    if (!CLAVE_DATOS) return;               // todavía nadie ha entrado
 
+    if (!_fotosEnDisco) _fotosEnDisco = new Map();
     const animales = (D.animales || []).map(a => {
       if (a.foto && a.foto !== MARCA_FOTO) {
         if (_fotosEnDisco.get(a.id) !== a.foto) {
@@ -1202,7 +1322,8 @@ function guardarLocal() {
       return a;
     });
 
-    localStorage.setItem(CLAVE, JSON.stringify({ ...D, animales }));
+    const { config, ...resto } = D;
+    localStorage.setItem(CLAVE_DATOS, JSON.stringify({ ...resto, animales }));
   } catch (e) {
     memoria = JSON.parse(JSON.stringify(D));
     if (String(e).includes("uota")) {
@@ -1240,22 +1361,7 @@ function guardar() {
   guardarLocal();
   if (typeof programarEmpuje === "function") programarEmpuje();
 }
-function cargar() {
-  try {
-    const s = localStorage.getItem(CLAVE);
-    if (!s) return null;
-    const d = JSON.parse(s);
-    _fotosEnDisco = new Map();
-    (d.animales || []).forEach(a => {
-      if (a.foto === MARCA_FOTO) {
-        a.foto = localStorage.getItem(CLAVE_FOTO(a.id)) || null;
-        if (a.foto) _fotosEnDisco.set(a.id, a.foto);
-      }
-    });
-    return d;
-  } catch (e) { if (memoria) return memoria; }
-  return null;
-}
+
 
 /* ---------- estructura vacía ---------- */
 function semilla() {
@@ -1284,6 +1390,7 @@ function migrar(d) {
   d.config.sinFirebase ??= false;
   d.config.sesionDe ??= "";
   d.config.ventanaMeses ??= 24;
+  d.config.recordarSesion ??= false;
   d.config.limites ??= { global: {}, por: {} };
   d.config.limites.global ??= {};
   d.config.limites.por ??= {};
@@ -1391,7 +1498,9 @@ function recalcularAccesos(d) {
   return d;
 }
 
-let D = migrar(cargar() || semilla());
+/* Al arrancar solo se lee la configuración del equipo. Los datos se
+   abren cuando ya se sabe quién entró. */
+let D = migrar({ ...semilla(), config: cargarConfig() || semilla().config });
 
 /** Avisa una sola vez cuando el archivo publicado cambió de versión. */
 const CLAVE_VERSION = CLAVE + "-version";
@@ -2146,6 +2255,12 @@ function bloqueClave() {
           autocomplete="username" required></div>
       <div class="campo"><label>Contraseña</label>
         <input name="clave" type="password" autocomplete="current-password" required></div>
+      <label class="recordar">
+        <input type="checkbox" name="recordar" ${D.config.recordarSesion ? "checked" : ""}>
+        <span>Mantener la sesión abierta en este equipo
+        <em>Déjalo sin marcar si varias personas usan este computador: así cada pestaña
+        pide su propio usuario.</em></span>
+      </label>
       <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
         ${S.cargando ? "Entrando…" : "Entrar"}</button>
     </form>
@@ -2249,12 +2364,14 @@ function conectarAcceso() {
     S.error = ""; S.aviso = "";
 
     if (f.dataset.acceso === "primero") {
+      if (!CLAVE_DATOS) abrirDatosDe("local");
       S.persona = crearPrimerUsuario(v.nombre, v.correo);
       S.modo = D.config.firebase?.apiKey ? "firebase" : "local";
       guardar(); guardarSesion(); pintar();
       return;
     }
     if (f.dataset.acceso === "local") {
+      if (!CLAVE_DATOS) abrirDatosDe("local");
       S.persona = persona(v.personaId); S.modo = "local";
       guardarSesion(); pintar(); return;
     }
@@ -2308,6 +2425,8 @@ function conectarAcceso() {
     }
 
     // Entrar con contraseña
+    D.config.recordarSesion = !!v.recordar;
+    guardarLocal();
     S.cargando = true; pantallaAcceso();
     try { await entrarFirebase(correo, v.clave); }
     catch (err) {
@@ -2384,17 +2503,20 @@ function crearPrimerUsuario(nombre, correo) {
 }
 
 /* ---------- persistir la sesión local ---------- */
+/* La sesión vive en sessionStorage: es propia de cada pestaña. Así dos
+   personas pueden trabajar a la vez en el mismo computador. */
 const CLAVE_SESION = CLAVE + "-sesion";
 function guardarSesion() {
   try {
-    if (S.persona) localStorage.setItem(CLAVE_SESION, S.persona.id);
-    else localStorage.removeItem(CLAVE_SESION);
+    if (S.persona) sessionStorage.setItem(CLAVE_SESION, S.persona.id);
+    else sessionStorage.removeItem(CLAVE_SESION);
   } catch {}
 }
 function recuperarSesion() {
   if (D.config.firebase?.apiKey) return;  // con Firebase manda la sesión de auth
+  abrirDatosDe("local");
   try {
-    const id = localStorage.getItem(CLAVE_SESION);
+    const id = sessionStorage.getItem(CLAVE_SESION);
     if (id) { const p = persona(id); if (p) { S.persona = p; S.modo = "local"; } }
   } catch {}
 }
@@ -2415,9 +2537,19 @@ function entrarSinSenal() {
   return true;
 }
 function cerrarSesion() {
-  if (S.modo === "firebase") { salirFirebase(); }
-  S.persona = null; S.modo = null; S.error = "";
-  guardarSesion(); pantallaAcceso();
+  vaciarPendientes();
+  if (S.modo === "firebase" || S.modo === "offline") {
+    try { Promise.resolve(salirFirebase()).catch(() => {}); } catch {}
+  }
+  S.persona = null; S.modo = null; S.error = ""; S.modoAcceso = "entrar";
+  guardarSesion();
+  // Con Firebase, los datos vuelven a cerrarse: la pestaña queda limpia.
+  if (D.config.firebase?.apiKey) {
+    CLAVE_DATOS = null;
+    const cfg = D.config;
+    D = migrar({ ...semilla(), config: cfg });
+  }
+  pantallaAcceso();
 }
 
 /** Une la cuenta de Firebase con su ficha de persona, si ya existe. */
@@ -2468,7 +2600,7 @@ function ofrecerClave() {
 /** ¿Hay una sesión previa y datos en este equipo? */
 function haySesionGuardada() {
   try {
-    const id = localStorage.getItem(CLAVE_SESION);
+    const id = sessionStorage.getItem(CLAVE_SESION);
     return !!(id && persona(id) && D.fincas.length);
   } catch { return false; }
 }
@@ -4296,9 +4428,28 @@ function idDeFila(el) {
   return null;
 }
 
+/** A qué destino de importación corresponde cada vista. */
+const IMPORTABLE = {
+  fincas:"fincas", activos:"animales", salidas:"animales",
+  duenos:"personas", administradores:"personas", empleados:"personas",
+  inseminacion:"inseminaciones", partos:"partos", palpacion:"palpaciones",
+  secados:"secados", tratamientos:"tratamientos", leche:"leche", anotaciones:"anotaciones",
+};
+
 function montarSeleccion() {
   const cfg = SELECCIONABLE[V.vista];
   const barra = document.querySelector(".barra");
+
+  // Botón de carga masiva, en las vistas donde tiene sentido.
+  if (barra && IMPORTABLE[V.vista] && puede("eventos") && !V.sel) {
+    const bi = document.createElement("button");
+    bi.className = "btn";
+    bi.textContent = "Importar";
+    bi.title = "Cargar muchos registros de una hoja de cálculo";
+    bi.onclick = () => abrirImportador(IMPORTABLE[V.vista]);
+    barra.appendChild(bi);
+  }
+
   const filas = [...document.querySelectorAll("tbody tr.fila, .tarjeta")];
   if (!cfg || !barra || !filas.length) { V.sel = null; return; }
 
@@ -4849,6 +5000,801 @@ const litros = (n) => (Math.round((Number(n) || 0) * 10) / 10)
 const pesos = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
 
 /* ==========================================================
+   CARGA MASIVA
+   Pega lo copiado de Google Sheets o sube un CSV. La app
+   adivina las columnas, resuelve las referencias por nombre
+   y reparte las filas a la tabla que corresponda.
+   ========================================================== */
+
+/* ---------- leer el texto pegado ---------- */
+
+/** Detecta el separador: tabulación al pegar de Sheets, coma o punto y coma en CSV. */
+function detectarSeparador(txt) {
+  const linea = txt.split(/\r?\n/).find(l => l.trim()) || "";
+  const cuenta = (c) => (linea.match(new RegExp("\\" + c, "g")) || []).length;
+  if (cuenta("\t")) return "\t";
+  if (cuenta(";") > cuenta(",")) return ";";
+  return ",";
+}
+
+/** Divide respetando comillas y saltos de línea dentro de una celda. */
+function partirTabla(txt, sep) {
+  const filas = [];
+  let fila = [], celda = "", enComillas = false;
+
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (enComillas) {
+      if (c === '"') {
+        if (txt[i + 1] === '"') { celda += '"'; i++; }
+        else enComillas = false;
+      } else celda += c;
+      continue;
+    }
+    if (c === '"') { enComillas = true; continue; }
+    if (c === sep) { fila.push(celda); celda = ""; continue; }
+    if (c === "\n") { fila.push(celda); filas.push(fila); fila = []; celda = ""; continue; }
+    if (c === "\r") continue;
+    celda += c;
+  }
+  if (celda !== "" || fila.length) { fila.push(celda); filas.push(fila); }
+  return filas.filter(f => f.some(x => String(x).trim() !== ""));
+}
+
+/* ---------- fechas ---------- */
+
+const MES_CORTO = { ene:0, jan:0, feb:1, mar:2, abr:3, apr:3, may:4, jun:5, jul:6,
+                    ago:7, aug:7, sep:8, oct:9, nov:10, dic:11, dec:11 };
+
+/**
+ * Lee una fecha en los formatos que salen de Sheets.
+ * orden: "mdy" o "dmy" para resolver 11/09/2024, que es ambiguo.
+ */
+function leerFecha(v, orden) {
+  const t = String(v ?? "").trim();
+  if (!t) return null;
+
+  // Ya viene bien
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+
+  // 9 Jan 24 · 19 nov 2022
+  m = t.match(/^(\d{1,2})[\s-]+([a-zA-ZáéíóúÁÉÍÓÚ]{3,})[\s-]+(\d{2,4})/);
+  if (m) {
+    const mes = MES_CORTO[normaliza(m[2]).slice(0, 3)];
+    if (mes !== undefined) {
+      let a = Number(m[3]); if (a < 100) a += 2000;
+      return `${a}-${String(mes+1).padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+    }
+  }
+
+  // 11/19/2022 · 19/11/2022 · 1-9-24
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) {
+    let a = Number(m[3]); if (a < 100) a += 2000;
+    let p = Number(m[1]), s = Number(m[2]);
+    let mes, dia;
+    if (p > 12) { dia = p; mes = s; }          // solo puede ser día
+    else if (s > 12) { mes = p; dia = s; }     // solo puede ser mes
+    else if (orden === "dmy") { dia = p; mes = s; }
+    else { mes = p; dia = s; }
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+    return `${a}-${String(mes).padStart(2,"0")}-${String(dia).padStart(2,"0")}`;
+  }
+
+  // Número de serie de Excel
+  if (/^\d{5}$/.test(t)) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Number(t) * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+const leerNumero = (v) => {
+  const t = String(v ?? "").trim().replace(/\s/g, "");
+  if (!t) return null;
+  // 1.234,5 (europeo) o 1,234.5 (inglés)
+  const n = Number(t.includes(",") && t.lastIndexOf(",") > t.lastIndexOf(".")
+    ? t.replace(/\./g, "").replace(",", ".")
+    : t.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+const leerSiNo = (v) => {
+  const t = normaliza(v).trim();
+  if (["si","sí","true","verdadero","1","x","activo"].includes(t)) return true;
+  if (["no","false","falso","0","","inactivo"].includes(t)) return false;
+  return null;
+};
+
+/* ---------- qué se puede importar ---------- */
+
+const C = (k, et, alias, tipo, extra) => ({ k, et, alias, tipo: tipo || "texto", ...extra });
+
+const DESTINOS = {
+  fincas: {
+    et: "Fincas", col: "fincas",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id finca","id","codigo"], "texto",
+        { ayuda: "El código que usas en tu hoja, como F1. Sirve para que al reimportar se actualice en vez de duplicarse.", ej: "F1" }),
+      C("nombre", "Nombre", ["nombre finca","nombre","finca"], "texto",
+        { req: true, ayuda: "Como le dicen a la finca.", ej: "Buenos Aires" }),
+      C("ubicacion", "Ubicación", ["ubicacion","vereda","municipio"], "texto",
+        { ayuda: "Vereda, corregimiento o municipio.", ej: "La Madera" }),
+    ],
+  },
+
+  animales: {
+    et: "Ganado", col: "animales",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id ganado","id","codigo"], "texto",
+        { ayuda: "Tu código interno. Opcional, pero permite reimportar sin duplicar.", ej: "G1" }),
+      C("chapeta", "Chapeta", ["chapeta","arete","numero"], "texto",
+        { req: true, ayuda: "El número del arete. No se puede repetir.", ej: "750" }),
+      C("nombre", "Nombre", ["nombre"], "texto",
+        { req: true, ayuda: "Como la llaman en el corral.", ej: "Katy" }),
+      C("fincaRef", "Finca", ["finca","id finca","hato"], "finca",
+        { req: true, ayuda: "El nombre de la finca o su ID. La finca debe existir ya.", ej: "Buenos Aires · F1" }),
+      C("raza", "Raza", ["raza"], "texto",
+        { ayuda: "Cualquier raza. Si no está en el catálogo se agrega sola.", ej: "Holstein Negro" }),
+      C("categoria", "Categoría", ["categoria","tipo"], "categoria",
+        { ayuda: "Vaca, Novillona, Ternera, Toro, Yegua, Marrana, Oveja, Cabra… Si se deja vacío queda como Vaca.", ej: "Vaca" }),
+      C("estado", "Estado", ["estado"], "estado",
+        { ayuda: "Activo, Vendido o Muerto. Vacío queda Activo.", ej: "Activo" }),
+      C("fechaNacimiento", "Nacimiento", ["nacimiento","fecha nacimiento"], "fecha",
+        { ayuda: "De aquí sale la edad y la categoría que le corresponde.", ej: "12/04/2019" }),
+      C("partosPrevios", "Partos anteriores", ["partos previos","total partos","partos"], "numero",
+        { ayuda: "Los que tuvo ANTES de lo que vas a importar en la hoja de registros. Si vas a subir todos los partos, deja esto en cero para no contarlos dos veces.", ej: "3" }),
+      C("ultimoPartoPrevio", "Último parto", ["ultimo parto","fecha parto"], "fecha",
+        { ayuda: "Solo si no vas a importar los partos. Desde ahí arrancan los días vacía.", ej: "17/11/2025" }),
+      C("detalles", "Detalles", ["detalles","observaciones","notas"], "texto",
+        { ayuda: "Cualquier observación.", ej: "Buena productora" }),
+    ],
+  },
+
+  registros: {
+    et: "Registros mezclados (inseminación, parto, aborto…)",
+    reparte: true,
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id registro","id","codigo"], "texto",
+        { ayuda: "Tu código del registro.", ej: "R1" }),
+      C("tipoRegistro", "Tipo de registro", ["tipo registro","tipo","evento"], "texto",
+        { req: true, ayuda: "Inseminación, Monta, Parto, Aborto, Palpación o Secado. Según esto la fila se manda a su tabla.", ej: "Inseminación" }),
+      C("fecha", "Fecha", ["fecha"], "fecha",
+        { req: true, ayuda: "Cuándo pasó.", ej: "19/11/2022" }),
+      C("animalRef", "Animal", ["nombre","animal","chapeta","vaca"], "animal",
+        { req: true, ayuda: "El nombre o la chapeta. El animal debe existir ya.", ej: "Katy" }),
+      C("pajilla", "Pajilla", ["pajilla","toro","semen"], "texto",
+        { ayuda: "Solo para inseminaciones.", ej: "Holstein" }),
+      C("sexoCria", "Sexo de la cría", ["sexo cria","sexo","cria"], "texto",
+        { ayuda: "Solo para partos: Macho, Hembra o Gemelos.", ej: "Macho" }),
+      C("resultado", "Resultado de palpación", ["resultado","preñada","prenada"], "texto",
+        { ayuda: "Solo para palpaciones: Preñada o Vacía.", ej: "Preñada" }),
+      C("detalles", "Detalles", ["detalles","observaciones","notas"]),
+    ],
+  },
+
+  inseminaciones: {
+    et: "Inseminaciones", col: "inseminaciones",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id registro","id"]),
+      C("fecha", "Fecha", ["fecha"], "fecha", { req: true }),
+      C("animalRef", "Animal", ["nombre","animal","chapeta"], "animal", { req: true }),
+      C("hora", "Hora", ["hora"], "texto",
+        { ayuda: "Si hubo varias pajillas el mismo día. Formato 24 horas.", ej: "06:00" }),
+      C("pajilla", "Pajilla", ["pajilla","toro","semen"]),
+      C("detalles", "Detalles", ["detalles","observaciones"]),
+    ],
+  },
+
+  partos: {
+    et: "Partos y abortos", col: "partos",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id registro","id"]),
+      C("fecha", "Fecha", ["fecha"], "fecha", { req: true }),
+      C("animalRef", "Animal", ["nombre","animal","chapeta"], "animal", { req: true }),
+      C("tipo", "Parto o aborto", ["tipo","tipo registro"], "texto",
+        { ayuda: "Escribe Parto o Aborto. Vacío se toma como parto.", ej: "Parto" }),
+      C("sexoCria", "Sexo de la cría", ["sexo cria","sexo"]),
+      C("detalles", "Detalles", ["detalles","observaciones"]),
+    ],
+  },
+
+  palpaciones: {
+    et: "Palpaciones", col: "palpaciones",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id","id registro"]),
+      C("fecha", "Fecha", ["fecha"], "fecha", { req: true }),
+      C("animalRef", "Animal", ["nombre","animal","chapeta"], "animal", { req: true }),
+      C("resultado", "Resultado", ["resultado","preñada","prenada"]),
+      C("diasGestacion", "Días de gestación", ["dias gestacion","dias"], "numero",
+        { ayuda: "Lo que estimó el veterinario.", ej: "45" }),
+      C("observaciones", "Observaciones", ["observaciones","detalles"]),
+    ],
+  },
+
+  secados: {
+    et: "Secados", col: "secados",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id"]),
+      C("fecha", "Fecha", ["fecha","fecha secado"], "fecha", { req: true }),
+      C("animalRef", "Animal", ["nombre","animal","chapeta"], "animal", { req: true }),
+      C("motivo", "Motivo", ["motivo"], "texto",
+        { ayuda: "Fin de lactancia, Baja producción, Vaca muy regular, Problema de salud u Otro.", ej: "Fin de lactancia" }),
+      C("observaciones", "Observaciones", ["observaciones","detalles"]),
+    ],
+  },
+
+  tratamientos: {
+    et: "Tratamientos", col: "tratamientos",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id tratamientos","id"]),
+      C("animalRef", "Animal", ["nombre","animal","chapeta"], "animal", { req: true }),
+      C("tipo", "Tipo de tratamiento", ["tipo tratamiento","tipo"], "texto",
+        { req: true, ayuda: "Cualquier texto: Sincronización, Vacunación, Vermífugo…", ej: "Sincronización" }),
+      C("inicio", "Fecha de inicio", ["fecha inicio","inicio","fecha"], "fecha",
+        { req: true, ayuda: "Cuándo empezó.", ej: "17/06/2026" }),
+      C("fin", "Fecha de fin", ["fecha fin","fin"], "fecha",
+        { ayuda: "Cuándo terminó. Si sigue en curso, déjalo vacío.", ej: "26/06/2026" }),
+      C("detalles", "Detalles", ["detalles","observaciones"]),
+    ],
+  },
+
+  leche: {
+    et: "Leche", col: "leche",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id"]),
+      C("fecha", "Fecha", ["fecha"], "fecha", { req: true }),
+      C("fincaRef", "Finca", ["finca"], "finca",
+        { req: true, ayuda: "De qué finca salió la leche.", ej: "Buenos Aires" }),
+      C("litros", "Litros", ["litros","cantidad"], "numero",
+        { req: true, ayuda: "El total de esa entrega, no el promedio diario.", ej: "400" }),
+      C("dias", "Días que cubre", ["dias","dias cubiertos"], "numero",
+        { ayuda: "Si la leche sale cada dos días, pon 2. Vacío se toma como 1. De esto depende que el promedio diario salga bien.", ej: "2" }),
+      C("precio", "Precio por litro", ["precio","valor"], "numero",
+        { ayuda: "Opcional, para calcular el ingreso.", ej: "2100" }),
+      C("animalRef", "Animal (opcional)", ["animal","vaca"], "animal"),
+      C("observaciones", "Nota", ["nota","observaciones"]),
+    ],
+  },
+
+  anotaciones: {
+    et: "Anotaciones", col: "anotaciones",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id anotaciones","id"]),
+      C("fecha", "Fecha", ["fecha"], "fecha", { req: true }),
+      C("fincaRef", "Finca", ["finca"], "finca",
+        { req: true, ayuda: "A qué finca corresponde la nota.", ej: "Buenos Aires" }),
+      C("texto", "Nota", ["nota","texto","anotacion"], "texto",
+        { req: true, ayuda: "Lo que quieras dejar anotado.", ej: "Se cambió el potrero" }),
+    ],
+  },
+
+  personas: {
+    et: "Personal", col: "personas",
+    campos: [
+      C("refExterna", "ID en tu hoja", ["id"]),
+      C("nombre", "Nombre", ["nombre","encargado"], "texto",
+        { req: true, ayuda: "Nombre completo.", ej: "Elias Franco" }),
+      C("correo", "Correo", ["correo","email","mail"], "texto",
+        { ayuda: "Con este entra a la app. Debe ser el mismo que use para iniciar sesión.", ej: "elias@correo.com" }),
+      C("rol", "Rol", ["rol","cargo"], "texto",
+        { ayuda: "Dueño, Administrador o Empleado. Vacío queda como Empleado.", ej: "Empleado" }),
+      C("telefono", "Teléfono", ["telefono","celular"]),
+      C("documento", "Documento", ["documento","cedula"]),
+      C("fincaRef", "Finca", ["finca"], "finca",
+        { ayuda: "A qué finca queda asignada. Sin finca entra pero no ve nada.", ej: "Buenos Aires" }),
+      C("notas", "Notas", ["notas","observaciones"], "texto",
+        { ayuda: "Mayordomo, inseminador…", ej: "Mayordomo" }),
+    ],
+  },
+};
+
+/* ---------- adivinar el destino y las columnas ---------- */
+
+function adivinarDestino(encabezados) {
+  const h = encabezados.map(x => normaliza(x).trim());
+  const tiene = (t) => h.some(x => x.includes(t));
+  if (tiene("tipo registro")) return "registros";
+  if (tiene("chapeta") && tiene("categoria")) return "animales";
+  if (tiene("tipo tratamiento")) return "tratamientos";
+  if (tiene("nombre finca") || (tiene("finca") && tiene("ubicacion"))) return "fincas";
+  if (tiene("litros")) return "leche";
+  if (tiene("nota") && tiene("finca")) return "anotaciones";
+  if (tiene("correo") && tiene("nombre")) return "personas";
+  if (tiene("pajilla")) return "inseminaciones";
+  if (tiene("sexo")) return "partos";
+  return "animales";
+}
+
+function adivinarMapeo(destino, encabezados) {
+  const def = DESTINOS[destino];
+  const usados = new Set();
+  return encabezados.map((h) => {
+    const n = normaliza(h).trim();
+    if (!n) return "";
+    let mejor = "";
+    for (const c of def.campos) {
+      if (usados.has(c.k)) continue;
+      if (n === normaliza(c.et).trim() || c.alias.some(a => n === a)) { mejor = c.k; break; }
+      if (!mejor && c.alias.some(a => n.includes(a))) mejor = c.k;
+    }
+    if (mejor) usados.add(mejor);
+    return mejor;
+  });
+}
+
+/* ---------- resolver referencias ---------- */
+
+function buscarFinca(v) {
+  const t = normaliza(v).trim();
+  if (!t) return null;
+  return misFincasObj().find(f => normaliza(f.refExterna || "") === t)
+      || misFincasObj().find(f => normaliza(f.nombre) === t)
+      || misFincasObj().find(f => normaliza(f.nombre).includes(t))
+      || null;
+}
+
+function buscarAnimal(v) {
+  const t = normaliza(v).trim();
+  if (!t) return null;
+  const mios = misAnimales();
+  return mios.find(a => normaliza(a.refExterna || "") === t)
+      || mios.find(a => normaliza(a.chapeta) === t)
+      || mios.find(a => normaliza(a.nombre) === t)
+      || null;
+}
+
+const CAT_ALIAS = (() => {
+  const m = {};
+  for (const [k, c] of Object.entries(CATEGORIAS)) m[normaliza(c.et)] = k;
+  m["novilla"] = "novillona"; m["vaca seca"] = "vaca"; m["toro reproductor"] = "toro";
+  return m;
+})();
+
+/* ---------- convertir una fila ---------- */
+
+function convertirFila(destino, mapeo, fila, opciones) {
+  const def = DESTINOS[destino];
+  const crudo = {};
+  mapeo.forEach((k, i) => { if (k) crudo[k] = String(fila[i] ?? "").trim(); });
+
+  const errores = [];
+  const val = {};
+
+  for (const c of def.campos) {
+    const bruto = crudo[c.k];
+    if (bruto === undefined || bruto === "") {
+      if (c.req) errores.push(`falta ${c.et.toLowerCase()}`);
+      continue;
+    }
+    if (c.tipo === "fecha") {
+      const f = leerFecha(bruto, opciones.ordenFecha);
+      if (!f) { errores.push(`fecha ilegible «${bruto}»`); continue; }
+      val[c.k] = f;
+    } else if (c.tipo === "numero") {
+      const n = leerNumero(bruto);
+      if (n === null) { errores.push(`número ilegible «${bruto}»`); continue; }
+      val[c.k] = n;
+    } else if (c.tipo === "finca") {
+      const f = buscarFinca(bruto);
+      if (!f) { errores.push(`no encuentro la finca «${bruto}»`); continue; }
+      val.fincaId = f.id;
+    } else if (c.tipo === "animal") {
+      const a = buscarAnimal(bruto);
+      if (!a) { if (c.req) errores.push(`no encuentro el animal «${bruto}»`); continue; }
+      val.animalId = a.id;
+      val.fincaId = a.fincaId;
+    } else if (c.tipo === "categoria") {
+      const k2 = CAT_ALIAS[normaliza(bruto)];
+      if (!k2) { errores.push(`categoría desconocida «${bruto}»`); continue; }
+      val.categoria = k2;
+    } else if (c.tipo === "estado") {
+      const t = normaliza(bruto);
+      val.estado = t.includes("vend") ? "vendido" : t.includes("muert") ? "muerto" : "activo";
+    } else {
+      val[c.k] = bruto;
+    }
+  }
+  return { val, errores, crudo };
+}
+
+/** Decide a qué tabla va una fila de la hoja de registros mezclados. */
+function repartirRegistro(val) {
+  const t = normaliza(val.tipoRegistro || "");
+  if (t.includes("insemin") || t.includes("monta") || t.includes("servicio")) return "inseminaciones";
+  if (t.includes("aborto")) return "partos";
+  if (t.includes("parto")) return "partos";
+  if (t.includes("palpa")) return "palpaciones";
+  if (t.includes("secad")) return "secados";
+  if (t.includes("trata")) return "tratamientos";
+  return null;
+}
+
+/* ==========================================================
+   PANTALLA DE IMPORTACIÓN
+   ========================================================== */
+
+let IMP = null;   // { texto, sep, filas, encabezados, destino, mapeo, ordenFecha, paso }
+
+function abrirImportador(destinoSugerido) {
+  IMP = { texto: "", filas: [], encabezados: [], destino: destinoSugerido || "",
+          mapeo: [], ordenFecha: "mdy", paso: 1, conEncabezado: true };
+  pintarImportador();
+}
+
+function pintarImportador() {
+  if (IMP.paso === 1) return pasoPegar();
+  if (IMP.paso === 2) return pasoMapear();
+  return pasoRevisar();
+}
+
+/* ---------- paso 1: elegir cómo ---------- */
+
+/** Los campos de un destino, en el orden fijo de la plantilla. */
+const camposDe = (destino) => DESTINOS[destino].campos;
+
+function lineaPlantilla(destino) {
+  return camposDe(destino).map(c => c.et).join(",");
+}
+function lineaEjemplo(destino) {
+  return camposDe(destino).map(c => c.ej || "").join(",");
+}
+
+function pasoPegar() {
+  const modo = IMP.modo || "encabezado";
+  const dest = IMP.destino || "animales";
+
+  abrirHoja(`
+    <div class="hoja-cab"><h2>Carga masiva</h2>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <div class="hoja-cuerpo">
+
+      <div class="campo ancho"><label>¿Qué vas a cargar?</label>
+        <select id="imp-tabla">
+          ${Object.entries(DESTINOS).map(([k, v]) =>
+            `<option value="${k}" ${dest === k ? "selected" : ""}>${v.et}</option>`).join("")}
+        </select></div>
+
+      <div class="modos">
+        <label class="modo ${modo === "encabezado" ? "on" : ""}">
+          <input type="radio" name="imp-modo" value="encabezado" ${modo === "encabezado" ? "checked" : ""}>
+          <span><strong>Pegar con encabezado</strong>
+          <em>Copias de Google Sheets con la fila de títulos. La app adivina las columnas.</em></span>
+        </label>
+        <label class="modo ${modo === "orden" ? "on" : ""}">
+          <input type="radio" name="imp-modo" value="orden" ${modo === "orden" ? "checked" : ""}>
+          <span><strong>Escribir en orden fijo</strong>
+          <em>Sin títulos, separando por comas y respetando el orden de abajo.</em></span>
+        </label>
+      </div>
+
+      ${modo === "orden" ? guiaCampos(dest) : `
+        <div class="nota">Selecciona en tu hoja las filas <strong>con el encabezado</strong>,
+        cópialas y pégalas aquí. Sirve tanto separado por tabulaciones como por comas o
+        punto y coma.</div>`}
+
+      <div class="campo ancho">
+        <label>${modo === "orden" ? "Una línea por registro, separando con comas" : "Pega aquí"}</label>
+        <textarea id="imp-texto" rows="8" placeholder="${esc(modo === "orden"
+          ? lineaEjemplo(dest)
+          : lineaPlantilla(dest).replace(/,/g, "\t") + "\n" + lineaEjemplo(dest).replace(/,/g, "\t"))}"></textarea>
+      </div>
+      <div class="fila-btn">
+        <button class="btn" data-imp="archivo">Subir un archivo CSV</button>
+        ${modo === "orden" ? '<button class="btn" data-imp="plantilla">Copiar la plantilla</button>' : ""}
+      </div>
+    </div>
+    <div class="hoja-pie">
+      <button type="button" class="btn" data-cerrar>Cancelar</button>
+      <button class="btn btn-firme" data-imp="leer">Continuar</button>
+    </div>`, true);
+}
+
+/** La lista de qué va en cada columna, con su explicación. */
+function guiaCampos(destino) {
+  const campos = camposDe(destino);
+  return `
+    <div class="nota">Escribe una línea por registro, con los datos en <strong>este mismo
+    orden</strong> y separados por comas. Si un dato no lo tienes, deja la coma vacía.
+    Si un texto lleva coma adentro, ponlo entre comillas.</div>
+
+    <h4 class="sub-titulo">Qué lleva cada columna</h4>
+    <ol class="guia">
+      ${campos.map(c => `<li>
+        <div class="guia-cab"><strong>${esc(c.et)}</strong>
+          ${c.req ? '<span class="p roja">obligatorio</span>' : '<span class="p gris">opcional</span>'}
+        </div>
+        ${c.ayuda ? `<p>${esc(c.ayuda)}</p>` : ""}
+        ${c.ej ? `<code>${esc(c.ej)}</code>` : ""}
+      </li>`).join("")}
+    </ol>
+
+    <div class="codigo">
+      <div class="codigo-cab"><span>Ejemplo de una línea</span></div>
+      <pre>${esc(lineaEjemplo(destino))}</pre>
+    </div>`;
+}
+
+/* ---------- paso 2: mapear ---------- */
+function pasoMapear() {
+  const def = DESTINOS[IMP.destino];
+  const muestra = IMP.filas.slice(IMP.conEncabezado ? 1 : 0, IMP.conEncabezado ? 4 : 3);
+  const fijo = IMP.modo === "orden";
+
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>¿A dónde va cada columna?</h2>
+      <div class="sub">${IMP.filas.length - (IMP.conEncabezado ? 1 : 0)} filas leídas</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <div class="hoja-cuerpo">
+      ${fijo ? `<div class="nota">Las columnas van en el orden fijo de la plantilla.
+        Revisa que coincidan con lo que pegaste.</div>` : ""}
+      <div class="rej">
+        <div class="campo"><label>Tabla de destino</label>
+          <select id="imp-destino" ${fijo ? "disabled" : ""}>
+            ${Object.entries(DESTINOS).map(([k, v]) =>
+              `<option value="${k}" ${IMP.destino === k ? "selected" : ""}>${v.et}</option>`).join("")}
+          </select></div>
+        <div class="campo"><label>Formato de fecha</label>
+          <select id="imp-orden">
+            <option value="mdy" ${IMP.ordenFecha === "mdy" ? "selected" : ""}>Mes/Día/Año — 11/19/2022</option>
+            <option value="dmy" ${IMP.ordenFecha === "dmy" ? "selected" : ""}>Día/Mes/Año — 19/11/2022</option>
+          </select>
+          <span class="ayuda">Solo importa cuando el día es 12 o menos.</span></div>
+      </div>
+
+      ${def.reparte ? `<div class="nota">Esta hoja mezcla varios tipos. Cada fila se manda a
+        su tabla según la columna de tipo: inseminación, parto, aborto, palpación o secado.</div>` : ""}
+
+      <h4 class="sub-titulo">Columnas</h4>
+      <div class="mapeo">
+        ${IMP.encabezados.map((h, i) => `
+          <div class="mapeo-fila">
+            <div class="mapeo-org">
+              <strong>${esc(h || "(sin nombre)")}</strong>
+              <em>${muestra.map(f => esc(String(f[i] ?? "").slice(0, 18))).filter(Boolean).join(" · ") || "vacía"}</em>
+            </div>
+            <select data-col="${i}">
+              <option value="">— no importar —</option>
+              ${def.campos.map(c => `<option value="${c.k}" ${IMP.mapeo[i] === c.k ? "selected" : ""}>
+                ${c.et}${c.req ? " *" : ""}</option>`).join("")}
+            </select>
+          </div>`).join("")}
+      </div>
+
+      ${(() => {
+        const faltan = def.campos.filter(c => c.req && !IMP.mapeo.includes(c.k));
+        return faltan.length ? `<div class="aviso">Falta asignar:
+          ${faltan.map(c => c.et).join(", ")}.</div>` : "";
+      })()}
+    </div>
+    <div class="hoja-pie">
+      <button type="button" class="btn" data-imp="atras">Atrás</button>
+      <button class="btn btn-firme" data-imp="revisar">Revisar</button>
+    </div>`, true);
+}
+
+/* ---------- paso 3: revisar ---------- */
+function pasoRevisar() {
+  const r = IMP.resultado;
+  const hayErrores = r.errores.length;
+
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Revisa antes de guardar</h2>
+      <div class="sub">${DESTINOS[IMP.destino].et}</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <div class="hoja-cuerpo">
+      <dl class="conteos">
+        <div class="conteo"><dt>Nuevos</dt><dd>${r.nuevos}</dd></div>
+        <div class="conteo"><dt>Se actualizan</dt><dd>${r.actualiza}</dd></div>
+        <div class="conteo"><dt>Con problemas</dt><dd>${r.errores.length}</dd></div>
+      </dl>
+
+      ${r.porTabla && Object.keys(r.porTabla).length > 1 ? `
+        <div class="nota">Se reparten así:
+          ${Object.entries(r.porTabla).map(([c, n]) => `<strong>${n}</strong> a ${c}`).join(" · ")}</div>` : ""}
+
+      ${r.actualiza ? `<div class="nota">Las filas que ya existen se reconocen por el ID de tu
+        hoja y se actualizan en vez de duplicarse. Puedes volver a importar el mismo archivo
+        cuantas veces quieras.</div>` : ""}
+
+      ${hayErrores ? `
+        <h4 class="sub-titulo">Filas con problemas (${r.errores.length})</h4>
+        <div class="nota recorte" style="display:block">Estas se van a saltar. El resto sí entra.</div>
+        <div class="sub-tabla" style="margin-top:9px"><table>
+          <thead><tr><th>Fila</th><th>Qué pasa</th><th>Contenido</th></tr></thead>
+          <tbody>${r.errores.slice(0, 40).map(e => `<tr>
+            <td>${e.n}</td><td>${esc(e.motivo)}</td>
+            <td><span class="sub">${esc(e.muestra)}</span></td></tr>`).join("")}</tbody>
+        </table></div>
+        ${r.errores.length > 40 ? `<p class="mini">Y ${r.errores.length - 40} más.</p>` : ""}` : ""}
+
+      ${r.ejemplos.length ? `
+        <h4 class="sub-titulo">Así van a quedar</h4>
+        <div class="sub-tabla"><table><tbody>
+          ${r.ejemplos.map(x => `<tr><td>${esc(x)}</td></tr>`).join("")}
+        </tbody></table></div>` : ""}
+    </div>
+    <div class="hoja-pie">
+      <button type="button" class="btn" data-imp="atras2">Atrás</button>
+      <button class="btn btn-firme" data-imp="guardar"
+        ${r.nuevos + r.actualiza ? "" : "disabled"}>
+        Guardar ${r.nuevos + r.actualiza} registros</button>
+    </div>`, true);
+}
+
+/* ---------- procesar ---------- */
+
+function procesarImportacion(soloRevisar) {
+  const filas = IMP.filas.slice(IMP.conEncabezado ? 1 : 0);
+  const def = DESTINOS[IMP.destino];
+  const r = { nuevos: 0, actualiza: 0, errores: [], ejemplos: [], porTabla: {} };
+  const pendientes = [];
+
+  filas.forEach((fila, i) => {
+    const n = i + (IMP.conEncabezado ? 2 : 1);
+    const muestra = fila.filter(Boolean).slice(0, 4).join(" · ").slice(0, 60);
+    const { val, errores } = convertirFila(IMP.destino, IMP.mapeo, fila, { ordenFecha: IMP.ordenFecha });
+
+    if (errores.length) { r.errores.push({ n, motivo: errores.join("; "), muestra }); return; }
+
+    let coleccion = def.col;
+    if (def.reparte) {
+      coleccion = repartirRegistro(val);
+      if (!coleccion) {
+        r.errores.push({ n, motivo: `tipo desconocido «${val.tipoRegistro}»`, muestra });
+        return;
+      }
+      if (coleccion === "partos") {
+        val.tipo = normaliza(val.tipoRegistro).includes("aborto") ? "aborto" : "parto";
+      }
+    }
+
+    const doc = armarDoc(coleccion, val);
+    if (!doc) { r.errores.push({ n, motivo: "no se pudo armar el registro", muestra }); return; }
+
+    const existente = val.refExterna
+      ? (D[coleccion] || []).find(x => x.refExterna === val.refExterna)
+      : null;
+    if (existente) r.actualiza++; else r.nuevos++;
+    r.porTabla[coleccion] = (r.porTabla[coleccion] || 0) + 1;
+
+    if (r.ejemplos.length < 5) r.ejemplos.push(describir(coleccion, doc));
+    pendientes.push({ coleccion, doc, existente });
+  });
+
+  IMP.resultado = r;
+  IMP.pendientes = pendientes;
+  return r;
+}
+
+/** Da forma al documento según su tabla. */
+function armarDoc(coleccion, v) {
+  const base = { refExterna: v.refExterna || null, creadoPor: S.persona?.id || null };
+
+  if (coleccion === "fincas") return { ...base, nombre: v.nombre, ubicacion: v.ubicacion || "",
+    personas: S.persona ? [S.persona.id] : [] };
+
+  if (coleccion === "animales") {
+    if (!v.fincaId) return null;
+    return { ...base, chapeta: String(v.chapeta), nombre: v.nombre || "", fincaId: v.fincaId,
+      categoria: v.categoria || "vaca", estado: v.estado || "activo",
+      raza: v.raza || "", detalles: v.detalles || "", foto: null, tieneFoto: false,
+      fechaNacimiento: v.fechaNacimiento || null, hechas: {},
+      partosPrevios: v.partosPrevios || 0, ultimoPartoPrevio: v.ultimoPartoPrevio || null,
+      fechaSalida: null, motivoSalida: "" };
+  }
+
+  if (coleccion === "inseminaciones") {
+    if (!v.animalId) return null;
+    return { ...base, animalId: v.animalId, fincaId: v.fincaId, fecha: v.fecha,
+      tipo: normaliza(v.tipoRegistro || "").includes("monta") ? "monta" : "inseminacion",
+      detalles: v.detalles || "",
+      aplicaciones: [{ fecha: v.fecha, hora: v.hora || "",
+                       pajilla: v.pajilla || "", detalles: "" }] };
+  }
+
+  if (coleccion === "partos") {
+    if (!v.animalId) return null;
+    const tipo = v.tipo === "aborto" ? "aborto" : "parto";
+    return { ...base, animalId: v.animalId, fincaId: v.fincaId, fecha: v.fecha, tipo,
+      sexoCria: tipo === "aborto" ? "" : (v.sexoCria || ""), detalles: v.detalles || "" };
+  }
+
+  if (coleccion === "palpaciones") {
+    if (!v.animalId) return null;
+    const t = normaliza(v.resultado || "");
+    return { ...base, animalId: v.animalId, fincaId: v.fincaId, fecha: v.fecha,
+      resultado: (t.includes("vac") || t.includes("no")) ? "vacia" : "prenada",
+      diasGestacion: v.diasGestacion ?? null, observaciones: v.observaciones || v.detalles || "" };
+  }
+
+  if (coleccion === "secados") {
+    if (!v.animalId) return null;
+    const t = normaliza(v.motivo || "");
+    const motivo = Object.keys(MOTIVOS_SECADO).find(k => t.includes(normaliza(MOTIVOS_SECADO[k]).slice(0,6)))
+                || (t ? "otro" : "ventana");
+    return { ...base, animalId: v.animalId, fincaId: v.fincaId, fecha: v.fecha,
+      motivo, observaciones: v.observaciones || v.detalles || "" };
+  }
+
+  if (coleccion === "tratamientos") {
+    if (!v.animalId) return null;
+    return { ...base, animalId: v.animalId, fincaId: v.fincaId, tipo: v.tipo,
+      inicio: v.inicio, fin: v.fin || "", detalles: v.detalles || "" };
+  }
+
+  if (coleccion === "leche") {
+    if (!v.fincaId) return null;
+    return { ...base, fincaId: v.fincaId, fecha: v.fecha, litros: v.litros,
+      dias: Math.max(1, v.dias || 1), momento: "total",
+      animalId: v.animalId || "", precio: v.precio || 0,
+      observaciones: v.observaciones || "" };
+  }
+
+  if (coleccion === "anotaciones") {
+    if (!v.fincaId) return null;
+    return { ...base, fincaId: v.fincaId, fecha: v.fecha, texto: v.texto };
+  }
+
+  if (coleccion === "personas") {
+    const t = normaliza(v.rol || "");
+    let rol = t.includes("due") ? "dueno" : t.includes("admin") ? "administrador" : "empleado";
+    if (!rolesQuePuedoCrear().includes(rol)) rol = "empleado";
+    return { ...base, nombre: v.nombre, correo: (v.correo || "").toLowerCase(),
+      rol, telefono: v.telefono || "", documento: v.documento || "",
+      notas: v.notas || "", activo: true, fincas: [], _finca: v.fincaId || null };
+  }
+  return null;
+}
+
+function describir(coleccion, d) {
+  const a = d.animalId ? animal(d.animalId) : null;
+  const quien = a ? `${a.nombre} (${a.chapeta})` : "";
+  if (coleccion === "animales") return `${d.nombre} · chapeta ${d.chapeta} · ${CATEGORIAS[d.categoria]?.et} · ${nombreFinca(d.fincaId)}`;
+  if (coleccion === "fincas") return `${d.nombre}${d.ubicacion ? " · " + d.ubicacion : ""}`;
+  if (coleccion === "inseminaciones") return `${fmtCorto(d.fecha)} · ${quien} · ${d.aplicaciones[0].pajilla || "sin pajilla"}`;
+  if (coleccion === "partos") return `${fmtCorto(d.fecha)} · ${quien} · ${d.tipo}${d.sexoCria ? " " + d.sexoCria : ""}`;
+  if (coleccion === "palpaciones") return `${fmtCorto(d.fecha)} · ${quien} · ${d.resultado}`;
+  if (coleccion === "secados") return `${fmtCorto(d.fecha)} · ${quien} · ${MOTIVOS_SECADO[d.motivo]}`;
+  if (coleccion === "tratamientos") return `${fmtCorto(d.inicio)} · ${quien} · ${d.tipo}`;
+  if (coleccion === "leche") return `${fmtCorto(d.fecha)} · ${litros(d.litros)} L en ${d.dias} día(s)`;
+  if (coleccion === "anotaciones") return `${fmtCorto(d.fecha)} · ${nombreFinca(d.fincaId)}`;
+  if (coleccion === "personas") return `${d.nombre} · ${ROLES[d.rol].et}`;
+  return "";
+}
+
+/** Escribe de verdad. */
+function guardarImportacion() {
+  let n = 0, saltados = 0;
+  for (const { coleccion, doc, existente } of IMP.pendientes) {
+    // Los límites de creación también valen aquí.
+    if (!existente) {
+      if (coleccion === "fincas" && !cupo("fincas").ok) { saltados++; continue; }
+      if (coleccion === "personas") {
+        const clave = doc.rol === "administrador" ? "administradores"
+                    : doc.rol === "empleado" ? "empleados" : null;
+        if (clave && !cupo(clave).ok) { saltados++; continue; }
+      }
+    }
+    const finca = doc._finca; delete doc._finca;
+    if (existente) Object.assign(existente, doc);
+    else {
+      const id = uid();
+      D[coleccion].push({ id, ...doc });
+      if (coleccion === "personas" && finca) asignarFincas(id, [finca]);
+    }
+    n++;
+  }
+  recalcularAccesos();
+  guardar();
+  cerrarHoja();
+  pintar();
+  avisar(saltados ? `${n} registros guardados · ${saltados} sin cupo` : `${n} registros guardados`);
+  IMP = null;
+}
+
+/* ==========================================================
    FIREBASE — conexión opcional.
    La app funciona sola sin esto. Al conectar, los datos pasan
    a vivir en Firestore y se sincronizan entre computadores.
@@ -4944,6 +5890,12 @@ async function conectarFirebase(silencioso) {
     if (!FB.app) {
       FB.app = app.initializeApp(cfg);
       FB.auth = auth.getAuth(FB.app);
+      // Por defecto la sesión es de la pestaña. Solo se guarda en el equipo
+      // si la persona lo pidió expresamente.
+      try {
+        await auth.setPersistence(FB.auth, D.config.recordarSesion
+          ? auth.browserLocalPersistence : auth.browserSessionPersistence);
+      } catch {}
       try {
         FB.db = fs.initializeFirestore(FB.app, {
           localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
@@ -4957,7 +5909,11 @@ async function conectarFirebase(silencioso) {
 
       auth.onAuthStateChanged(FB.auth, (u) => {
         FB.user = u;
-        if (u) { vincularUsuario(u.email); escucharTodo(); }
+        if (u) {
+          abrirDatosDe(u.email.toLowerCase());   // cada quien su caché
+          vincularUsuario(u.email);
+          escucharTodo();
+        }
         else { pararTodo(); S.persona = null; S.modo = null; }
         pintar();
       });
@@ -6671,8 +7627,12 @@ function vConfiguracion() {
       ${tam > 3500 ? `<div class="aviso">El navegador guarda unos 5 MB. Vas en ${tam} KB, casi siempre
         por las fotos. Conecta Firebase o exporta y borra fotos viejas.</div>` : ""}
       <div class="fila-btn" style="margin-bottom:12px">
+        <button class="btn btn-firme" data-acc="importar-masivo">Carga masiva desde una hoja</button>
         <button class="btn" data-acc="revisar-datos">Revisar y reparar datos</button>
       </div>
+      <p class="expl">La carga masiva lee lo que copies de Google Sheets o un CSV. Adivina las
+      columnas, resuelve las fincas y los animales por nombre, y si tu hoja mezcla varios tipos
+      de registro reparte cada fila a su tabla.</p>
       <p class="expl">Busca registros que apunten a algo que ya no existe: eventos de animales
       borrados, gente asignada a fincas eliminadas, autores desaparecidos. Te dice qué encontró
       antes de tocar nada.</p>
@@ -6802,6 +7762,15 @@ conectarFirebase(true);
   });
 
   document.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => acciones(b.dataset.acc));
+  const rc = document.getElementById("recordar-eq");
+  if (rc) rc.onchange = () => {
+    D.config.recordarSesion = rc.checked;
+    guardarLocal();
+    avisar(rc.checked
+      ? "La sesión quedará abierta en este equipo"
+      : "Cada pestaña pedirá su propio usuario. Aplica al volver a entrar.");
+  };
+
   const bp = document.querySelector("[data-perfil]");
   if (bp) bp.onclick = () => formPersona(S.persona.id);
 
@@ -7053,6 +8022,25 @@ function conectarHoja(d) {
       if (campo) campo.hidden = ![...g.querySelectorAll(".chip")].some(c => !c.hidden);
     });
   };
+
+  d.querySelectorAll("[data-imp]").forEach(b => b.onclick = () => accionImportar(b.dataset.imp));
+  const selT = d.querySelector("#imp-tabla");
+  if (selT) selT.onchange = () => { IMP.destino = selT.value; pintarImportador(); };
+  d.querySelectorAll("[name=imp-modo]").forEach(r => r.onchange = () => {
+    IMP.modo = r.value; pintarImportador();
+  });
+  const selD = d.querySelector("#imp-destino");
+  if (selD) selD.onchange = () => {
+    IMP.destino = selD.value;
+    IMP.mapeo = adivinarMapeo(IMP.destino, IMP.encabezados);
+    pintarImportador();
+  };
+  const selO = d.querySelector("#imp-orden");
+  if (selO) selO.onchange = () => { IMP.ordenFecha = selO.value; };
+  d.querySelectorAll("[data-col]").forEach(s2 => s2.onchange = () => {
+    IMP.mapeo[Number(s2.dataset.col)] = s2.value;
+    pintarImportador();
+  });
 
   const fl = d.querySelector("form[data-lote]");
   if (fl) fl.onsubmit = (e) => { e.preventDefault(); aplicarLote(fl); };
@@ -7380,6 +8368,7 @@ conectarFirebase(true);
     guardar(); pintar(); avisar(abrir ? "Todas abiertas" : "Todas cerradas");
     return;
   }
+  if (a === "importar-masivo") { abrirImportador(""); return; }
   if (a === "contar-antiguos") {
     const f2 = document.querySelector("[data-purgar]");
     const v = datos(f2), cols = new FormData(f2).getAll("cols");
@@ -7485,11 +8474,14 @@ conectarFirebase(true);
     if (!confirm("Última confirmación: no hay forma de deshacer esto.")) return;
     try {
       for (const k of Object.keys(localStorage)) {
-        if (k.startsWith(CLAVE + "-f-")) localStorage.removeItem(k);
+        if (k.startsWith((CLAVE_DATOS || CLAVE) + "-f-")) localStorage.removeItem(k);
       }
+      if (CLAVE_DATOS) localStorage.removeItem(CLAVE_DATOS);
     } catch {}
     _fotosEnDisco = new Map();
-    D = migrar(semilla()); guardarLocal();
+    const cfg = D.config;
+    D = migrar({ ...semilla(), config: cfg });
+    guardarLocal();
     S.persona = null; S.modo = null; guardarSesion();
     pantallaAcceso();
   }
@@ -7521,5 +8513,99 @@ function asignarFincas(personaId, marcadas) {
     if (quiere.has(f.id) && !tiene) f.personas.push(personaId);
     if (!quiere.has(f.id) && tiene) f.personas = f.personas.filter(x => x !== personaId);
   }
+}
+
+
+/* ---------- pasos de la carga masiva ---------- */
+async function accionImportar(a) {
+  if (a === "archivo") {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".csv,.tsv,.txt,text/csv";
+    inp.onchange = () => {
+      const f = inp.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { document.getElementById("imp-texto").value = r.result; accionImportar("leer"); };
+      r.readAsText(f, "utf-8");
+    };
+    inp.click();
+    return;
+  }
+
+  if (a === "plantilla") {
+    const linea = lineaPlantilla(IMP.destino);
+    try { await navigator.clipboard.writeText(linea); }
+    catch {
+      const ta = document.createElement("textarea");
+      ta.value = linea; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    avisar("Plantilla copiada");
+    return;
+  }
+
+  if (a === "leer") {
+    const txt = document.getElementById("imp-texto").value.trim();
+    if (!txt) return alert("Pega los datos o sube un archivo.");
+    const sep = detectarSeparador(txt);
+    const filas = partirTabla(txt, sep);
+    if (!filas.length) return alert("No encontré ninguna fila.");
+
+    if (IMP.modo === "orden") {
+      // Sin encabezado: las columnas van en el orden de la plantilla.
+      const campos = camposDe(IMP.destino);
+      // Si por costumbre pegaron también la fila de títulos, se descarta.
+      const primera = filas[0].map(x => normaliza(x).trim());
+      const esTitulo = campos.some((c, i) => primera[i] === normaliza(c.et).trim());
+      IMP.filas = esTitulo ? filas.slice(1) : filas;
+      IMP.conEncabezado = false;
+      IMP.encabezados = campos.map(c => c.et);
+      IMP.mapeo = campos.map(c => c.k);
+      if (!IMP.filas.length) return alert("Solo veo la fila de títulos, sin datos.");
+    } else {
+      if (filas.length < 2) return alert("Necesito el encabezado y al menos una fila de datos.");
+      IMP.filas = filas;
+      IMP.conEncabezado = true;
+      IMP.encabezados = filas[0].map(x => String(x).trim());
+      IMP.destino = IMP.destino || adivinarDestino(IMP.encabezados);
+      IMP.mapeo = adivinarMapeo(IMP.destino, IMP.encabezados);
+    }
+    IMP.ordenFecha = proponerOrdenFecha(
+      IMP.conEncabezado ? IMP.filas : [[], ...IMP.filas], IMP.mapeo, IMP.destino);
+    IMP.paso = 2;
+    return pintarImportador();
+  }
+
+  if (a === "atras")  { IMP.paso = 1; return pintarImportador(); }
+  if (a === "atras2") { IMP.paso = 2; return pintarImportador(); }
+
+  if (a === "revisar") {
+    const def = DESTINOS[IMP.destino];
+    const faltan = def.campos.filter(c => c.req && !IMP.mapeo.includes(c.k));
+    if (faltan.length) return alert("Falta asignar: " + faltan.map(c => c.et).join(", "));
+    procesarImportacion();
+    IMP.paso = 3;
+    return pintarImportador();
+  }
+
+  if (a === "guardar") return guardarImportacion();
+}
+
+/**
+ * Con fechas como 11/09/2024 no se sabe si es 11 de septiembre o 9 de noviembre.
+ * Si alguna fila tiene un número mayor que 12 en la primera posición, ya está claro.
+ */
+function proponerOrdenFecha(filas, mapeo, destino) {
+  const def = DESTINOS[destino];
+  const cols = mapeo.map((k, i) => ({ k, i }))
+    .filter(x => x.k && def.campos.find(c => c.k === x.k && c.tipo === "fecha"));
+  for (const fila of filas.slice(1, 200)) {
+    for (const { i } of cols) {
+      const m = String(fila[i] ?? "").trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.]/);
+      if (!m) continue;
+      if (Number(m[1]) > 12) return "dmy";
+      if (Number(m[2]) > 12) return "mdy";
+    }
+  }
+  return "mdy";
 }
 </script></body></html>
