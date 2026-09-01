@@ -682,11 +682,30 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.23.0";
+const VERSION = "1.25.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.25.0", "1 sep 2026", [
+    "ARREGLO IMPORTANTE: lo que borrabas desaparecía de la pantalla pero seguía en la base " +
+      "de datos. El borrado se deducía comparando, y una actualización que llegara en ese " +
+      "instante reponía el registro antes de que se enviara.",
+    "Ahora cada borrado se ordena en el momento y se recuerda hasta que Firestore confirma, " +
+      "así ninguna actualización lo resucita.",
+    "Sin señal el borrado queda encolado y se aplica al reconectar.",
+    "De paso desaparece el riesgo de que la app borrara sola algo que solo faltaba por el " +
+      "recorte de historial.",
+  ]],
+  ["1.24.0", "31 ago 2026", [
+    "Auditadas todas las referencias entre tablas, una por una.",
+    "Al eliminar a una persona se le quitan también el acceso a configuración y los " +
+      "permisos por sección, que colgaban de su correo.",
+    "No se puede eliminar al dueño principal sin traspasar antes ese papel.",
+    "Al cambiarle el correo a alguien, el ser dueño principal, el acceso a configuración " +
+      "y sus permisos se mueven al correo nuevo en vez de perderse.",
+    "«Revisar y reparar datos» ahora detecta correos de la configuración que ya no existen.",
+  ]],
   ["1.23.0", "31 ago 2026", [
     "Cada pestaña es una sesión aparte: al abrir el enlace en otra pestaña pide iniciar sesión.",
     "Así varias personas pueden usar el mismo computador a la vez sin pisarse.",
@@ -4270,19 +4289,33 @@ function dependencias(tipo, id) {
  * Borra un registro con todo lo que cuelga de él.
  * Devuelve un resumen de lo que se llevó, o null si no se pudo.
  */
+/** Saca de una colección lo que cumpla la condición y ordena su borrado remoto. */
+function quitarDe(coleccion, condicion) {
+  const van = (D[coleccion] || []).filter(condicion);
+  if (!van.length) return 0;
+  const fuera = new Set(van.map(x => x.id));
+  D[coleccion] = (D[coleccion] || []).filter(x => !fuera.has(x.id));
+  for (const id of fuera) borrarRemoto(coleccion, id);
+  return van.length;
+}
+
+/**
+ * Borra un registro con todo lo que cuelga de él.
+ * Devuelve un resumen de lo que se llevó, o null si no se pudo.
+ */
 function borrarEnCascada(tipo, id, opciones) {
   opciones = opciones || {};
   const quitados = {};
 
   if (tipo === "animal") {
     for (const c of EVENTOS_DE_ANIMAL) {
-      const antes = D[c].length;
-      D[c] = D[c].filter(x => x.animalId !== id);
-      if (antes !== D[c].length) quitados[c] = antes - D[c].length;
+      const n = quitarDe(c, x => x.animalId === id);
+      if (n) quitados[c] = n;
     }
-    // La leche del tanque no se borra: solo deja de estar atada a ese animal.
+    // La leche sí salió del tanque: no se borra, solo deja de ser de ese animal.
     D.leche.forEach(x => { if (x.animalId === id) x.animalId = null; });
-    D.animales = D.animales.filter(x => x.id !== id);
+    quitarDe("animales", x => x.id === id);
+    borrarRemoto("fotos", id);
     return quitados;
   }
 
@@ -4292,29 +4325,31 @@ function borrarEnCascada(tipo, id, opciones) {
     for (const a of animales) borrarEnCascada("animal", a.id);
     if (animales.length) quitados.animales = animales.length;
 
-    const lech = D.leche.filter(x => x.fincaId === id).length;
-    D.leche = D.leche.filter(x => x.fincaId !== id);
+    const lech = quitarDe("leche", x => x.fincaId === id);
     if (lech) quitados.leche = lech;
-
-    const notas = D.anotaciones.filter(n => n.fincaId === id).length;
-    D.anotaciones = D.anotaciones.filter(n => n.fincaId !== id);
+    const notas = quitarDe("anotaciones", n => n.fincaId === id);
     if (notas) quitados.anotaciones = notas;
 
-    // Nadie debe quedar asignado a una finca que ya no existe.
-    D.personas.forEach(p => { p.fincas = (p.fincas || []).filter(f => f !== id); });
-    D.fincas = D.fincas.filter(f => f.id !== id);
+    quitarDe("fincas", f => f.id === id);
+    recalcularAccesos();   // deja al día persona.fincas y la marca de sin finca
     return quitados;
   }
 
   if (tipo === "persona") {
     const p = persona(id);
-    D.fincas.forEach(f => { f.personas = (f.personas || []).filter(x => x !== id); });
+    D.fincas.forEach(f => {
+      if ((f.personas || []).includes(id)) {
+        f.personas = f.personas.filter(x => x !== id);
+        borrarRemoto._tocada = true;   // la finca cambió: se sube en el empuje normal
+      }
+    });
+    limpiarConfigDe(p?.correo);
     // Lo que registró no se borra: se queda sin autor conocido.
-    for (const c of ["fincas", "animales", "personas", ...EVENTOS_DE_ANIMAL, "anotaciones"]) {
+    for (const c of ["fincas", "animales", "personas", ...EVENTOS_DE_ANIMAL, "leche", "anotaciones"]) {
       (D[c] || []).forEach(x => { if (x.creadoPor === id) x.creadoPor = null; });
     }
-    D.personas = D.personas.filter(x => x.id !== id);
-    // Y sobre todo: quitarle el acceso en Firestore.
+    quitarDe("personas", x => x.id === id);
+    recalcularAccesos();
     if (p?.correo) borrarUsuarioRemoto(p.correo);
     return quitados;
   }
@@ -4323,7 +4358,7 @@ function borrarEnCascada(tipo, id, opciones) {
                  secado:"secados", trat:"tratamientos", nota:"anotaciones", leche:"leche" };
   const col = mapa[tipo];
   if (!col) return null;
-  D[col] = D[col].filter(x => x.id !== id);
+  quitarDe(col, x => x.id === id);
   return quitados;
 }
 
@@ -4341,16 +4376,16 @@ function revisarIntegridad(arreglar) {
   for (const c of EVENTOS_DE_ANIMAL) {
     const sueltos = (D[c] || []).filter(x => !animales.has(x.animalId));
     anota(`${c} sin animal`, sueltos.length, () => {
-      D[c] = D[c].filter(x => animales.has(x.animalId));
+      quitarDe(c, x => !animales.has(x.animalId));
     });
   }
 
   anota("animales sin finca", D.animales.filter(a => !fincas.has(a.fincaId)).length, () => {});
   anota("anotaciones sin finca", D.anotaciones.filter(n => !fincas.has(n.fincaId)).length, () => {
-    D.anotaciones = D.anotaciones.filter(n => fincas.has(n.fincaId));
+    quitarDe("anotaciones", n => !fincas.has(n.fincaId));
   });
   anota("registros de leche sin finca", D.leche.filter(r => !fincas.has(r.fincaId)).length, () => {
-    D.leche = D.leche.filter(r => fincas.has(r.fincaId));
+    quitarDe("leche", r => !fincas.has(r.fincaId));
   });
   anota("leche atada a un animal borrado",
     D.leche.filter(r => r.animalId && !animales.has(r.animalId)).length, () => {
@@ -4370,6 +4405,24 @@ function revisarIntegridad(arreglar) {
       (D[c] || []).forEach(x => { if (x.creadoPor && !personas.has(x.creadoPor)) x.creadoPor = null; });
     }
   });
+
+  // Correos en la configuración que ya no corresponden a nadie.
+  const correos = new Set(D.personas.map(p => (p.correo || "").toLowerCase()).filter(Boolean));
+  const accesosRotos = (D.config.accesoConfig || [])
+    .filter(c => !correos.has((c || "").toLowerCase())).length;
+  anota("accesos a configuración de correos que ya no existen", accesosRotos, () => {
+    D.config.accesoConfig = (D.config.accesoConfig || [])
+      .filter(c => correos.has((c || "").toLowerCase()));
+  });
+  const permisosRotos = Object.keys(D.config.permisos || {})
+    .filter(c => !correos.has(c.toLowerCase())).length;
+  anota("permisos por sección de correos que ya no existen", permisosRotos, () => {
+    for (const c of Object.keys(D.config.permisos || {})) {
+      if (!correos.has(c.toLowerCase())) delete D.config.permisos[c];
+    }
+  });
+  const maestroRoto = D.config.maestro && !correos.has((D.config.maestro || "").toLowerCase()) ? 1 : 0;
+  anota("el dueño principal apunta a un correo que ya no existe", maestroRoto, () => {});
 
   // Eventos cuyo fincaId no coincide con el de su animal.
   const desalineados = EVENTOS_DE_ANIMAL.reduce((t, c) =>
@@ -4998,6 +5051,34 @@ function resumenPorFinca(registros) {
 const litros = (n) => (Math.round((Number(n) || 0) * 10) / 10)
   .toLocaleString("es-CO", { maximumFractionDigits: 1 });
 const pesos = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
+
+
+/** Quita de la configuración todo lo que colgaba de un correo. */
+function limpiarConfigDe(correo) {
+  const c = (correo || "").toLowerCase();
+  if (!c) return;
+  D.config.accesoConfig = (D.config.accesoConfig || [])
+    .filter(x => (x || "").toLowerCase() !== c);
+  if (D.config.permisos) delete D.config.permisos[c];
+  if ((D.config.maestro || "").toLowerCase() === c) D.config.maestro = "";
+}
+
+/** Mueve al correo nuevo lo que estaba atado al anterior. */
+function moverConfigDe(viejo, nuevo) {
+  const v = (viejo || "").toLowerCase(), n = (nuevo || "").toLowerCase();
+  if (!v || v === n) return;
+
+  if ((D.config.maestro || "").toLowerCase() === v) D.config.maestro = n;
+
+  D.config.accesoConfig = [...new Set((D.config.accesoConfig || [])
+    .map(x => (x || "").toLowerCase() === v ? n : x)
+    .filter(Boolean))];
+
+  if (D.config.permisos && D.config.permisos[v]) {
+    if (n) D.config.permisos[n] = D.config.permisos[v];
+    delete D.config.permisos[v];
+  }
+}
 
 /* ==========================================================
    CARGA MASIVA
@@ -6027,7 +6108,9 @@ function escucharColecciones(mias) {
 
         FB.aplicando = true;
 
-        ((FB.cajones[nombre] ||= {}))[via] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        ((FB.cajones[nombre] ||= {}))[via] = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(d => !estaBorrado(nombre, d.id));
         let docs = recombinar(nombre);
 
         // El servidor manda los animales sin foto. Se vuelve a pegar la que
@@ -6166,15 +6249,40 @@ function paraRemoto(col, doc) {
   return { ...resto, tieneFoto: !!foto };
 }
 
-/** ¿Ese documento quedó fuera del recorte de fechas? */
-function fueraDeVentana(coleccion, json) {
-  const campo = CON_VENTANA[coleccion];
-  if (!campo || !FB.corte) return false;
-  try {
-    const f = JSON.parse(json)[campo];
-    return !!f && f < FB.corte;
-  } catch { return true; }   // ante la duda, no se borra
+/* ----------------------------------------------------------
+   BORRADO EXPLÍCITO
+
+   Antes el borrado se deducía: lo que estaba en Firebase y ya no
+   en pantalla, se borraba. Eso fallaba porque entre el borrado y
+   el envío podía llegar una actualización que reponía el registro,
+   y además era peligroso: cualquier hueco se tomaba por un borrado.
+
+   Ahora se ordena en el momento y se recuerda hasta que Firestore
+   confirme, para que ninguna actualización lo resucite.
+   ---------------------------------------------------------- */
+FB.borrados = {};
+
+function borrarRemoto(coleccion, id) {
+  (FB.borrados[coleccion] ||= new Set()).add(id);
+  if (FB.espejo[coleccion]) delete FB.espejo[coleccion][id];
+  for (const cajon of Object.values(FB.cajones?.[coleccion] || {})) {
+    const i = cajon.findIndex(x => x.id === id);
+    if (i >= 0) cajon.splice(i, 1);
+  }
+  if (!FB.db || !FB.user || !FB.mods) return;
+  const { fs } = FB.mods;
+  fs.deleteDoc(fs.doc(FB.db, coleccion, id))
+    .then(() => { FB.borrados[coleccion]?.delete(id); })
+    .catch((e) => {
+      // Sin señal Firestore lo encola y llega solo; un rechazo real sí se avisa.
+      if (!/unavailable|network|offline/i.test(String(e?.code || e))) {
+        FB.estado = "error"; FB.error = errorFB(e); pintar();
+      }
+    });
 }
+
+/** ¿Está pendiente de borrarse? Entonces ninguna escucha debe reponerlo. */
+const estaBorrado = (coleccion, id) => !!FB.borrados[coleccion]?.has(id);
 
 function recalcularPendientes() {
   FB.sinSubir = Object.values(FB.sinConfirmar).reduce((n, s) => n + s.size, 0);
@@ -6187,6 +6295,7 @@ async function empujar() {
   const { fs } = FB.mods;
   const cambios = [];
 
+  FB.espejo ||= {}; FB.sinConfirmar ||= {}; FB.borrados ||= {};
   for (const nombre of COLECCIONES) {
     const espejo = FB.espejo[nombre] || {};
     const vistos = new Set();
@@ -6195,13 +6304,9 @@ async function empujar() {
       const json = JSON.stringify(paraRemoto(nombre, doc));
       if (espejo[doc.id] !== json) cambios.push(["set", nombre, doc.id, doc, json]);
     }
-    for (const id in espejo) {
-      if (vistos.has(id)) continue;
-      // Si el documento solo falta porque quedó fuera de la ventana, NO se borra.
-      // Sin esta guarda, recortar el historial borraría los eventos viejos de todos.
-      if (FB.corte && fueraDeVentana(nombre, espejo[id])) { delete espejo[id]; continue; }
-      cambios.push(["del", nombre, id]);
-    }
+    // Los borrados ya no se deducen: se ordenan al momento en borrarRemoto.
+    // Aquí solo se limpia el espejo de lo que ya no está.
+    for (const id in espejo) if (!vistos.has(id)) delete espejo[id];
   }
   if (!cambios.length) return sincronizarUsuarios();
 
@@ -6228,8 +6333,8 @@ async function empujar() {
 
       // Marcar como emitido: ni se reenvía, ni la escucha lo borra.
       for (const [op, col, id, , json] of tanda) {
-        (FB.espejo[col] ||= {});
-        (FB.sinConfirmar[col] ||= new Set());
+        (FB.espejo ||= {})[col] ||= {};
+        (FB.sinConfirmar ||= {})[col] ||= new Set();
         if (op === "set") { FB.espejo[col][id] = json; FB.sinConfirmar[col].add(id); }
         else { delete FB.espejo[col][id]; FB.sinConfirmar[col].delete(id); }
       }
@@ -8145,7 +8250,9 @@ function enviar(f) {
       Object.assign(antes, v);
       delete antes.nombrePorDefecto;   // ya lo escribió una persona
       // Si le cambiaron el correo, el anterior no debe seguir entrando.
-      if (correoViejo && correoViejo !== (v.correo || "").toLowerCase()) {
+      const correoNuevo = (v.correo || "").toLowerCase();
+      if (correoViejo && correoViejo !== correoNuevo) {
+        moverConfigDe(correoViejo, correoNuevo);   // dueño principal, accesos y permisos
         borrarUsuarioRemoto(correoViejo);
       }
     } else {
@@ -8293,6 +8400,11 @@ async function borrar(tipo, id) {
     const p = persona(id);
     if (!puedoEditarPersona(p)) return alert("Esa persona no está bajo tu cargo.");
     if (p.id === S.persona?.id) return alert("No puedes eliminarte a ti mismo.");
+    if ((p.correo || "").toLowerCase() === (D.config.maestro || "").toLowerCase() && p.correo) {
+      return alert(`${p.nombre} es el dueño principal: es el único que administra la conexión ` +
+        `con la base de datos.\n\nAntes de eliminarlo, pásale ese papel a otro correo desde ` +
+        `Configuración → Conexión con Firebase.`);
+    }
     let msg = `¿Eliminar a ${p.nombre}?`;
     if (p.correo) msg += `\n\nPierde el acceso a la app de inmediato.`;
     if (dep.fincas) msg += `\n\nQueda desasignada de ${dep.fincas} finca(s).`;
