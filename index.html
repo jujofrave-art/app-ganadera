@@ -374,9 +374,11 @@ tr.grupo .n{opacity:.55;margin-left:6px}
   padding-top:14px;border-top:1px solid var(--linea)}
 .solo-movil{display:none}
 
-.quien{display:flex;flex-direction:column;gap:3px;margin-bottom:9px;background:none;border:0;
-  padding:7px 8px;border-radius:8px;text-align:left;width:100%;color:inherit}
-.quien:hover{background:rgba(var(--papel-rgb),.08)}
+.pie button.quien{display:flex;flex-direction:column;gap:3px;margin-bottom:9px;background:none;
+  border:0;padding:7px 8px;border-radius:8px;text-align:left;width:100%;color:var(--rail-fg)}
+.pie button.quien strong{color:var(--rail-fg)}
+.pie button.quien em{color:rgba(var(--papel-rgb),.5)}
+.pie button.quien:hover{background:rgba(var(--papel-rgb),.08)}
 .quien strong{font-size:13px;color:var(--papel)}
 .quien em{font-style:normal;font-family:var(--dato);font-size:10.5px;color:rgba(var(--papel-rgb),.45)}
 .quien .p{align-self:flex-start;font-size:9px}
@@ -759,11 +761,26 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.27.0";
+const VERSION = "1.29.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.29.0", "1 sep 2026", [
+    "Botón para abrir de una vez todas las pestañas de los índices que falten, con la " +
+      "lista de enlaces por si el navegador bloquea las emergentes.",
+  ]],
+  ["1.28.0", "1 sep 2026", [
+    "ARREGLO IMPORTANTE: entrar desde otro equipo creaba una ficha nueva para el mismo " +
+      "correo, con otro identificador. Esa ficha no estaba en ninguna finca y por eso no " +
+      "se veía nada, y el nombre que habías escrito se perdía.",
+    "Ahora el identificador de cada persona sale de su correo, así que en cualquier " +
+      "dispositivo es el mismo.",
+    "Al entrar, la app une sola las fichas duplicadas que ya existieran, conservando el " +
+      "nombre escrito a mano, el rol más alto y todas las fincas.",
+    "Arreglado: en modo oscuro el nombre del menú lateral no se veía.",
+    "Botón para bajar todo sin recorte de fechas, por si prefieres no crear los índices.",
+  ]],
   ["1.27.0", "1 sep 2026", [
     "Panel «¿Por qué no cargan los datos?»: prueba una por una las consultas a Firebase y " +
       "dice cuál falla y por qué, con el enlace para crear el índice que falte.",
@@ -2628,9 +2645,25 @@ function conectarAcceso() {
 }
 
 /** Crea el usuario inicial. Queda como dueño porque alguien tiene que poder empezar. */
+/**
+ * Identificador estable a partir del correo. Antes salía al azar, así que
+ * cada dispositivo creaba una persona distinta para el mismo correo: la
+ * nueva no estaba en ninguna finca y por eso no se veía nada.
+ */
+function idDesdeCorreo(correo) {
+  const c = (correo || "").trim().toLowerCase();
+  if (!c) return uid();
+  let a = 5381, b = 52711;
+  for (let i = 0; i < c.length; i++) {
+    a = ((a * 33) ^ c.charCodeAt(i)) >>> 0;
+    b = ((b * 33) ^ c.charCodeAt(c.length - 1 - i)) >>> 0;
+  }
+  return "u" + a.toString(36) + b.toString(36);
+}
+
 function crearPrimerUsuario(nombre, correo) {
   const p = {
-    id: uid(), nombre: (nombre || "").trim() || "Dueño",
+    id: idDesdeCorreo(correo), nombre: (nombre || "").trim() || "Dueño",
     rol: "dueno", correo: (correo || "").trim().toLowerCase(),
     telefono: "", documento: "", notas: "", activo: true, fincas: [],
   };
@@ -2708,8 +2741,26 @@ const nombreDesdeCorreo = (c) => c.split("@")[0]
  * correo, es el primer ingreso contra un proyecto vacío y se crea la ficha.
  */
 function asegurarPersona(email) {
-  const p = D.personas.find(x => (x.correo || "").toLowerCase() === email.toLowerCase());
-  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; guardarSesion(); ofrecerClave(); return; }
+  const correo = email.toLowerCase();
+
+  // Si hay más de una ficha con el mismo correo, se unen antes de seguir.
+  if (manda()) {
+    const n = unificarPersonas();
+    if (n) avisar(`Se unieron ${n} fichas duplicadas de la misma persona`);
+  }
+
+  let p = D.personas.find(x => (x.correo || "").toLowerCase() === correo);
+
+  // El documento de usuario recuerda cuál es su ficha: se respeta.
+  if (!p && FB.personaRemota) p = D.personas.find(x => x.id === FB.personaRemota);
+
+  if (p) {
+    if (FB.rolRemoto && RANGO[FB.rolRemoto] > (RANGO[p.rol] ?? 0)) p.rol = FB.rolRemoto;
+    S.persona = p; S.modo = "firebase"; S.error = "";
+    guardarSesion(); ofrecerClave();
+    if (p.nombrePorDefecto) pedirNombre();
+    return;
+  }
 
   if (D.personas.length > 0) {
     S.error = `La cuenta ${email} entró bien, pero no hay ninguna persona registrada con ese ` +
@@ -2719,6 +2770,8 @@ function asegurarPersona(email) {
   }
 
   S.persona = crearPrimerUsuario(nombreDesdeCorreo(email), email);
+  // El id ya no es al azar: sale del correo, así que en cualquier equipo es el mismo.
+  if (FB.personaRemota) S.persona.id = FB.personaRemota;
   S.persona.nombrePorDefecto = true;   // aún no lo ha escrito una persona
   if (FB.rolRemoto) S.persona.rol = FB.rolRemoto;
   S.modo = "firebase"; S.error = "";
@@ -5206,6 +5259,71 @@ function moverConfigDe(viejo, nuevo) {
   }
 }
 
+
+/* ==========================================================
+   FUSIONAR FICHAS DUPLICADAS
+
+   Hasta la 1.27 el identificador de cada persona salía al azar,
+   así que entrar en un equipo nuevo creaba otra ficha para el
+   mismo correo. Esa ficha no estaba en ninguna finca y por eso
+   no se veía nada. Esto las une en una sola.
+   ========================================================== */
+
+function unificarPersonas() {
+  const grupos = {};
+  for (const p of D.personas) {
+    const c = (p.correo || "").trim().toLowerCase();
+    if (!c) continue;
+    (grupos[c] ||= []).push(p);
+  }
+
+  let fusionadas = 0;
+  for (const [correo, lista] of Object.entries(grupos)) {
+    if (lista.length < 2) continue;
+
+    const estable = idDesdeCorreo(correo);
+    // Gana la que ya tenga el id estable; si no, la que esté en más fincas
+    // y tenga el nombre puesto a mano.
+    const puntos = (p) =>
+      (p.id === estable ? 10000 : 0) +
+      D.fincas.filter(f => (f.personas || []).includes(p.id)).length * 100 +
+      (p.nombrePorDefecto ? 0 : 50) +
+      (p.telefono ? 5 : 0) + (p.documento ? 5 : 0) +
+      (RANGO[p.rol] ?? 0);
+    lista.sort((a, b) => puntos(b) - puntos(a));
+    const buena = lista[0];
+
+    // El nombre escrito por una persona manda sobre el sacado del correo.
+    const conNombre = lista.find(p => !p.nombrePorDefecto && (p.nombre || "").trim());
+    if (conNombre) { buena.nombre = conNombre.nombre; delete buena.nombrePorDefecto; }
+    // Y el rol más alto de todas.
+    for (const p of lista) {
+      if ((RANGO[p.rol] ?? 0) > (RANGO[buena.rol] ?? 0)) buena.rol = p.rol;
+    }
+
+    for (const otra of lista.slice(1)) {
+      for (const k of ["telefono", "documento", "notas"]) {
+        if (!buena[k] && otra[k]) buena[k] = otra[k];
+      }
+      // Todo lo que apuntaba a la ficha vieja pasa a la buena.
+      D.fincas.forEach(f => {
+        if ((f.personas || []).includes(otra.id)) {
+          f.personas = [...new Set(f.personas.map(x => x === otra.id ? buena.id : x))];
+        }
+      });
+      for (const c of COLECCIONES) {
+        (D[c] || []).forEach(x => { if (x.creadoPor === otra.id) x.creadoPor = buena.id; });
+      }
+      if (S.persona?.id === otra.id) S.persona = buena;
+      quitarDe("personas", x => x.id === otra.id);
+      fusionadas++;
+    }
+  }
+
+  if (fusionadas) { recalcularAccesos(); guardar(); }
+  return fusionadas;
+}
+
 /* ==========================================================
    CARGA MASIVA
    Pega lo copiado de Google Sheets o sube un CSV. La app
@@ -6180,6 +6298,7 @@ function escucharTodo() {
       }
       const datos = snap.data();
       FB.rolRemoto = datos.rol || null;
+      FB.personaRemota = datos.persona || null;
       const mias = (datos.fincas || []).filter(Boolean);
       const clave = JSON.stringify(mias.slice().sort());
       if (clave === FB.claveFincas) return;    // nada cambió
@@ -6280,7 +6399,10 @@ function escucharColecciones(mias) {
       },
       (e) => {
         const codigo = String(e?.code || "");
-        (FB.fallos ||= {})[nombre] = { codigo, msg: String(e?.message || e) };
+        const msg = String(e?.message || e);
+        const url = (msg.match(/https:\/\/console\.firebase\.google\.com\S+/) || [])[0];
+        (FB.fallos ||= {})[nombre] = { codigo, msg, url };
+        if (url) (FB.indicesFaltantes ||= {})[nombre] = url;
 
         // Falta el índice compuesto: se reintenta sin el filtro de fechas,
         // que es lo que lo exige. Así la app sirve igual mientras lo creas.
@@ -7185,6 +7307,7 @@ async function diagnosticar() {
     } catch (e) {
       const m = String(e?.message || e);
       const url = (m.match(/https:\/\/console\.firebase\.google\.com\S+/) || [])[0];
+      if (url) (FB.indicesFaltantes ||= {})[nombre] = url;
       paso(etiqueta, "mal",
         (String(e?.code || "").includes("failed-precondition")
           ? "Falta un índice en Firestore. " + (url ? "Ábrelo aquí para crearlo con un clic: " + url : m)
@@ -7672,7 +7795,44 @@ function vConfiguracion() {
         Mientras tanto la app los está bajando sin recorte de fechas, así que funciona
         pero gasta más datos.</div>` : ""}
 
-      <div class="fila-btn"><button class="btn btn-firme" data-acc="diagnosticar">Revisar la conexión</button></div>
+      ${(() => {
+        const dup = {};
+        for (const p of D.personas) {
+          const c = (p.correo || "").toLowerCase(); if (!c) continue;
+          dup[c] = (dup[c] || 0) + 1;
+        }
+        const n = Object.values(dup).filter(x => x > 1).length;
+        return n ? `<div class="nota recorte" style="display:block">
+          Hay <strong>${n} correo(s) con más de una ficha</strong>. Eso pasaba en versiones
+          anteriores al entrar desde otro equipo, y es lo que hace que no se vean las fincas.
+          <div class="fila-btn" style="margin-top:9px">
+            <button class="btn" data-acc="unificar-personas">Unir las fichas duplicadas</button>
+          </div></div>` : "";
+      })()}
+
+      ${Object.keys(FB.indicesFaltantes || {}).length ? `
+        <div class="nota recorte" style="display:block">
+          Faltan <strong>${Object.keys(FB.indicesFaltantes).length} índices</strong> en Firestore.
+          Sin ellos esas secciones no cargan.
+          <div class="fila-btn" style="margin-top:9px">
+            <button class="btn btn-firme" data-acc="abrir-indices">Abrir todos para crearlos</button>
+            <button class="btn" data-acc="sin-recorte">O bajar sin recorte de fechas</button>
+          </div>
+          <p class="expl" style="margin:9px 0 0">Se abren en pestañas nuevas, una por índice.
+          En cada una solo pulsas «Crear». Si el navegador bloquea las ventanas, permite las
+          emergentes de esta página o usa los enlaces de abajo uno por uno.</p>
+          <ul class="lista-correos" style="margin-top:9px">
+            ${Object.entries(FB.indicesFaltantes).map(([col, url]) => `
+              <li><span>${esc(col)}</span>
+                <a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">Crear</a></li>
+            `).join("")}
+          </ul>
+        </div>` : ""}
+
+      <div class="fila-btn">
+        <button class="btn btn-firme" data-acc="diagnosticar">Revisar la conexión</button>
+        ${historialRecortado() ? '<button class="btn" data-acc="sin-recorte">Bajar todo sin recorte de fechas</button>' : ""}
+      </div>
       <div data-diagnostico></div>
     </div>
   </details>
@@ -8767,6 +8927,38 @@ conectarFirebase(true);
     if (!abrir) VISTAS.filter(v => v.id !== "configuracion")
       .forEach(v => { D.config.permisos[c][v.id] = false; });
     guardar(); pintar(); avisar(abrir ? "Todas abiertas" : "Todas cerradas");
+    return;
+  }
+  if (a === "abrir-indices") {
+    const urls = Object.values(FB.indicesFaltantes || {});
+    if (!urls.length) return alert("No hay índices pendientes.");
+    let n = 0;
+    urls.forEach((u2, i) => setTimeout(() => {
+      const v = window.open(u2, "_blank", "noopener");
+      if (v) n++;
+      if (i === urls.length - 1) setTimeout(() => {
+        if (!n) alert("El navegador bloqueó las ventanas emergentes.\n\n" +
+          "Permítelas para esta página, o usa los enlaces «Crear» de la lista uno por uno.");
+        else avisar(`Se abrieron ${n} pestañas. En cada una pulsa Crear.`);
+      }, 300);
+    }, i * 350));
+    return;
+  }
+  if (a === "unificar-personas") {
+    const n = unificarPersonas();
+    pintar();
+    alert(n ? `Se unieron ${n} ficha(s) duplicadas.\n\nLas fincas y los registros que ` +
+              `apuntaban a las viejas ahora apuntan a la que quedó.`
+            : "No encontré fichas duplicadas.");
+    return;
+  }
+  if (a === "sin-recorte") {
+    D.config.ventanaMeses = 0;
+    FB.todoElHistorial = true;
+    guardar();
+    if (FB.user) { FB.claveFincas = null; escucharColecciones(misFincas()); }
+    pintar();
+    avisar("Se bajará todo el historial, sin necesidad de índices");
     return;
   }
   if (a === "diagnosticar") {
