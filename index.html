@@ -199,6 +199,12 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .rej{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 .campo{display:flex;flex-direction:column;gap:5px}
 .ancho{grid-column:1/-1}
+.oblig{color:var(--hierro);font-weight:600;margin-left:1px}
+.campo.falta input,.campo.falta select,.campo.falta textarea,.campo.falta .combo-btn{
+  border-color:var(--hierro);box-shadow:0 0 0 3px rgba(var(--hierro-rgb),.18)}
+.campo.falta label{color:var(--hierro)}
+@keyframes latido{0%,100%{transform:none}30%{transform:translateX(-3px)}60%{transform:translateX(3px)}}
+.campo.falta{animation:latido .3s}
 .campo label{font-family:var(--dato);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--tenue)}
 .campo input,.campo select,.campo textarea{padding:9px 11px;border:1px solid var(--linea);border-radius:7px;background:var(--alto);width:100%}
 .campo textarea{resize:vertical;min-height:64px;font-family:var(--texto)}
@@ -502,6 +508,7 @@ details.panel:not([open])>summary{border-bottom:0}
 .palpa-fila{display:grid;grid-template-columns:1.5fr 1.1fr 1.1fr 1fr;gap:11px;align-items:center;
   border:1px solid var(--linea);border-radius:9px;padding:9px 11px;background:var(--alto)}
 .palpa-fila.marcada{border-color:var(--pasto);background:rgba(var(--pasto-rgb),.07)}
+.palpa-fila.dudosa{border-color:var(--hierro);background:rgba(var(--hierro-rgb),.08)}
 .palpa-quien{display:flex;align-items:center;gap:9px;min-width:0}
 .palpa-quien strong{display:block;font-size:13.5px}
 .palpa-quien em{font-style:normal;font-family:var(--dato);font-size:10.5px;color:var(--tenue);
@@ -674,7 +681,12 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
   .topbar-tit{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:-.02em;
     flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar .ver-chip{border-color:rgba(var(--papel-rgb),.22);color:rgba(var(--papel-rgb),.55)}
-  .topbar-alertas{background:var(--hierro);color:var(--sobre-chapeta);font-family:var(--dato);font-size:11px;
+  .topbar-giro{background:rgba(var(--papel-rgb),.1);border:1px solid rgba(var(--papel-rgb),.2);
+  color:var(--rail-fg);width:32px;height:32px;border-radius:8px;font-size:15px;line-height:1;
+  padding:0;display:grid;place-items:center;flex:none}
+.topbar-giro.on{background:rgba(var(--chapeta-rgb),.2);border-color:rgba(var(--chapeta-rgb),.45);
+  color:var(--chapeta)}
+.topbar-alertas{background:var(--hierro);color:var(--sobre-chapeta);font-family:var(--dato);font-size:11px;
     border-radius:20px;padding:4px 10px;border:0;flex:none}
 
   /* ---- cajón lateral ---- */
@@ -800,11 +812,48 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.43.0";
+const VERSION = "1.48.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.48.0", "2 sep 2026", [
+    "La palpación en grupo no revisaba si los meses y días tenían sentido: se podía guardar " +
+      "una novillona «de 11 meses» con fecha de parto ya pasada.",
+    "Ahora avisa en la misma fila, en rojo, y no guarda ninguna hasta corregirlas.",
+    "Se revisa que la preñez quepa en la gestación de esa especie, que no empiece en el " +
+      "futuro, que no sea anterior a su último parto ni a su nacimiento.",
+  ]],
+  ["1.47.0", "2 sep 2026", [
+    "ARREGLO DE RAÍZ: el superadministrador estaba excluido de la función que autoriza a " +
+      "escribir los permisos, así que su app nunca actualizaba /usuarios sola. Por eso " +
+      "asignar una finca no llegaba a los otros dispositivos y tocaba corregir a mano.",
+    "Un equipo con la vista a medias ya no achica el permiso de nadie: solo corrige las " +
+      "fincas que alcanza a ver y respeta el resto. Antes dos dispositivos se pisaban " +
+      "el permiso el uno al otro.",
+    "El permiso no se reescribe si no cambió nada, y no se toca hasta que hayan llegado " +
+      "las fincas: escribirlo con la lista vacía borraba accesos.",
+  ]],
+  ["1.46.0", "2 sep 2026", [
+    "Faltaba el aviso de recorte y el botón de volver en la tabla de Palpación. Ya está en " +
+      "las cinco tablas que se recortan y en la ficha del animal.",
+  ]],
+  ["1.45.0", "2 sep 2026", [
+    "Cada tabla sube por separado. Antes iba todo en un solo envío: si Firestore rechazaba " +
+      "un documento, arrastraba a las demás tablas y varias quedaban sin subir en silencio.",
+    "Si algo falla, la app averigua cuál documento es y lo dice por su nombre, con el motivo.",
+    "Los campos vacíos se limpian antes de mandar: un valor indefinido tumbaba el envío entero.",
+    "El menú avisa «No sube: partos, leche» en vez de un error genérico.",
+    "Botón para reintentar la subida desde el diagnóstico.",
+  ]],
+  ["1.44.0", "2 sep 2026", [
+    "Campos obligatorios en los diez formularios, con asterisco rojo y un mensaje que dice " +
+      "qué falta y señala el campo.",
+    "Arreglado: los desplegables con buscador nunca se validaban, porque por dentro son " +
+      "campos ocultos y el navegador los ignora. Se podía guardar una inseminación sin animal.",
+    "Botón para dejar la pantalla fija y que no se voltee sola en el corral, en la barra " +
+      "del celular y en Configuración.",
+  ]],
   ["1.43.0", "2 sep 2026", [
     "ARREGLO DE RAÍZ: el permiso podía quedar apuntando a fincas ya borradas y dejar fuera " +
       "la finca real. Firebase entonces rechazaba en silencio todo lo que se intentara " +
@@ -1474,6 +1523,55 @@ function temaEfectivo() {
   } catch { return "claro"; }
 }
 
+/* ----------------------------------------------------------
+   BLOQUEO DE GIRO
+
+   En el corral, con el celular en la mano y agachado, la pantalla
+   se voltea sola y estorba. Esto la deja quieta hasta que se
+   pulse el botón.
+
+   Solo se puede bloquear de verdad con la app instalada o a
+   pantalla completa: es una regla del navegador, no de la app.
+   ---------------------------------------------------------- */
+const puedeGirar = () => typeof screen !== "undefined" && !!screen.orientation?.lock;
+
+const estaInstalada = () => {
+  try {
+    return window.matchMedia("(display-mode: standalone)").matches ||
+           window.navigator.standalone === true;
+  } catch { return false; }
+};
+
+async function aplicarGiro(avisando) {
+  if (!puedeGirar()) {
+    if (avisando) alert("Este navegador no deja fijar la orientación.\n\n" +
+      "Instala la app desde Configuración → Instalar en el celular y funcionará.");
+    return false;
+  }
+  try {
+    if (D.config.giroBloqueado) {
+      // Fuera de la app instalada hace falta pantalla completa.
+      if (!estaInstalada() && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen?.();
+      }
+      await screen.orientation.lock(
+        screen.orientation.type?.startsWith("landscape") ? "landscape" : "portrait");
+    } else {
+      screen.orientation.unlock?.();
+      if (document.fullscreenElement && !estaInstalada()) await document.exitFullscreen?.();
+    }
+    return true;
+  } catch (e) {
+    if (avisando) {
+      D.config.giroBloqueado = false;
+      guardarLocal();
+      alert("No se pudo fijar la orientación en este navegador.\n\n" +
+        "Instala la app desde Configuración → Instalar en el celular: ahí sí funciona.");
+    }
+    return false;
+  }
+}
+
 function aplicarTema() {
   const t = temaEfectivo();
   document.documentElement.setAttribute("data-tema", t);
@@ -1721,6 +1819,7 @@ function migrar(d) {
   d.config.recordarSesion ??= false;
   d.config.tema ??= "auto";
   d.config.cuentaGoogle ??= 0;
+  d.config.giroBloqueado ??= false;
   d.config.limites ??= { global: {}, por: {} };
   d.config.limites.global ??= {};
   d.config.limites.por ??= {};
@@ -2454,7 +2553,11 @@ const rolActual = () => S.persona?.rol || "empleado";
 const esSuper = () => rolActual() === "superadmin";
 const miRango = () => RANGO[rolActual()] ?? 0;
 const puede = (q) => !!PERMISOS[rolActual()]?.[q];
-const manda = () => rolActual() === "dueno" || rolActual() === "administrador";
+/* El superadministrador también manda: es quien reparte los permisos.
+   Dejarlo fuera hacía que su app nunca actualizara /usuarios, y por eso
+   asignar una finca no llegaba sola a los otros dispositivos.
+   Las reglas de Firestore siempre lo incluyeron; el desajuste era aquí. */
+const manda = () => esSuper() || rolActual() === "dueno" || rolActual() === "administrador";
 
 /**
  * Dueño principal. Es el único que ve la conexión con Firebase, las reglas
@@ -3252,6 +3355,10 @@ function pintar() {
         <path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <div class="topbar-tit">${esc(v ? v.et : "Control Ganadero")}</div>
+    <button class="topbar-giro ${D.config.giroBloqueado ? "on" : ""}" data-acc="giro"
+      title="${D.config.giroBloqueado ? "Pantalla fija. Toca para permitir el giro"
+                                      : "Toca para dejar la pantalla fija"}"
+      aria-label="Bloquear giro">${D.config.giroBloqueado ? "🔒" : "⟳"}</button>
     <span class="ver-chip sync-chip ${estadoSync().clase}">${estadoSync().corto}</span>
     ${nAlertas ? `<button class="topbar-alertas" data-ir="alertas">${nAlertas}</button>` : ""}
   </header>
@@ -3321,6 +3428,10 @@ function estadoSync() {
   if (!D.config.firebase) return { clase: "", texto: "○ Solo en este equipo", corto: "Local" };
   if (FB.estado === "cargando") return { clase: "cargando", texto: "◍ Conectando…", corto: "…" };
   if (!FB.user) return { clase: "", texto: "○ Falta iniciar sesión", corto: "Entrar" };
+  const fallos = Object.keys(FB.falloSubida || {});
+  if (fallos.length) return { clase: "error",
+    texto: `▲ No sube: ${fallos.slice(0, 2).join(", ")}${fallos.length > 2 ? "…" : ""}`,
+    corto: "!" };
   if (FB.estado === "error") return { clase: "error", texto: "▲ Error de conexión", corto: "Error" };
   if (sinRed || FB.enCache) {
     return FB.sinSubir
@@ -3573,6 +3684,7 @@ function vPalpacion() {
   <div class="barra">${buscador("Buscar en todo: nombre, chapeta, raza, pajilla, detalles…")}${selectorFinca()}</div>
   ${fichas([["todos","Todas"],["pendiente","Pendientes",base.filter(e=>e.fechaPalpacion).length],
             ["vencida","Vencidas",base.filter(e=>e.fechaPalpacion&&dias(e.fechaPalpacion)>=0).length]])}
+  ${avisoRecorte("palpaciones")}
   ${tabla(cols, agrupado(L, ({a, e}) => {
     const d = e.fechaPalpacion ? dias(e.fechaPalpacion) : null;
     return `<tr class="fila" data-abrir="${a.id}">
@@ -4522,7 +4634,7 @@ function formInsem(id, anId) {
     caja.appendChild(fila);
     conectarCombos(fila);
     refrescarQuitar();
-    fila.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    try { fila.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); } catch {}
   };
   refrescarQuitar();
 }
@@ -4588,6 +4700,13 @@ function formPalpacion(id, anId) {
     const a = idA ? animal(idA) : null;
     const c = concepcionDePalpacion(v);
     if (!c || !a) { caja.textContent = "Elige el animal y la fecha para ver el cálculo."; return; }
+    const reparo = reparoPalpacion(a, { ...v, resultado: "prenada" });
+    if (reparo) {
+      caja.className = "aviso";
+      caja.innerHTML = `No cuadra: ${esc(reparo)}.`;
+      return;
+    }
+    caja.className = "nota";
     const parto = partoDePalpacion(v, a);
     caja.innerHTML = `Quedó preñada alrededor del <strong>${fmt(c)}</strong>.
       Parto probable: <strong>${fmt(parto)}</strong>
@@ -5872,6 +5991,13 @@ function abrirPalpacionGrupo(modo, fincaId) {
     const v = { fecha: fechaInp.value,
                 mesesGest: fila.querySelector(`[name=m_${idA}]`).value,
                 diasGest: fila.querySelector(`[name=d_${idA}]`).value };
+    const reparo = reparoPalpacion(a, { ...v, resultado: "prenada" });
+    if (reparo) {
+      fila.classList.add("dudosa");
+      caja.innerHTML = `<span class="p roja">Revisa</span><em>${esc(reparo)}</em>`;
+      return;
+    }
+    fila.classList.remove("dudosa");
     const parto = partoDePalpacion(v, a);
     caja.innerHTML = parto
       ? `Parto <strong>${fmtCorto(parto)}</strong><em>preñada desde ${fmtCorto(concepcionDePalpacion(v))}</em>`
@@ -5948,6 +6074,28 @@ function guardarPalpacionGrupo(f) {
   if (!fecha) return error(f, "Pon la fecha de la palpación.");
   if (dias(fecha) < 0) return error(f, "Esa fecha todavía no ha llegado.");
 
+  // Primero se revisan todas: si una no cuadra, no se guarda ninguna.
+  const reparos = [];
+  for (const fila of f.querySelectorAll(".palpa-fila")) {
+    const idA = fila.dataset.animal;
+    const res = fila.querySelector(`[name=r_${idA}]:checked`)?.value;
+    if (res !== "prenada") continue;
+    const a = animal(idA);
+    const r = reparoPalpacion(a, { fecha,
+      mesesGest: fila.querySelector(`[name=m_${idA}]`).value,
+      diasGest: fila.querySelector(`[name=d_${idA}]`).value, resultado: "prenada" });
+    if (r) {
+      reparos.push(`${a.nombre} (${a.chapeta}): ${r}`);
+      fila.classList.add("dudosa");
+      fila.hidden = false;
+    }
+  }
+  if (reparos.length) {
+    return error(f, `Revisa ${reparos.length === 1 ? "esta" : "estas"}:\n• ` +
+      reparos.slice(0, 6).join("\n• ") +
+      (reparos.length > 6 ? `\n…y ${reparos.length - 6} más` : ""));
+  }
+
   let n = 0;
   for (const fila of f.querySelectorAll(".palpa-fila")) {
     const idA = fila.dataset.animal;
@@ -5967,6 +6115,35 @@ function guardarPalpacionGrupo(f) {
   if (!n) return error(f, "No marcaste ningún resultado.");
   recalcularAccesos(); guardar(); cerrarHoja(); pintar();
   avisar(`${n} palpación(es) registradas`);
+}
+
+
+/**
+ * ¿Tienen sentido esos meses y días para ese animal?
+ * Devuelve el reparo, o null si va bien.
+ */
+function reparoPalpacion(a, v) {
+  if (!a || v.resultado === "vacia") return null;
+  const c = concepcionDePalpacion(v);
+  if (!c) return "faltan los meses y días";
+
+  const P = par(a);
+  const d = dias(c, aFecha(v.fecha));
+  if (d < 0) return "esos meses y días dan una fecha en el futuro";
+  if (d > P.gestacion) {
+    return `de ${v.mesesGest || 0} meses y ${v.diasGest || 0} días ya habría parido: ` +
+           `en ${(P.plural || "esta especie").toLowerCase()} la gestación es de ${P.gestacion} días`;
+  }
+  // No pudo quedar preñada antes de su último parto.
+  const e = estado(a);
+  if (e.ultParto && c < e.ultParto.fecha) {
+    return `quedaría preñada el ${fmtCorto(c)}, antes de su ${
+      e.ultParto.tipo === "aborto" ? "aborto" : "parto"} del ${fmtCorto(e.ultParto.fecha)}`;
+  }
+  if (a.fechaNacimiento && c < a.fechaNacimiento) {
+    return `quedaría preñada antes de nacer`;
+  }
+  return null;
 }
 
 /* ==========================================================
@@ -6998,6 +7175,9 @@ function escucharColecciones(mias) {
   pararEscuchas();
   FB.cajones = {};
   FB.fallos = {};
+  FB.fincasCargadas = false;
+  FB.espejoUsuarios = {};
+  FB.usuariosRemotos = {};
   limpiarSiCambioDeUsuario(FB.user.email);
   if (FB.rolRemoto !== "superadmin") soltarFincasAjenas(mias);
   const { fs } = FB.mods;
@@ -7079,6 +7259,7 @@ function escucharColecciones(mias) {
 
         guardarPronto();
         FB.aplicando = false;
+        if (nombre === "fincas") FB.fincasCargadas = true;
         if (nombre === "personas") asegurarPersona(FB.user.email);
         else if (S.persona) S.persona = D.personas.find(p => p.id === S.persona.id) || S.persona;
         pintarPronto();
@@ -7168,21 +7349,58 @@ function recombinar(nombre) {
 }
 
 /** Mantiene /usuarios en Firestore al día con las asignaciones de la app. */
+/**
+ * Mantiene /usuarios al día SIN pisar lo que este equipo no puede ver.
+ *
+ * Antes recalculaba el permiso de cada persona con las fincas que este
+ * equipo alcanzaba, y lo escribía como verdad absoluta. Un equipo con la
+ * vista a medias le achicaba el permiso a todos, el otro lo rehacía con su
+ * propia vista, y se pisaban sin parar: por eso tocaba corregir a mano.
+ *
+ * Ahora solo se corrige lo que este equipo sí ve. Lo demás se respeta.
+ */
 async function sincronizarUsuarios() {
   if (!FB.db || !FB.user || !manda()) return;
+  if (!FB.fincasCargadas) return;          // sin la lista de fincas no se toca nada
   const { fs } = FB.mods;
-  try {
-    const lote = fs.writeBatch(FB.db);
-    let n = 0;
-    for (const p of D.personas) {
-      if (!p.correo) continue;
-      lote.set(fs.doc(FB.db, "usuarios", p.correo.toLowerCase()),
-               { rol: p.rol, fincas: p.fincas || [], persona: p.id,
-                 activo: p.activo !== false }, { merge: true });
-      n++;
+
+  const visibles = new Set(D.fincas.map(f => f.id));
+  const borradas = FB.borrados?.fincas || new Set();
+  const todoALaVista = FB.rolRemoto === "superadmin";
+  FB.espejoUsuarios ||= {};
+  FB.usuariosRemotos ||= {};
+
+  for (const p of D.personas) {
+    if (!p.correo) continue;
+    const correo = p.correo.toLowerCase();
+
+    // Lo que hay hoy en su permiso, para no borrar a ciegas.
+    if (!FB.usuariosRemotos[correo]) {
+      try {
+        const s = await fs.getDoc(fs.doc(FB.db, "usuarios", correo));
+        FB.usuariosRemotos[correo] = s.exists() ? s.data() : {};
+      } catch { FB.usuariosRemotos[correo] = {}; }
     }
-    if (n) await lote.commit();
-  } catch (e) { console.warn("usuarios:", errorFB(e)); }
+    const remoto = FB.usuariosRemotos[correo];
+
+    // Fincas que este equipo no ve: se conservan tal cual, salvo que las
+    // hayamos borrado nosotros. El superadministrador sí lo ve todo, así
+    // que en su caso no hay zonas ciegas.
+    const ciegas = todoALaVista ? []
+      : (remoto.fincas || []).filter(id => !visibles.has(id) && !borradas.has(id));
+    const propias = (p.fincas || []).filter(id => visibles.has(id));
+    const fincas = [...new Set([...ciegas, ...propias])];
+
+    const doc = { rol: p.rol, fincas, persona: p.id, activo: p.activo !== false };
+    const firma = JSON.stringify(doc);
+    if (FB.espejoUsuarios[correo] === firma) continue;   // nada cambió
+
+    try {
+      await fs.setDoc(fs.doc(FB.db, "usuarios", correo), doc, { merge: true });
+      FB.espejoUsuarios[correo] = firma;
+      FB.usuariosRemotos[correo] = { ...remoto, ...doc };
+    } catch (e) { console.warn("usuarios:", errorFB(e)); }
+  }
 }
 
 /* ---------- empujar cambios locales ----------
@@ -7246,6 +7464,56 @@ function borrarRemoto(coleccion, id) {
 /** ¿Está pendiente de borrarse? Entonces ninguna escucha debe reponerlo. */
 const estaBorrado = (coleccion, id) => !!FB.borrados?.[coleccion]?.has(id);
 
+/**
+ * Firestore rechaza cualquier campo con valor indefinido y tumba el envío
+ * completo. Esto los quita antes de mandar, en todo el documento.
+ */
+function limpiarParaFirestore(obj) {
+  if (Array.isArray(obj)) return obj.map(limpiarParaFirestore);
+  if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === undefined) continue;
+      out[k] = limpiarParaFirestore(v);
+    }
+    return out;
+  }
+  return obj === undefined ? null : obj;
+}
+
+/** Si una colección falla, se averigua cuál documento y por qué. */
+async function manejarFalloSubida(col, tanda, e) {
+  const cod = String(e?.code || "");
+  if (/unavailable|network|offline/i.test(cod)) return;   // sin señal: ya volverá
+
+  const { fs } = FB.mods;
+  let culpable = null, motivo = String(e?.message || e);
+
+  // Se reintenta uno por uno para señalar el documento exacto.
+  for (const [op, , id, doc] of tanda.slice(0, 25)) {
+    if (op !== "set") continue;
+    try {
+      const { id: _, ...resto } = paraRemoto(col, doc);
+      await fs.setDoc(fs.doc(FB.db, col, id), limpiarParaFirestore(resto));
+      delete (FB.espejo[col] || {})[id];   // sí entró: se reintentará bien
+    } catch (e2) {
+      culpable = doc;
+      motivo = String(e2?.message || e2);
+      break;
+    }
+  }
+
+  FB.falloSubida[col] = {
+    codigo: cod,
+    motivo,
+    culpable: culpable ? (culpable.nombre || culpable.chapeta || culpable.id) : null,
+    cuando: Date.now(),
+  };
+  FB.estado = "error";
+  FB.error = `No se pudo subir ${col}`;
+  pintar();
+}
+
 function recalcularPendientes() {
   FB.sinConfirmar ||= {};
   FB.sinSubir = Object.values(FB.sinConfirmar).reduce((n, s) => n + (s?.size || 0), 0);
@@ -7274,41 +7542,45 @@ async function empujar() {
   if (!cambios.length) return sincronizarUsuarios();
 
   empujando = true;
+  FB.falloSubida = FB.falloSubida || {};
   try {
-    for (let i = 0; i < cambios.length; i += 450) {
-      const tanda = cambios.slice(i, i + 450);
-      const lote = fs.writeBatch(FB.db);
+    // Un lote por colección. Antes iba todo junto: si Firestore rechazaba un
+    // documento, se caía el envío entero y varias tablas quedaban sin subir
+    // sin que nada lo dijera.
+    const porColeccion = {};
+    for (const c of cambios) (porColeccion[c[1]] ||= []).push(c);
 
-      for (const [op, col, id, doc, json] of tanda) {
-        const ref = fs.doc(FB.db, col, id);
-        if (op === "set") { const { id: _, ...resto } = paraRemoto(col, doc); lote.set(ref, resto); }
-        else lote.delete(ref);
-      }
+    for (const [col, lista] of Object.entries(porColeccion)) {
+      for (let i = 0; i < lista.length; i += 450) {
+        const tanda = lista.slice(i, i + 450);
+        const lote = fs.writeBatch(FB.db);
 
-      // commit() aplica el cambio al disco de inmediato; la promesa solo se
-      // resuelve cuando el servidor responde. No la esperamos.
-      lote.commit().catch((e) => {
-        // Un rechazo real (permisos, datos inválidos) sí hay que mostrarlo.
-        if (!/unavailable|network|offline/i.test(String(e?.code || e))) {
-          FB.estado = "error"; FB.error = errorFB(e); pintar();
+        for (const [op, , id, doc] of tanda) {
+          const ref = fs.doc(FB.db, col, id);
+          if (op === "set") {
+            const { id: _, ...resto } = paraRemoto(col, doc);
+            lote.set(ref, limpiarParaFirestore(resto));
+          } else lote.delete(ref);
         }
-      });
 
-      // Marcar como emitido: ni se reenvía, ni la escucha lo borra.
-      for (const [op, col, id, , json] of tanda) {
-        (FB.espejo ||= {})[col] ||= {};
-        (FB.sinConfirmar ||= {})[col] ||= new Set();
-        if (op === "set") { FB.espejo[col][id] = json; FB.sinConfirmar[col].add(id); }
-        else { delete FB.espejo[col][id]; FB.sinConfirmar[col].delete(id); }
+        lote.commit()
+          .then(() => { delete FB.falloSubida[col]; })
+          .catch((e) => manejarFalloSubida(col, tanda, e));
+
+        // Marcar como emitido: ni se reenvía, ni la escucha lo borra.
+        for (const [op, , id, , json] of tanda) {
+          (FB.espejo ||= {})[col] ||= {};
+          (FB.sinConfirmar ||= {})[col] ||= new Set();
+          if (op === "set") { FB.espejo[col][id] = json; FB.sinConfirmar[col].add(id); }
+          else { delete FB.espejo[col][id]; FB.sinConfirmar[col].delete(id); }
+        }
       }
     }
+
     recalcularPendientes();
     pintar();
     sincronizarUsuarios();
     subirFotos();
-    // Confirmación de verdad: no todos los documentos vuelven por una escucha
-    // (una persona de otra finca, por ejemplo), así que el contador se quedaba
-    // pegado. Esto lo cierra cuando Firestore acusa recibo de todo.
     esperarSubida();
   } finally {
     empujando = false;
@@ -8690,6 +8962,15 @@ function vConfiguracion() {
     <div class="panel-cuerpo">
       <p class="expl">En automático sigue lo que tenga configurado el celular o el computador.
       El oscuro se agradece de noche y en el ordeño de la madrugada.</p>
+      <div class="fila-btn" style="margin-bottom:14px">
+        <button class="btn ${D.config.giroBloqueado ? "btn-firme" : ""}" data-acc="giro">
+          ${D.config.giroBloqueado ? "Pantalla fija · tocar para liberar" : "Dejar la pantalla fija"}
+        </button>
+      </div>
+      <p class="expl">En el corral la pantalla se voltea sola y estorba. Con esto se queda
+      quieta en la posición en la que esté. Solo funciona con la app instalada en el celular
+      o a pantalla completa; es una regla del navegador.</p>
+
       <div class="interruptores">
         ${Object.entries(TEMAS).map(([k, et]) => `
           <label class="interruptor ${(D.config.tema || "auto") === k ? "on" : ""}">
@@ -8732,6 +9013,25 @@ function vConfiguracion() {
             <button class="btn" data-acc="recuperar-fincas">Recuperar mis fincas y unir las fichas</button>
           </div></div>` : "";
       })()}
+
+      ${Object.keys(FB.falloSubida || {}).length ? `
+        <div class="nota recorte" style="display:block">
+          <strong>Hay tablas que no están subiendo a la base de datos.</strong>
+          <ul class="cambios" style="margin-top:7px">
+            ${Object.entries(FB.falloSubida).map(([col, f]) => `<li>
+              <strong>${esc(col)}</strong>${f.culpable ? ` · atascado en «${esc(f.culpable)}»` : ""}<br>
+              <span class="sub">${esc(
+                String(f.codigo).includes("permission-denied")
+                  ? "Las reglas lo rechazan. Puede que tu permiso apunte a fincas que ya no " +
+                    "existen: usa «Revisar y corregir mi permiso» aquí abajo."
+                  : String(f.codigo).includes("invalid-argument")
+                  ? "Firestore rechazó el contenido del documento. " + f.motivo
+                  : f.motivo)}</span></li>`).join("")}
+          </ul>
+          <div class="fila-btn" style="margin-top:9px">
+            <button class="btn" data-acc="reintentar-subida">Volver a intentar la subida</button>
+          </div>
+        </div>` : ""}
 
       ${Object.keys(FB.indicesFaltantes || {}).length ? `
         <div class="nota recorte" style="display:block">
@@ -9206,6 +9506,7 @@ function conectar() {
     V.busca = e.target.value;
     const pos = e.target.selectionStart;
     aplicarTema();
+aplicarGiro(false);
 recuperarSesion();
 pintar();
 
@@ -9515,6 +9816,18 @@ function conectarHoja(d) {
 
   conectarCombos(d);
 
+  // Marcar con asterisco los campos obligatorios del formulario abierto.
+  const fg = d.querySelector("form[data-guardar]");
+  if (fg) {
+    const tipo = fg.dataset.guardar.split(":")[0];
+    for (const [campo] of (REQUERIDOS[tipo] || [])) {
+      const et = fg.querySelector(`[name="${campo}"]`)?.closest(".campo")?.querySelector("label");
+      if (et && !et.querySelector(".oblig")) {
+        et.insertAdjacentHTML("beforeend", ' <span class="oblig" title="Obligatorio">*</span>');
+      }
+    }
+  }
+
   const ff2 = d.querySelector("[data-filtro-fincas]");
   if (ff2) ff2.oninput = () => {
     ff2.closest(".campo").querySelectorAll(".chip").forEach(ch => {
@@ -9628,9 +9941,57 @@ function permitidoGuardar(tipo, id, v) {
   return true;
 }
 
+/* ----------------------------------------------------------
+   CAMPOS OBLIGATORIOS
+
+   Los desplegables con buscador guardan el valor en un campo
+   oculto, y el navegador no valida los ocultos. Por eso se
+   comprueban aquí, uno por uno, con un mensaje que dice qué
+   falta en vez de un aspa muda.
+   ---------------------------------------------------------- */
+const REQUERIDOS = {
+  animal: [["chapeta","la chapeta"], ["nombre","el nombre"],
+           ["fincaId","la finca"], ["categoria","la categoría"]],
+  finca:  [["nombre","el nombre de la finca"]],
+  persona:[["nombre","el nombre completo"]],
+  insem:  [["animalId","el animal"]],
+  palp:   [["animalId","el animal"], ["fecha","la fecha de la palpación"]],
+  parto:  [["animalId","el animal"], ["fecha","la fecha"], ["tipo","si fue parto o aborto"]],
+  secado: [["animalId","el animal"], ["fecha","la fecha del secado"],
+           ["motivo","el motivo"]],
+  trat:   [["animalId","el animal"], ["tipo","el tipo de tratamiento"],
+           ["inicio","la fecha de inicio"]],
+  leche:  [["fincaId","la finca"], ["fecha","la fecha"], ["litros","la cantidad de litros"]],
+  nota:   [["fincaId","la finca"], ["fecha","la fecha"], ["texto","la nota"]],
+};
+
+function faltaAlgo(tipo, v, f) {
+  for (const [campo, et] of (REQUERIDOS[tipo] || [])) {
+    const valor = v[campo];
+    const vacio = valor === undefined || valor === null || String(valor).trim() === "";
+    if (!vacio) continue;
+    // Señalar el campo para que se vea cuál es.
+    const el = f.querySelector(`[name="${campo}"]`);
+    const caja = el?.closest(".campo");
+    if (caja) {
+      caja.classList.add("falta");
+      try { caja.scrollIntoView?.({ block: "center", behavior: "smooth" }); } catch {}
+      setTimeout(() => caja.classList.remove("falta"), 2600);
+      try {
+        caja.querySelector("input:not([type=hidden]), select, textarea, .combo-btn")?.focus?.();
+      } catch {}
+    }
+    return `Falta ${et}.`;
+  }
+  return null;
+}
+
 function enviar(f) {
   const [tipo, id] = f.dataset.guardar.split(":");
   const v = datos(f);
+
+  const falta = faltaAlgo(tipo, v, f);
+  if (falta) return error(f, falta);
 
   const permiso = permitidoGuardar(tipo, id, v);
   if (permiso !== true) {
@@ -9769,13 +10130,8 @@ function enviar(f) {
     if (v.resultado !== "prenada") { v.mesesGest = 0; v.diasGest = 0; v.manda = false; }
     delete v.diasGestacion;
     if (v.resultado === "prenada" && v.animalId) {
-      const a2 = animal(v.animalId);
-      const d = dias(concepcionDePalpacion(v));
-      if (a2 && d !== null && d > par(a2).gestacion + 40) {
-        return error(f, `De ${v.mesesGest} meses y ${v.diasGest} días, esa preñez ya habría ` +
-          `terminado hace rato. Revisa los números.`);
-      }
-      if (d !== null && d < 0) return error(f, "Esos meses y días dan una fecha en el futuro.");
+      const r = reparoPalpacion(animal(v.animalId), v);
+      if (r) return error(f, `No cuadra: ${r}.`);
     }
     v.diasGestacion = v.diasGestacion ? Number(v.diasGestacion) : null;
     if (id) Object.assign(D.palpaciones.find(x => x.id === id), v);
@@ -9910,6 +10266,7 @@ async function acciones(a) {
     if (!cfg) return alert("No encontré apiKey ni projectId ahí.\n\n" +
       "Copia el bloque completo desde Configuración del proyecto → Tus apps → Web.");
     D.config.firebase = cfg; guardarLocal(); aplicarTema();
+aplicarGiro(false);
 recuperarSesion();
 pintar();
 
@@ -10073,6 +10430,32 @@ conectarFirebase(true);
       : `<div class="nota" style="margin-top:12px">No hay nada anterior a esa fecha.</div>`;
     return;
   }
+  if (a === "reintentar-subida") {
+    FB.falloSubida = {};
+    FB.espejo = {};          // fuerza a reenviar todo lo que haya
+    FB.estado = "listo"; FB.error = "";
+    programarEmpuje();
+    pintar();
+    avisar("Reintentando la subida…");
+    setTimeout(() => {
+      const quedan = Object.keys(FB.falloSubida || {});
+      pintar();
+      if (quedan.length) alert("Todavía fallan: " + quedan.join(", ") +
+        "\n\nMira el detalle en el panel de diagnóstico.");
+      else avisar("Todo subió bien");
+    }, 3000);
+    return;
+  }
+  if (a === "giro") {
+    D.config.giroBloqueado = !D.config.giroBloqueado;
+    guardarLocal();
+    const listo = await aplicarGiro(true);
+    pintar();
+    if (listo) avisar(D.config.giroBloqueado
+      ? "Pantalla fija en esta posición"
+      : "La pantalla vuelve a girar sola");
+    return;
+  }
   if (a === "volver-recorte") { volverAlRecorte(); pintar(); return; }
   if (a === "palpar-grupo") { abrirPalpacionGrupo(); return; }
   if (a === "todo-historial") {
@@ -10178,6 +10561,7 @@ conectarFirebase(true);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarHoja(); });
 
 aplicarTema();
+aplicarGiro(false);
 recuperarSesion();
 pintar();
 
