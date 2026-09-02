@@ -494,6 +494,10 @@ details.panel:not([open])>summary{border-bottom:0}
 }
 
 /* ---------- palpar en grupo ---------- */
+.palpa-conteo{font-family:var(--dato);font-size:11.5px;color:var(--tenue);
+  padding:7px 0 11px;letter-spacing:.03em}
+.palpa-conteo.hay{color:var(--pasto)}
+.palpa-conteo strong{font-size:14px}
 .palpa-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .palpa-fila{display:grid;grid-template-columns:1.5fr 1.1fr 1.1fr 1fr;gap:11px;align-items:center;
   border:1px solid var(--linea);border-radius:9px;padding:9px 11px;background:var(--alto)}
@@ -796,11 +800,38 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.36.0";
+const VERSION = "1.40.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.40.0", "2 sep 2026", [
+    "El permiso se comprueba al guardar, no solo al dibujar. Si te quitan una finca o te " +
+      "bajan el rol con un formulario abierto, ya no se puede guardar eso.",
+    "Cuando cambian tu rol o tus fincas, lo que tengas abierto se cierra y te avisa.",
+    "Verificado que al asignarle una finca a alguien, sus datos le llegan solos y sin " +
+      "recargar; y al quitársela, desaparecen igual de rápido.",
+  ]],
+  ["1.39.0", "2 sep 2026", [
+    "Buscador dentro de palpar en grupo: se puede buscar por nombre, chapeta, finca o " +
+      "categoría sin perder lo que ya se marcó.",
+    "Contador de cuántas llevas marcadas, y botón para ver solo esas antes de guardar.",
+    "El botón dice cuántas se van a guardar y se bloquea si no hay ninguna.",
+    "Avisa si cambias el filtro de finca teniendo marcas sin guardar.",
+  ]],
+  ["1.38.0", "2 sep 2026", [
+    "El lenguaje de la palpación deja de ser solo bovino: dice «monta con verraco», " +
+      "«monta con carnero» o el macho que corresponda a cada especie.",
+  ]],
+  ["1.37.0", "2 sep 2026", [
+    "Palpar en grupo sirve también en fincas de monta natural: con el modo «todas las " +
+      "hembras» aparecen aunque no tengan servicio apuntado.",
+    "Filtro de finca en esa pantalla, para palpar solo el lote que se está revisando.",
+    "Cuando no hay servicio registrado en el ciclo, la palpación manda sola sin tener que " +
+      "marcarla: es la única fuente que hay.",
+    "La gestación, el parto probable y la ventana de secado se calculan desde la palpación " +
+      "en esos casos.",
+  ]],
   ["1.36.0", "2 sep 2026", [
     "Ya no hay que palpar a todas: cada hembra se puede marcar como «a esta no se le palpa», " +
       "y desaparece de las alertas y de la lista de palpar.",
@@ -1234,6 +1265,13 @@ const RAZAS = {
     "Burro Criollo", "Andaluz-Cordobés", "Catalán", "Mestizo", "Mular",
   ],
 };
+
+/** Cómo se le dice al macho de esa especie: toro, verraco, carnero… */
+function machoDe(especie) {
+  const e = Object.entries(CATEGORIAS)
+    .find(([, c]) => c.especie === especie && c.sexo === "M" && c.etapa === "adulto");
+  return e ? e[1].et.toLowerCase() : "macho";
+}
 
 /** Razas de una especie, más las que ya se hayan escrito a mano. */
 function razasDe(especie) {
@@ -1838,10 +1876,14 @@ function estado(a) {
 
   let prenada = false, diasGest = null, servicioValido = null;
 
-  // Si la persona marcó una palpación como la que manda, esa define la
-  // gestación: puede ser más fiable que la fecha del servicio.
-  const palpManda = palps.find(p => p.manda && p.resultado === "prenada" &&
-    (!ultParto || p.fecha > ultParto.fecha)) || null;
+  // La palpación define la gestación en dos casos: cuando la persona la marcó
+  // como la que manda, y cuando no hay servicio registrado en este ciclo
+  // (montas con toro, donde nadie apunta la fecha).
+  const palpCiclo = palps.filter(p => p.resultado === "prenada" &&
+    (!ultParto || p.fecha > ultParto.fecha));
+  const hayServicioCiclo = insems.some(x => !ultParto || x.fecha > ultParto.fecha);
+  const palpManda = palpCiclo.find(p => p.manda)
+    || (!hayServicioCiclo ? palpCiclo[0] : null) || null;
 
   // El ultimo servicio manda: si hubo uno mas nuevo, ese ya reemplazo al anterior.
   if (ultInsem) {
@@ -1871,6 +1913,17 @@ function estado(a) {
     intervaloPartos = dias(partosReales[1].fecha, aFecha(partosReales[0].fecha));
   }
 
+  // La palpación marcada pisa lo calculado desde el servicio.
+  if (palpManda) {
+    const c = concepcionDePalpacion(palpManda);
+    const d = c ? dias(c) : null;
+    if (d !== null && d >= 0 && d <= par(a).gestacion + 40) {
+      prenada = true;
+      diasGest = d;
+      servicioValido = { fecha: c, dePalpacion: true, palpacionId: palpManda.id };
+    }
+  }
+
   const fechaProbableParto = prenada ? sumarDias(servicioValido.fecha, P.gestacion) : null;
   const fechaSecado = (prenada && P.lechero) ? sumarDias(servicioValido.fecha, P.secarDesde) : null;
   // Toca palpar si hay un servicio vigente que nadie ha confirmado todavia.
@@ -1892,17 +1945,6 @@ function estado(a) {
   const insemCiclo = insems.filter(x => x.fecha > desdeCiclo);
 
   // ---- Alerta de celo: parió y nadie la ha vuelto a servir ----
-  // La palpación marcada pisa lo calculado desde el servicio.
-  if (palpManda) {
-    const c = concepcionDePalpacion(palpManda);
-    const d = c ? dias(c) : null;
-    if (d !== null && d >= 0 && d <= par(a).gestacion + 40) {
-      prenada = true;
-      diasGest = d;
-      servicioValido = { fecha: c, dePalpacion: true, palpacionId: palpManda.id };
-    }
-  }
-
   const alertaCelo = calcularAlertaCelo(insemCiclo.length, ultPartoReal, a);
 
   // ---- Meses vacía ----
@@ -1913,8 +1955,10 @@ function estado(a) {
   const diasVacia = (yaServida || !ultPartoReal) ? 0 : dias(ultPartoReal.fecha);
 
   // ---- Meses gestación ----
-  const gestacion = (insemCiclo.length === 0 || alertaCelo || !ultInsem || dias(ultInsem.fecha) === 0)
-    ? "0" : textoCalendario(ultInsem.fecha);
+  // El texto de la gestación sale de la fecha que de verdad manda: puede ser
+  // el servicio o una palpación, y con toro solo hay palpación.
+  const gestacion = (!prenada || !servicioValido || dias(servicioValido.fecha) === 0)
+    ? "0" : textoCalendario(servicioValido.fecha);
   const diasDesdeServicio = (insemCiclo.length && !alertaCelo) ? dias(ultInsem.fecha) : null;
 
   // ---- Días transcurridos entre inseminación ----
@@ -3074,6 +3118,7 @@ function pedirNombre() {
    ========================================================== */
 let V = { vista: "activos", busca: "", finca: "todas", especie: "todas", sub: "todos",
           sel: null, railAbierto: false, acordeon: null, permisosQuien: "",
+          palpaModo: "servidas", palpaFinca: "todas",
           epoca: "semana", graficoLeche: "total" };
 const $ = (s) => document.querySelector(s);
 
@@ -4144,8 +4189,9 @@ function formAnimal(id) {
           <label class="recordar" style="margin:0">
             <input type="checkbox" name="sinPalpar" ${a.sinPalpar ? "checked" : ""}>
             <span>A esta no se le palpa
-            <em>Márcalo cuando el inseminador ya confirma la preñez y no hace falta
-            palparla. No saldrá en las alertas ni en la lista de palpar en grupo.</em></span>
+            <em>Márcalo cuando quien la sirve ya confirma la preñez y no hace falta
+            palparla. No saldrá en las alertas ni en la lista de palpar en grupo.
+            Sirve para cualquier especie.</em></span>
           </label></div>
 
         <!-- Solo para hembras adultas: historia previa a la app. Si ya tiene
@@ -5658,23 +5704,38 @@ function unificarPersonas() {
    los meses y los días, y la fecha de parto sale sola.
    ========================================================== */
 
-function abrirPalpacionGrupo() {
-  const candidatas = misAnimales()
+/** Hembras que se pueden palpar, según el modo elegido. */
+function candidatasPalpacion(modo, fincaId) {
+  return misAnimales()
     .filter(a => a.estado === "activo" && par(a).sirve && !a.sinPalpar)
+    .filter(a => fincaId === "todas" || a.fincaId === fincaId)
     .filter(a => {
       const e = estado(a);
+      // Con toro no hay servicio apuntado: en ese modo entran todas.
+      if (modo === "todas") return true;
       return e.ultInsem && !(e.ultParto && e.ultParto.fecha > e.ultInsem.fecha);
     })
     .sort((a, b) => {
       const fa = estado(a).fechaPalpacion || "9999", fb = estado(b).fechaPalpacion || "9999";
       return fa.localeCompare(fb) || a.nombre.localeCompare(b.nombre, "es");
     });
+}
 
-  if (!candidatas.length) {
-    return alert("No hay hembras servidas pendientes de palpar.\\n\\n" +
-      "Aparecen aquí las que tienen un servicio sin parto posterior y no están " +
-      "marcadas como «no se palpa».");
+function abrirPalpacionGrupo(modo, fincaId) {
+  V.palpaModo = modo || V.palpaModo || "servidas";
+  V.palpaFinca = fincaId || V.palpaFinca || (V.finca !== "todas" ? V.finca : "todas");
+  V.palpaSolo = false;
+  const candidatas = candidatasPalpacion(V.palpaModo, V.palpaFinca);
+
+  if (!candidatas.length && V.palpaModo === "servidas") {
+    if (confirm("No hay hembras con servicio registrado pendientes de palpar.\n\n" +
+        "Si en esa finca manejan monta natural, nadie apunta la fecha del servicio.\n\n" +
+        "¿Mostrar todas las hembras para palparlas de una vez?")) {
+      return abrirPalpacionGrupo("todas", V.palpaFinca);
+    }
+    return;
   }
+  if (!candidatas.length) return alert("No hay hembras para palpar con ese filtro.");
 
   const porFinca = {};
   candidatas.forEach(a => { (porFinca[a.fincaId] ||= []).push(a); });
@@ -5689,25 +5750,48 @@ function abrirPalpacionGrupo() {
         <div class="rej">
           <div class="campo"><label>Fecha de la palpación</label>
             <input type="date" name="fecha" value="${hoyISO()}" required></div>
-          <div class="campo"><label>Aplicar a</label>
-            <span class="ayuda" style="margin-top:9px">Solo se guardan las filas donde
-            marques un resultado. Las demás se dejan como están.</span></div>
+          <div class="campo"><label>Finca</label>
+            <select data-palpa-finca>
+              <option value="todas" ${V.palpaFinca === "todas" ? "selected" : ""}>Todas mis fincas</option>
+              ${misFincasObj().map(f => `<option value="${f.id}"
+                ${V.palpaFinca === f.id ? "selected" : ""}>${esc(f.nombre)}</option>`).join("")}
+            </select></div>
+          <div class="campo ancho"><label>¿A cuáles?</label>
+            ${seg("palpaModo", [["servidas","Solo las que tienen servicio apuntado"],
+                                ["todas","Todas las hembras (monta natural)"]], V.palpaModo)}
+            <span class="ayuda">${V.palpaModo === "todas"
+              ? "En monta natural nadie apunta la fecha del servicio, así que la palpación " +
+                "es la que dice si están preñadas y de cuánto. Sirve para cualquier especie."
+              : "Aparecen las que tienen un servicio sin parto posterior."}</span></div>
         </div>
 
         <div class="nota">Escribe de cuánto la encontró el veterinario. La fecha del parto
-        se calcula sola con meses de calendario.</div>
+        se calcula sola con meses de calendario. <strong>Solo se guardan las filas donde
+        marques un resultado</strong>, así que puedes buscar, marcar, borrar la búsqueda y
+        seguir con otra: lo marcado no se pierde.</div>
+
+        <div class="barra" style="margin-bottom:11px">
+          <div class="buscador"><span>⌕</span>
+            <input type="text" data-palpa-busca autocomplete="off"
+              placeholder="Buscar nombre, chapeta, finca o categoría…"></div>
+          <button type="button" class="btn" data-palpa-solo>Ver solo las marcadas</button>
+        </div>
+        <div class="palpa-conteo" data-palpa-conteo></div>
 
         ${Object.entries(porFinca).map(([fid, lista]) => `
           <h4 class="sub-titulo">${esc(nombreFinca(fid))} · ${lista.length}</h4>
           <div class="palpa-lista">
             ${lista.map(a => {
               const e = estado(a);
+              const macho = machoDe(par(a).especie);
               return `<div class="palpa-fila" data-animal="${a.id}">
                 <div class="palpa-quien">
                   <span class="chap">${esc(a.chapeta)}</span>
                   <div><strong>${esc(a.nombre)}</strong>
-                  <em>${e.ultInsem ? "última: " + fmtCorto(e.ultInsem.fecha) : "sin servicio"}
-                  ${e.fechaPalpacion ? " · palpar " + fmtCorto(e.fechaPalpacion) : ""}</em></div>
+                  <em>${CATEGORIAS[a.categoria]?.et || ""}${
+                    e.ultInsem ? " · servicio " + fmtCorto(e.ultInsem.fecha)
+                               : " · monta con " + macho}${
+                    e.fechaPalpacion ? " · palpar " + fmtCorto(e.fechaPalpacion) : ""}</em></div>
                 </div>
                 <div class="palpa-res">
                   ${[["", "—"], ["prenada", "Preñada"], ["vacia", "Vacía"]].map(([v, t]) => `
@@ -5731,6 +5815,22 @@ function abrirPalpacionGrupo() {
       </div>
     </form>`, true);
 
+  /* Cambiar el filtro rehace la lista, así que se avisa si hay marcas. */
+  const hayMarcas = () => hojaAbierta.querySelectorAll(".palpa-fila.marcada").length;
+  const rehacer = (modo, finca) => {
+    if (hayMarcas() && !confirm(
+        `Tienes ${hayMarcas()} fila(s) marcadas sin guardar. Al cambiar el filtro se pierden.\n\n` +
+        `Si vas a palpar de varias fincas, deja «Todas mis fincas» y usa el buscador.\n\n` +
+        `¿Cambiar de todos modos?`)) return false;
+    abrirPalpacionGrupo(modo, finca);
+    return true;
+  };
+  const selF = hojaAbierta.querySelector("[data-palpa-finca]");
+  if (selF) selF.onchange = () => { if (!rehacer(V.palpaModo, selF.value)) selF.value = V.palpaFinca; };
+  hojaAbierta.querySelectorAll("[name=palpaModo]").forEach(r =>
+    r.onchange = () => { if (!rehacer(r.value, V.palpaFinca)) {
+      hojaAbierta.querySelector(`[name=palpaModo][value="${V.palpaModo}"]`).checked = true; } });
+
   const fechaInp = hojaAbierta.querySelector("[name=fecha]");
   const refrescar = (fila) => {
     const idA = fila.dataset.animal;
@@ -5748,10 +5848,67 @@ function abrirPalpacionGrupo() {
       ? `Parto <strong>${fmtCorto(parto)}</strong><em>preñada desde ${fmtCorto(concepcionDePalpacion(v))}</em>`
       : "—";
   };
-  const todas = () => hojaAbierta.querySelectorAll(".palpa-fila").forEach(refrescar);
+  const conteo = hojaAbierta.querySelector("[data-palpa-conteo]");
+  const busca = hojaAbierta.querySelector("[data-palpa-busca]");
+  const btnSolo = hojaAbierta.querySelector("[data-palpa-solo]");
+  const btnGuardar = hojaAbierta.querySelector(".hoja-pie .btn-firme");
+
+  /* Filtrar solo esconde: lo marcado sigue ahí y se guarda igual. */
+  const filtrar = () => {
+    const q = busca.value;
+    let vistas = 0;
+    hojaAbierta.querySelectorAll(".palpa-fila").forEach(fila => {
+      const a = animal(fila.dataset.animal);
+      const texto = [a?.nombre, a?.chapeta, nombreFinca(a?.fincaId),
+                     CATEGORIAS[a?.categoria]?.et].filter(Boolean).join(" ");
+      const pasa = contiene(texto, q) &&
+        (!V.palpaSolo || fila.classList.contains("marcada"));
+      fila.hidden = !pasa;
+      if (pasa) vistas++;
+    });
+    // Los títulos de finca sin filas visibles se esconden.
+    hojaAbierta.querySelectorAll(".palpa-lista").forEach(g => {
+      const hay = [...g.querySelectorAll(".palpa-fila")].some(f => !f.hidden);
+      g.hidden = !hay;
+      const t = g.previousElementSibling;
+      if (t && t.classList.contains("sub-titulo")) t.hidden = !hay;
+    });
+    if (!vistas) conteo.insertAdjacentHTML("afterend", "");
+    return vistas;
+  };
+
+  const actualizarConteo = () => {
+    const marcadas = hojaAbierta.querySelectorAll(".palpa-fila.marcada").length;
+    const total = hojaAbierta.querySelectorAll(".palpa-fila").length;
+    const vistas = hojaAbierta.querySelectorAll(".palpa-fila:not([hidden])").length;
+    conteo.innerHTML = marcadas
+      ? `<strong>${marcadas}</strong> marcada${marcadas === 1 ? "" : "s"} de ${total}` +
+        (vistas !== total ? ` · viendo ${vistas}` : "")
+      : `${vistas === total ? total : vistas + " de " + total} sin marcar todavía`;
+    conteo.classList.toggle("hay", !!marcadas);
+    if (btnGuardar) {
+      btnGuardar.textContent = marcadas
+        ? `Guardar ${marcadas} ${marcadas === 1 ? "palpación" : "palpaciones"}`
+        : "Guardar las palpaciones";
+      btnGuardar.disabled = !marcadas;
+    }
+  };
+
+  busca.oninput = () => { filtrar(); actualizarConteo(); };
+  btnSolo.onclick = () => {
+    V.palpaSolo = !V.palpaSolo;
+    btnSolo.textContent = V.palpaSolo ? "Ver todas" : "Ver solo las marcadas";
+    btnSolo.classList.toggle("btn-firme", V.palpaSolo);
+    filtrar(); actualizarConteo();
+  };
+
+  const todas = () => {
+    hojaAbierta.querySelectorAll(".palpa-fila").forEach(refrescar);
+    actualizarConteo();
+  };
   hojaAbierta.querySelectorAll(".palpa-fila").forEach(fila => {
-    fila.addEventListener("input", () => refrescar(fila));
-    fila.addEventListener("change", () => refrescar(fila));
+    fila.addEventListener("input", () => { refrescar(fila); actualizarConteo(); });
+    fila.addEventListener("change", () => { refrescar(fila); actualizarConteo(); });
   });
   fechaInp.oninput = todas;
   todas();
@@ -6756,8 +6913,21 @@ function escucharTodo() {
         return rechazarAcceso(correo);
       }
       const datos = snap.data();
+      const rolAntes = FB.rolRemoto, fincasAntes = (FB.fincasRemotas || []).join(",");
       FB.rolRemoto = datos.rol || null;
       FB.personaRemota = datos.persona || null;
+      FB.fincasRemotas = datos.fincas || [];
+
+      // Si le cambiaron el rol o las fincas, lo que tenga abierto ya no vale.
+      const cambioRol = rolAntes && rolAntes !== FB.rolRemoto;
+      const cambioFincas = fincasAntes && fincasAntes !== FB.fincasRemotas.join(",");
+      if ((cambioRol || cambioFincas) && S.persona) {
+        if (typeof hojaAbierta !== "undefined" && hojaAbierta) cerrarHoja();
+        V.sel = null;
+        setTimeout(() => avisar(cambioRol
+          ? `Tu rol cambió a ${ROLES[FB.rolRemoto]?.et || FB.rolRemoto}`
+          : "Cambiaron las fincas a tu cargo"), 400);
+      }
 
       // Si alguien lo puso inactivo, sale de inmediato aunque esté trabajando.
       if (datos.activo === false) {
@@ -9245,9 +9415,53 @@ function error(f, msg) {
   a.textContent = msg; a.hidden = false;
 }
 
+/**
+ * Comprueba el permiso EN EL MOMENTO DE GUARDAR, no solo al dibujar.
+ * Si a alguien le quitan la finca o le bajan el rol con un formulario
+ * abierto, no puede guardar lo que ya no le corresponde.
+ */
+function permitidoGuardar(tipo, id, v) {
+  const mias = misFincas();
+  const enMiFinca = (fid) => !fid || mias.includes(fid);
+
+  if (tipo === "finca") {
+    if (id) return puedoEditarFinca(finca(id)) || "Esa finca ya no está a tu cargo.";
+    return puede("editaFinca") || "No tienes permiso para crear fincas.";
+  }
+  if (tipo === "persona") return true;          // ya se valida aparte, por rango
+
+  if (tipo === "animal") {
+    if (id) {
+      const a = animal(id);
+      if (!a) return "Ese animal ya no existe.";
+      if (!enMiFinca(a.fincaId)) return "Ese animal ya no está en una finca tuya.";
+      if (!puedoEditarAnimal(a)) return mensajeBloqueo(a);
+    } else if (!puede("editaAnimal")) return "No tienes permiso para añadir animales.";
+    if (!enMiFinca(v.fincaId)) return "No puedes poner un animal en una finca que no es tuya.";
+    return true;
+  }
+
+  // Eventos: tienen que caer en una finca propia y sobre un animal propio.
+  if (!puede("eventos")) return "No tienes permiso para registrar eventos.";
+  if (v.animalId) {
+    const a = animal(v.animalId);
+    if (!a) return "Ese animal ya no existe.";
+    if (!enMiFinca(a.fincaId)) return "Ese animal ya no está en una finca tuya.";
+    if (!puedoEditarAnimal(a)) return mensajeBloqueo(a);
+  }
+  if (!enMiFinca(v.fincaId)) return "Esa finca ya no está a tu cargo.";
+  return true;
+}
+
 function enviar(f) {
   const [tipo, id] = f.dataset.guardar.split(":");
   const v = datos(f);
+
+  const permiso = permitidoGuardar(tipo, id, v);
+  if (permiso !== true) {
+    return error(f, permiso + " Puede que te hayan cambiado los permisos mientras tenías " +
+                    "esto abierto.");
+  }
   const nuevo = (o) => ({ id: uid(), creadoPor: S.persona?.id || null, ...o });
 
   if (tipo === "animal") {
