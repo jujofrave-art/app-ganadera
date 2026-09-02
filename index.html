@@ -32,7 +32,7 @@
   /* Lo que NO se invierte: la chapeta siempre es amarilla con letra oscura,
      y la barra lateral siempre es verde oscuro. */
   --sobre-chapeta:#16241c;
-  --rail-bg:#16241c; --rail-fg:#edefe8;
+  --rail-bg:#16241c; --rail-fg:#edefe8; --velo-rgb:22,36,28;
   /* Sobre el menú lateral, que siempre es oscuro, hacen falta tonos claros */
   --pasto-rail:#8fd6a0; --hierro-rail:#f0a08c;
   --firme-bg:#16241c; --firme-bg2:#2c3f34; --firme-fg:#edefe8;
@@ -72,7 +72,7 @@
   --ambar-rgb:224,185,63;  --hierro-rgb:232,144,122;
 
   --sobre-chapeta:#16241c;
-  --rail-bg:#0a110d; --rail-fg:#e6ebe4;
+  --rail-bg:#0a110d; --rail-fg:#e6ebe4; --velo-rgb:10,17,13;
   --pasto-rail:#8fd6a0; --hierro-rail:#f0a08c;
   --firme-bg:#2f7048; --firme-bg2:#3a8657; --firme-fg:#f2f8f3;
 
@@ -334,7 +334,7 @@ tr.grupo .n{opacity:.55;margin-left:6px}
   width:7px;height:7px;border-radius:50%;background:var(--sobre-chapeta);opacity:.55}
 @keyframes brota{from{opacity:0;transform:translateY(9px)}to{opacity:var(--o);transform:none}}
 .portada-texto{position:relative;z-index:2;text-align:center;padding:34px;
-  background:radial-gradient(closest-side,rgba(var(--tinta-rgb),.97) 55%,rgba(var(--tinta-rgb),0));}
+  background:radial-gradient(closest-side,rgba(var(--velo-rgb),.94) 52%,rgba(var(--velo-rgb),0));}
 .portada-texto h1{font-family:var(--display);font-size:52px;font-weight:800;letter-spacing:-.04em;
   line-height:.95;color:var(--papel);margin:16px 0 12px}
 .portada-texto p{color:rgba(var(--papel-rgb),.62);font-size:14px;margin:0;max-width:290px;
@@ -454,7 +454,8 @@ details.panel:not([open])>summary{border-bottom:0}
 .codigo pre{margin:0;padding:13px;overflow-x:auto;background:var(--rail-bg);color:#dfe6dc;
   font-family:var(--dato);font-size:11.5px;line-height:1.6}
 
-.sync{font-family:var(--dato);font-size:10.5px;letter-spacing:.05em;padding:5px 2px;
+.sync{font-family:var(--dato);font-size:10.5px;letter-spacing:.03em;padding:5px 2px;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.45;
   color:rgba(var(--papel-rgb),.5)}
 .sync.listo{color:var(--pasto-rail)}
 .sync.error{color:var(--hierro-rail)}
@@ -761,11 +762,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.32.0";
+const VERSION = "1.33.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.33.0", "2 sep 2026", [
+    "Arreglado: el contador «Subiendo…» podía quedarse pegado para siempre. Ahora se " +
+      "confirma con Firestore y se revisa solo cada doce segundos.",
+    "En modo oscuro, el resplandor de la portada tapaba el texto.",
+    "El indicador de sincronización ya no se corta en el menú.",
+    "Configuración abre con todos los paneles cerrados.",
+    "Al añadir desde una sección de personal, el rol ya viene fijo y no se puede cambiar.",
+    "Botón para volver al recorte de fechas después de bajar todo el historial, en cada " +
+      "tabla y en Configuración.",
+  ]],
   ["1.32.0", "2 sep 2026", [
     "Recupera las fincas que quedaron atadas a fichas viejas del mismo correo. Antes no " +
       "podía verlas: las fincas estaban en las fichas duplicadas, y las fichas duplicadas " +
@@ -3120,7 +3131,16 @@ function fichas(lista) {
 }
 /** Avisa cuando la lista puede estar incompleta por el recorte de fechas. */
 function avisoRecorte(coleccion) {
-  if (!historialRecortado() || !CON_VENTANA[coleccion]) return "";
+  if (!CON_VENTANA[coleccion] || !FB.user) return "";
+
+  // Cuando está bajando todo, se ofrece volver al recorte.
+  if (FB.todoElHistorial) return `<div class="nota" style="display:flex;
+    align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
+    <span>Estás viendo <strong>todo el historial</strong>, sin recorte de fechas.</span>
+    <button class="btn btn-sm" data-acc="volver-recorte">Volver a los últimos meses</button>
+  </div>`;
+
+  if (!historialRecortado()) return "";
   return `<div class="nota recorte">
     Solo se muestran los registros desde el <strong>${fmt(FB.corte)}</strong>.
     Lo anterior sigue guardado en Firebase.
@@ -3601,6 +3621,11 @@ function vLeche() {
             ["finca","De la finca",total.filter(r=>!r.animalId).length],
             ["animal","Por animal",total.filter(r=>r.animalId).length]])}
 
+  ${FB.todoElHistorial && FB.user ? `<div class="nota" style="display:flex;align-items:center;
+      gap:11px;justify-content:space-between;flex-wrap:wrap">
+      <span>Estás viendo <strong>todo el historial</strong> de leche.</span>
+      <button class="btn btn-sm" data-acc="volver-recorte">Volver a los últimos meses</button>
+    </div>` : ""}
   ${historialRecortado() ? `<div class="nota recorte">
       ${epoca === "anio" || epoca === "mes"
         ? "Ojo con este resumen: solo entra la leche desde el " + fmt(FB.corte) + ", " +
@@ -4044,9 +4069,9 @@ function formFinca(id) {
       </div></form>`);
 }
 
-function formPersona(id, rol) {
+function formPersona(id, rolPre) {
   const p = id ? persona(id)
-              : { nombre:"", rol: rol || "empleado", correo:"", telefono:"", documento:"", notas:"", activo:true };
+              : { nombre:"", rol: rolPre || "empleado", correo:"", telefono:"", documento:"", notas:"", activo:true };
   abrirHoja(`
     <div class="hoja-cab"><h2>${id === S.persona?.id ? "Mis datos"
         : id ? "Editar persona" : `Añadir ${ROLES[p.rol].et.toLowerCase()}`}</h2>
@@ -4059,11 +4084,26 @@ function formPersona(id, rol) {
         <div class="campo"><label>Nombre completo</label>
           <input name="nombre" value="${esc(p.nombre)}" required
             ${p.nombrePorDefecto ? "autofocus placeholder=\"Juan José Franco\"" : ""}></div>
-        <div class="campo"><label>Rol</label><select name="rol" ${!esSuper() && id ? "disabled" : ""}>
-          ${Object.entries(ROLES)
-            .filter(([k]) => esSuper() || rolesQuePuedoCrear().includes(k) || k === p.rol)
-            .map(([k,v])=>`<option value="${k}" ${p.rol===k?"selected":""}>${v.et}</option>`).join("")}
-        </select>${!esSuper() && id ? '<span class="ayuda">Solo un superadministrador cambia el rol de alguien ya registrado.</span>' : ""}</div>
+        ${(() => {
+          // Al añadir desde una sección, el rol es el de esa sección y no se elige.
+          const fijo = !id && !!rolPre;
+          const bloqueado = fijo || (!esSuper() && id);
+          const opciones = fijo
+            ? [[p.rol, ROLES[p.rol]]]
+            : Object.entries(ROLES).filter(([k]) =>
+                esSuper() || rolesQuePuedoCrear().includes(k) || k === p.rol);
+          return `<div class="campo"><label>Rol</label>
+            <select name="rol" ${bloqueado ? "disabled" : ""}>
+              ${opciones.map(([k,v]) =>
+                `<option value="${k}" ${p.rol===k?"selected":""}>${v.et}</option>`).join("")}
+            </select>
+            ${fijo ? `<span class="ayuda">Lo estás añadiendo desde ${ROLES[p.rol].plural}.
+              Para otro rol, entra a su sección.</span>`
+             : bloqueado ? '<span class="ayuda">Solo un superadministrador cambia el rol de alguien ya registrado.</span>'
+             : ""}
+            ${bloqueado ? `<input type="hidden" name="rol" value="${p.rol}">` : ""}
+          </div>`;
+        })()}
         <div class="campo"><label>Correo</label><input type="email" name="correo" value="${esc(p.correo)}"></div>
         <div class="campo"><label>Teléfono</label><input name="telefono" value="${esc(p.telefono)}"></div>
         <div class="campo"><label>Documento</label><input name="documento" value="${esc(p.documento)}"></div>
@@ -6650,6 +6690,10 @@ async function empujar() {
     pintar();
     sincronizarUsuarios();
     subirFotos();
+    // Confirmación de verdad: no todos los documentos vuelven por una escucha
+    // (una persona de otra finca, por ejemplo), así que el contador se quedaba
+    // pegado. Esto lo cierra cuando Firestore acusa recibo de todo.
+    esperarSubida();
   } finally {
     empujando = false;
   }
@@ -6657,7 +6701,8 @@ async function empujar() {
 
 /** ¿Quedó todo guardado en el servidor? */
 async function esperarSubida() {
-  if (!FB.db) return false;
+  if (!FB.db || FB.esperando) return false;
+  FB.esperando = true;
   try {
     await FB.mods.fs.waitForPendingWrites(FB.db);
     for (const k in FB.sinConfirmar) FB.sinConfirmar[k].clear();
@@ -6665,6 +6710,15 @@ async function esperarSubida() {
     pintar();
     return true;
   } catch { return false; }
+  finally { FB.esperando = false; }
+}
+
+/* Red de seguridad: si el contador lleva rato sin bajar y hay señal,
+   se vuelve a preguntar. Antes podía quedarse en «Subiendo 2» para siempre. */
+if (typeof window !== "undefined") {
+  setInterval(() => {
+    if (FB.db && FB.user && FB.sinSubir > 0 && navigator.onLine !== false) esperarSubida();
+  }, 12000);
 }
 
 /* Avisar cuando vuelve la señal, para que se note que está subiendo. */
@@ -7161,6 +7215,17 @@ function traerTodoElHistorial() {
   avisar("Bajando todo el historial…");
 }
 
+/** Vuelve a limitar la descarga a la ventana configurada. */
+function volverAlRecorte() {
+  if (!FB.db || !FB.user) return;
+  FB.todoElHistorial = false;
+  if (!D.config.ventanaMeses) D.config.ventanaMeses = 24;
+  guardar();
+  FB.claveFincas = null;
+  escucharColecciones(misFincas());
+  avisar(`Volviendo a los últimos ${D.config.ventanaMeses} meses`);
+}
+
 /** ¿Hay cosas más viejas que la ventana que no están bajadas? */
 const historialRecortado = () => !!FB.corte && !FB.todoElHistorial && !!FB.user;
 
@@ -7614,8 +7679,8 @@ function bloqueCodigo(txt, etiqueta) {
 }
 
 /* El acordeón recuerda qué paneles dejaste abiertos. */
-V.acordeon ??= new Set([0]);
-const abierto = (n) => V.acordeon.has(n) ? "open" : "";
+V.acordeon ??= new Set();   // todo cerrado al entrar
+const abierto = (n) => (V.acordeon ||= new Set()).has(n) ? "open" : "";
 
 function vConfiguracion() {
   let ACORD = 0;
@@ -7994,6 +8059,7 @@ function vConfiguracion() {
         <div class="fila-btn">
           <button class="btn btn-firme">Guardar</button>
           ${historialRecortado() ? '<button type="button" class="btn" data-acc="todo-historial">Bajar todo ahora</button>' : ""}
+        ${FB.todoElHistorial && FB.user ? '<button type="button" class="btn" data-acc="volver-recorte">Volver al recorte</button>' : ""}
         </div>
       </form>
 
@@ -9173,6 +9239,7 @@ conectarFirebase(true);
       : `<div class="nota" style="margin-top:12px">No hay nada anterior a esa fecha.</div>`;
     return;
   }
+  if (a === "volver-recorte") { volverAlRecorte(); pintar(); return; }
   if (a === "todo-historial") {
     if (!confirm("Se va a bajar todo el historial de tus fincas, sin recorte de fechas.\n\n" +
                  "En una finca con años de registros puede tardar y consumir datos. ¿Continuar?")) return;
