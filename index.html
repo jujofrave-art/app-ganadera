@@ -800,11 +800,27 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.40.0";
+const VERSION = "1.42.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.42.0", "2 sep 2026", [
+    "ARREGLO GRAVE: «Ver todo el historial» podía borrar de la pantalla todas las fincas " +
+      "y los animales. Usaba la lista local de fincas, que a veces viene vacía; ahora usa " +
+      "la del documento de usuario, que es la que manda.",
+    "Guarda de seguridad: si llega una lista de fincas vacía pero el usuario sí tiene, " +
+      "la app no borra nada.",
+    "El diagnóstico ahora prueba escribir en cada colección y dice exactamente cuál rechaza " +
+      "Firebase y por qué.",
+    "En la ficha del animal aparece «Volver al rango normal» después de traer todo.",
+    "Si falta el índice para el historial de un animal, lo dice claro en vez de quedarse vacío.",
+  ]],
+  ["1.41.0", "2 sep 2026", [
+    "Arreglado: al quitarle una finca a alguien, las fotos de esos animales se quedaban " +
+      "guardadas en su equipo. La limpieza usaba la clave anterior a separar los datos " +
+      "por usuario.",
+  ]],
   ["1.40.0", "2 sep 2026", [
     "El permiso se comprueba al guardar, no solo al dibujar. Si te quitan una finca o te " +
       "bajan el rol con un formulario abierto, ya no se puede guardar eso.",
@@ -4086,9 +4102,14 @@ function fichaAnimal(id) {
         <div><dt>${dias(e.fechaPalpacion) >= 0 ? "Vencida hace" : "Faltan"}</dt><dd>${Math.abs(dias(e.fechaPalpacion))} días</dd></div>
       </dl>` : ""}
 
-      ${historialRecortado() ? `<div class="nota" data-pedir-historial="${id}">
-        Se están mostrando los últimos ${D.config.ventanaMeses || 24} meses.
-        <button class="btn btn-sm" style="margin-left:8px">Ver todo el historial</button></div>` : ""}
+      ${FB.user && FB.todoElHistorial ? `<div class="nota" style="display:flex;
+        align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
+        <span>Estás viendo <strong>todo su historial</strong>, sin recorte de fechas.</span>
+        <button class="btn btn-sm" data-acc="volver-recorte">Volver al rango normal</button>
+      </div>` : historialRecortado() ? `<div class="nota" data-pedir-historial="${id}"
+        style="display:flex;align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
+        <span>Se están mostrando los últimos ${D.config.ventanaMeses || 24} meses.</span>
+        <button class="btn btn-sm">Ver todo su historial</button></div>` : ""}
 
       ${a.detalles ? `<div class="seccion"><h3>Detalles</h3><p class="mini" style="font-style:normal;color:var(--tinta2)">${esc(a.detalles)}</p></div>` : ""}
 
@@ -7181,7 +7202,7 @@ function paraRemoto(col, doc) {
 FB.borrados = {};
 
 function borrarRemoto(coleccion, id) {
-  (FB.borrados[coleccion] ||= new Set()).add(id);
+  ((FB.borrados ||= {})[coleccion] ||= new Set()).add(id);
   if (FB.espejo?.[coleccion]) delete FB.espejo[coleccion][id];
   for (const cajon of Object.values(FB.cajones?.[coleccion] || {})) {
     const i = cajon.findIndex(x => x.id === id);
@@ -7190,7 +7211,7 @@ function borrarRemoto(coleccion, id) {
   if (!FB.db || !FB.user || !FB.mods) return;
   const { fs } = FB.mods;
   fs.deleteDoc(fs.doc(FB.db, coleccion, id))
-    .then(() => { FB.borrados[coleccion]?.delete(id); })
+    .then(() => { FB.borrados?.[coleccion]?.delete(id); })
     .catch((e) => {
       // Sin señal Firestore lo encola y llega solo; un rechazo real sí se avisa.
       if (!/unavailable|network|offline/i.test(String(e?.code || e))) {
@@ -7200,7 +7221,7 @@ function borrarRemoto(coleccion, id) {
 }
 
 /** ¿Está pendiente de borrarse? Entonces ninguna escucha debe reponerlo. */
-const estaBorrado = (coleccion, id) => !!FB.borrados[coleccion]?.has(id);
+const estaBorrado = (coleccion, id) => !!FB.borrados?.[coleccion]?.has(id);
 
 function recalcularPendientes() {
   FB.sinConfirmar ||= {};
@@ -7717,6 +7738,12 @@ async function cargarFoto(animalId) {
  * espacio hasta que llegara la primera actualización.
  */
 function soltarFincasAjenas(mias) {
+  // Guarda de seguridad: si llega una lista vacía pero el documento de
+  // usuario dice que sí hay fincas, algo va mal. Antes que borrar, no hacer nada.
+  if (!mias.length && FB.fincasRemotas?.length) {
+    console.warn("Se ignoró un soltado con lista vacía: el usuario sí tiene fincas.");
+    return 0;
+  }
   const set = new Set(mias);
   let n = 0;
   for (const col of COLECCIONES) {
@@ -7731,12 +7758,15 @@ function soltarFincasAjenas(mias) {
     D[col] = (D[col] || []).filter(x => !x.fincaId || set.has(x.fincaId));
     n += antes - D[col].length;
   }
-  // Y las fotos que quedaron sueltas en el disco.
+  // Y las fotos que quedaron sueltas en el disco. Van bajo la clave de cada
+  // persona desde que los datos se separaron por usuario.
   const vivos = new Set(D.animales.map(a => a.id));
+  const pre = (CLAVE_DATOS || CLAVE) + "-f-";
   try {
     for (const k of Object.keys(localStorage)) {
-      if (k.startsWith(CLAVE + "-f-") && !vivos.has(k.slice((CLAVE + "-f-").length))) {
+      if (k.startsWith(pre) && !vivos.has(k.slice(pre.length))) {
         localStorage.removeItem(k);
+        _fotosEnDisco?.delete(k.slice(pre.length));
       }
     }
   } catch {}
@@ -7760,6 +7790,7 @@ async function cargarHistorialAnimal(animalId) {
 
   const { fs } = FB.mods;
   let trajo = 0;
+  const fallos = [];
   for (const col of Object.keys(CON_VENTANA)) {
     if (col === "leche") continue;                // la leche no cuelga del animal
     try {
@@ -7770,20 +7801,43 @@ async function cargarHistorialAnimal(animalId) {
       ((FB.cajones[col] ||= {}))["hist:" + animalId] = docs;
       D[col] = recombinar(col);
       trajo += docs.length;
-    } catch (e) { console.warn("historial:", errorFB(e)); }
+    } catch (e) {
+      const m = String(e?.message || e);
+      const url = (m.match(/https:\/\/console\.firebase\.google\.com\S+/) || [])[0];
+      if (url) (FB.indicesFaltantes ||= {})["historial de " + col] = url;
+      fallos.push(col);
+      console.warn("historial:", m);
+    }
   }
   guardarLocal();
   pintar();
+  if (fallos.length) {
+    FB.historial.delete(animalId);   // para poder reintentar
+    alert(`No se pudo bajar el historial de ${fallos.join(", ")}.\n\n` +
+      `Falta un índice en Firestore que combine finca y animal.\n\n` +
+      `Ve a Configuración → «¿Por qué no cargan los datos?» y usa el botón para crearlos.`);
+  }
   return trajo;
 }
 
 /** Quita el recorte y vuelve a suscribir con todo el historial. */
+/**
+ * Las fincas que manda el documento de usuario. Es la fuente de verdad:
+ * la lista local puede venir vacía si las personas todavía no han bajado,
+ * y usarla para resuscribir borraba todo lo que había en pantalla.
+ */
+function fincasAutorizadas() {
+  if (FB.fincasRemotas?.length) return [...FB.fincasRemotas];
+  const p = D.personas.find(x => x.id === S.persona?.id);
+  if (p?.fincas?.length) return [...p.fincas];
+  return misFincas();
+}
+
 function traerTodoElHistorial() {
   if (!FB.db || !FB.user) return;
   FB.todoElHistorial = true;
   FB.claveFincas = null;         // fuerza a resuscribir
-  const mias = D.personas.find(p => p.id === S.persona?.id)?.fincas || [];
-  escucharColecciones(mias);
+  escucharColecciones(fincasAutorizadas());
   avisar("Bajando todo el historial…");
 }
 
@@ -7794,7 +7848,7 @@ function volverAlRecorte() {
   if (!D.config.ventanaMeses) D.config.ventanaMeses = 24;
   guardar();
   FB.claveFincas = null;
-  escucharColecciones(misFincas());
+  escucharColecciones(fincasAutorizadas());
   avisar(`Volviendo a los últimos ${D.config.ventanaMeses} meses`);
 }
 
@@ -8005,12 +8059,40 @@ async function diagnosticar() {
     await probar(col, filtros, `Leer ${col}${corte ? " (con recorte de fechas)" : ""}`);
   }
 
-  // 3. Escritura
+  // 3. Escritura de verdad en cada colección, con borrado inmediato.
+  const finca1 = trozo[0];
+  const prueba = {
+    animales:       { fincaId: finca1, nombre: "PRUEBA", chapeta: "__test__", categoria: "vaca",
+                      estado: "activo", tieneFoto: false, hechas: {}, partosPrevios: 0 },
+    partos:         { fincaId: finca1, animalId: "__test__", tipo: "parto", fecha: hoyISO() },
+    inseminaciones: { fincaId: finca1, animalId: "__test__", fecha: hoyISO(), aplicaciones: [] },
+    palpaciones:    { fincaId: finca1, animalId: "__test__", fecha: hoyISO(), resultado: "vacia" },
+    secados:        { fincaId: finca1, animalId: "__test__", fecha: hoyISO(), motivo: "ventana" },
+    tratamientos:   { fincaId: finca1, animalId: "__test__", tipo: "PRUEBA", inicio: hoyISO() },
+    leche:          { fincaId: finca1, fecha: hoyISO(), litros: 1, dias: 1, momento: "total" },
+    anotaciones:    { fincaId: finca1, fecha: hoyISO(), texto: "PRUEBA" },
+    fotos:          { fincaId: finca1, dato: "prueba" },
+  };
+  for (const [col, datos] of Object.entries(prueba)) {
+    const ref = fs.doc(FB.db, col, "__diagnostico__");
+    try {
+      await fs.setDoc(ref, datos);
+      await fs.deleteDoc(ref);
+      paso(`Escribir en ${col}`, "ok");
+    } catch (e) {
+      const cod = String(e?.code || "");
+      paso(`Escribir en ${col}`, "mal",
+        cod.includes("permission-denied")
+          ? "Las reglas lo rechazan. Vuelve a publicarlas desde el paso 3 de Configuración."
+          : String(e?.message || e));
+    }
+  }
+
   try {
     await fs.setDoc(fs.doc(FB.db, "usuarios", correo), { revisado: new Date().toISOString() }, { merge: true });
-    paso("Escribir", "ok", "Se pudo actualizar tu documento de usuario.");
+    paso("Escribir tu usuario", "ok");
   } catch (e) {
-    paso("Escribir", "mal", errorFB(e));
+    paso("Escribir tu usuario", "mal", errorFB(e));
   }
 
   return out;
@@ -9787,7 +9869,7 @@ conectarFirebase(true);
     FB.fallos = {};
     FB.estado = "listo"; FB.error = "";
     FB.claveFincas = null;
-    escucharColecciones(misFincas());
+    escucharColecciones(fincasAutorizadas());
     pintar();
     avisar("Volviendo a intentar con los índices nuevos…");
     setTimeout(async () => {
@@ -9844,7 +9926,7 @@ conectarFirebase(true);
     D.config.ventanaMeses = 0;
     FB.todoElHistorial = true;
     guardar();
-    if (FB.user) { FB.claveFincas = null; escucharColecciones(misFincas()); }
+    if (FB.user) { FB.claveFincas = null; escucharColecciones(fincasAutorizadas()); }
     pintar();
     avisar("Se bajará todo el historial, sin necesidad de índices");
     return;
