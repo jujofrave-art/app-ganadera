@@ -186,7 +186,12 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .hoja-cab .sub{margin-top:2px}
 .cerrar{background:none;border:0;color:var(--tenue);font-size:22px;line-height:1;padding:2px 8px;border-radius:6px}
 .cerrar:hover{background:rgba(var(--tinta-rgb),.07);color:var(--tinta)}
-.hoja-cuerpo{padding:18px 22px;overflow-y:auto;flex:1}
+/* El <form> va entre la hoja y el cuerpo: si no hereda el diseño flexible,
+   crece sin límite y empuja los botones fuera de la pantalla. */
+.hoja>form{display:flex;flex-direction:column;flex:1;min-height:0}
+.hoja-cuerpo{padding:18px 22px;overflow-y:auto;flex:1;min-height:0;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.hoja-pie{flex:none}
 .hoja-pie{padding:13px 22px 17px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--linea);flex-wrap:wrap}
 .hoja-pie .btn-baja{margin-right:auto}
 
@@ -488,6 +493,35 @@ details.panel:not([open])>summary{border-bottom:0}
   .barra-et{font-size:9px}
 }
 
+/* ---------- palpar en grupo ---------- */
+.palpa-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.palpa-fila{display:grid;grid-template-columns:1.5fr 1.1fr 1.1fr 1fr;gap:11px;align-items:center;
+  border:1px solid var(--linea);border-radius:9px;padding:9px 11px;background:var(--alto)}
+.palpa-fila.marcada{border-color:var(--pasto);background:rgba(var(--pasto-rgb),.07)}
+.palpa-quien{display:flex;align-items:center;gap:9px;min-width:0}
+.palpa-quien strong{display:block;font-size:13.5px}
+.palpa-quien em{font-style:normal;font-family:var(--dato);font-size:10.5px;color:var(--tenue);
+  display:block;margin-top:1px}
+.palpa-res{display:flex;gap:4px;flex-wrap:wrap}
+.palpa-res label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;
+  border:1px solid var(--linea);border-radius:6px;padding:4px 7px}
+.palpa-res label:has(input:checked){border-color:var(--pasto);background:rgba(var(--pasto-rgb),.12)}
+.palpa-res input{width:13px;height:13px;accent-color:var(--pasto);margin:0}
+.palpa-nums{display:flex;gap:6px}
+.palpa-nums label{display:flex;flex-direction:column;gap:2px;font-size:10px;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--tenue);font-family:var(--dato)}
+.palpa-nums input{width:58px;padding:6px 7px;border:1px solid var(--linea);border-radius:6px;
+  background:var(--alto);color:var(--tinta);font-size:14px}
+.palpa-calc{font-size:12px;color:var(--tinta2);text-align:right}
+.palpa-calc em{font-style:normal;display:block;font-size:10.5px;color:var(--tenue);
+  font-family:var(--dato)}
+@media(max-width:860px){
+  .palpa-fila{grid-template-columns:1fr;gap:8px}
+  .palpa-calc{text-align:left}
+  .palpa-nums input{width:100%;font-size:16px}
+  .palpa-nums label{flex:1}
+}
+
 /* ---------- diagnóstico ---------- */
 .diag{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
 .diag li{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linea);
@@ -762,11 +796,43 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.33.0";
+const VERSION = "1.36.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.36.0", "2 sep 2026", [
+    "Ya no hay que palpar a todas: cada hembra se puede marcar como «a esta no se le palpa», " +
+      "y desaparece de las alertas y de la lista de palpar.",
+    "Pantalla para palpar en grupo, como la de AppSheet: una fila por hembra servida, se " +
+      "escriben los meses y los días, y la fecha del parto sale sola.",
+    "La palpación ahora se registra en meses y días de gestación, no en días sueltos. De ahí " +
+      "se calcula cuándo quedó preñada y cuándo pare, con meses de calendario reales.",
+    "Se puede marcar una palpación para que mande sobre la fecha de la inseminación: todos " +
+      "los cálculos salen de ella.",
+    "Arreglado: la alerta de palpar se callaba a los 85 días y la vaca se perdía en " +
+      "silencio. Ahora insiste mientras palpar sirva de algo.",
+  ]],
+  ["1.35.0", "2 sep 2026", [
+    "«Número de intento» en la ficha del animal: cuántos servicios lleva desde su último " +
+      "parto o aborto. Se reinicia en cero con cada parto y con cada aborto.",
+    "Varias pajillas en un mismo servicio siguen contando como un solo intento.",
+    "Debajo dice desde cuándo cuenta, y aparte se muestra el total de inseminaciones de " +
+      "toda su vida.",
+  ]],
+  ["1.34.0", "2 sep 2026", [
+    "Una persona inactiva ya no puede entrar, y si la desactivan mientras trabaja se le " +
+      "cierra la sesión en el momento. Las reglas de Firestore también lo bloquean.",
+    "Cada quien ve su propia sección de personal, pero ahí solo se encuentra a sí mismo.",
+    "Arreglado: en los formularios largos los botones Guardar y Cancelar se salían de la " +
+      "pantalla y no se podía bajar.",
+    "Al añadir otra pajilla, la vista baja sola hasta la fila nueva.",
+    "La fecha y el motivo de salida solo aparecen si el animal está vendido o muerto, y " +
+      "ahora son obligatorios en ese caso.",
+    "«Partos anteriores» pasa a llamarse «Total partos». Si el animal ya tiene partos " +
+      "registrados, el total y la fecha del último se calculan de ellos y no se escriben.",
+    "El bloque de historia previa solo aparece en hembras adultas, no en machos ni en levante.",
+  ]],
   ["1.33.0", "2 sep 2026", [
     "Arreglado: el contador «Subiendo…» podía quedarse pegado para siempre. Ahora se " +
       "confirma con Firestore y se revisa solo cada doce segundos.",
@@ -1294,6 +1360,16 @@ function difCalendario(desde, hasta) {
   return { meses: Math.max(0, meses), dias: Math.max(0, dias) };
 }
 
+/** Resta meses de calendario sin pasarse de fin de mes (31 ene − 1 mes = 28 feb). */
+function restarMeses(iso, n) {
+  const d = aFecha(iso);
+  const dia = d.getDate();
+  const t = new Date(d.getFullYear(), d.getMonth() - (Number(n) || 0), 1, 12);
+  const ultimo = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  t.setDate(Math.min(dia, ultimo));
+  return t;
+}
+
 /** "8 meses y 4 días", "21 días", "3 meses" o "0". */
 function textoCalendario(desde, hasta) {
   const d = difCalendario(desde, hasta);
@@ -1561,6 +1637,14 @@ function migrar(d) {
   d.personas ||= [];
   d.secados ||= [];
   d.leche ||= [];
+  (d.palpaciones || []).forEach(p => {
+    // Antes solo se guardaban días sueltos; ahora meses + días de calendario.
+    if (p.mesesGest === undefined && p.diasGestacion != null) {
+      p.mesesGest = Math.floor(Number(p.diasGestacion) / 30.44) || 0;
+      p.diasGest = Math.max(0, Math.round(Number(p.diasGestacion) - p.mesesGest * 30.44));
+    }
+    p.mesesGest ??= 0; p.diasGest ??= 0; p.manda ??= false;
+  });
   d.config ||= {};
   // Si el archivo viene publicado con la configuración adentro, se usa esa,
   // salvo que en este equipo alguien la haya quitado a propósito.
@@ -1641,6 +1725,7 @@ function migrar(d) {
     a.raza ??= "";
     a.foto ??= null;
     a.tieneFoto ??= !!a.foto;
+    a.sinPalpar ??= false;   // hembras que no se palpan
     a.hechas ??= {};   // alertas que alguien ya marcó como cumplidas
   }
   (d.inseminaciones || []).forEach(i => {
@@ -1753,6 +1838,11 @@ function estado(a) {
 
   let prenada = false, diasGest = null, servicioValido = null;
 
+  // Si la persona marcó una palpación como la que manda, esa define la
+  // gestación: puede ser más fiable que la fecha del servicio.
+  const palpManda = palps.find(p => p.manda && p.resultado === "prenada" &&
+    (!ultParto || p.fecha > ultParto.fecha)) || null;
+
   // El ultimo servicio manda: si hubo uno mas nuevo, ese ya reemplazo al anterior.
   if (ultInsem) {
     const hayPartoDespues = ultParto && ultParto.fecha > ultInsem.fecha;
@@ -1785,8 +1875,12 @@ function estado(a) {
   const fechaSecado = (prenada && P.lechero) ? sumarDias(servicioValido.fecha, P.secarDesde) : null;
   // Toca palpar si hay un servicio vigente que nadie ha confirmado todavia.
   const yaPalpada = ultInsem && palps.some(p => p.fecha > ultInsem.fecha);
-  const dentroVentana = ultInsem && dias(ultInsem.fecha) <= P.palpar + 45;
-  const fechaPalpacion = (ultInsem && !yaPalpada && dentroVentana &&
+  // Antes se dejaba de avisar a los 85 días y la vaca se perdía en silencio.
+  // Ahora se insiste mientras palpar todavía sirva de algo; ya cerca del parto
+  // se calla, porque a esas alturas manda la alerta de parto próximo.
+  const dentroVentana = ultInsem && dias(ultInsem.fecha) <= P.gestacion - 45;
+  // A las que no se palpan no se les calcula fecha de palpación.
+  const fechaPalpacion = (!a.sinPalpar && ultInsem && !yaPalpada && dentroVentana &&
     !(ultParto && ultParto.fecha > ultInsem.fecha))
     ? sumarDias(ultInsem.fecha, P.palpar) : null;
 
@@ -1798,6 +1892,17 @@ function estado(a) {
   const insemCiclo = insems.filter(x => x.fecha > desdeCiclo);
 
   // ---- Alerta de celo: parió y nadie la ha vuelto a servir ----
+  // La palpación marcada pisa lo calculado desde el servicio.
+  if (palpManda) {
+    const c = concepcionDePalpacion(palpManda);
+    const d = c ? dias(c) : null;
+    if (d !== null && d >= 0 && d <= par(a).gestacion + 40) {
+      prenada = true;
+      diasGest = d;
+      servicioValido = { fecha: c, dePalpacion: true, palpacionId: palpManda.id };
+    }
+  }
+
   const alertaCelo = calcularAlertaCelo(insemCiclo.length, ultPartoReal, a);
 
   // ---- Meses vacía ----
@@ -1849,7 +1954,8 @@ function estado(a) {
     diasEntreInsem, motivoDias,
     alertaCelo, diasDesdeServicio, secadoActual,
     diasSeca: secadoActual ? dias(secadoActual.fecha) : null,
-    ultPartoReal, totalInsemCiclo: insemCiclo.length, totalInsemHistorico: insems.length,
+    ultParto, ultPartoReal, totalInsemCiclo: insemCiclo.length,
+    totalInsemHistorico: insems.length,
     totalPartos: partosReales.length + (Number(a.partosPrevios) || 0),
     totalAbortos: partos.length - partosReales.length,
     diasAbiertos, intervaloPartos, fechaProbableParto, fechaSecado, fechaPalpacion,
@@ -1897,8 +2003,8 @@ function alertas(incluirHechas) {
     const srv = e.servicioValido?.fecha || e.ultInsem?.fecha || "";
     const prt = e.ultPartoReal?.fecha || "";
 
-    // 1. Palpación
-    if (e.fechaPalpacion) {
+    // 1. Palpación, solo en las que sí se palpan
+    if (e.fechaPalpacion && !a.sinPalpar) {
       const d = dias(e.fechaPalpacion);
       if (d >= 0) push("alta", "Palpación vencida",
         `Servicio del ${fmt(e.ultInsem.fecha)}. ${d === 0 ? "Toca palparla hoy." :
@@ -2221,6 +2327,42 @@ function vacasDeRegistro(r) {
 }
 
 /* ==========================================================
+   PALPACIÓN
+   El veterinario dice "está de 2 meses y 15 días". De ahí sale
+   la fecha en que quedó preñada, y de esa la del parto. Los
+   meses son de calendario: restar un mes al 31 de marzo da el
+   28 de febrero, no el 3 de marzo.
+   ========================================================== */
+
+/** Cuándo quedó preñada, según lo que dijo el veterinario. */
+function concepcionDePalpacion(p) {
+  if (!p?.fecha) return null;
+  const t = restarMeses(p.fecha, p.mesesGest || 0);
+  t.setDate(t.getDate() - (Number(p.diasGest) || 0));
+  return t.toISOString().slice(0, 10);
+}
+
+/** Parto probable a partir de una palpación. */
+function partoDePalpacion(p, a) {
+  const c = concepcionDePalpacion(p);
+  if (!c) return null;
+  const d = aFecha(c);
+  d.setDate(d.getDate() + par(a).gestacion);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Días de gestación que implica una palpación, contados hasta hoy. */
+function diasDesdePalpacion(p) {
+  const c = concepcionDePalpacion(p);
+  return c ? dias(c) : null;
+}
+
+/** ¿Hay una palpación que la persona marcó como la que manda? */
+function palpacionQueManda(animalId) {
+  return palpDe(animalId).find(p => p.manda && p.resultado === "prenada") || null;
+}
+
+/* ==========================================================
    SESIÓN Y PERMISOS
    ========================================================== */
 
@@ -2294,6 +2436,9 @@ const misPersonas = () => {
 const rolesQuePuedoCrear = () =>
   esSuper() ? Object.keys(ROLES)
             : Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
+
+/** ¿Puede añadir gente en esa sección? Solo por debajo de su rango. */
+const puedoAgregarEn = (rol) => puede("editaPersona") && rolesQuePuedoCrear().includes(rol);
 
 /** Sin finca asignada, cualquiera de rango mayor puede recogerla. */
 const sinAsignar = (p) => !((p.fincas || []).length);
@@ -2796,6 +2941,13 @@ function asegurarPersona(email) {
   // El documento de usuario recuerda cuál es su ficha: se respeta.
   if (!p && FB.personaRemota) p = D.personas.find(x => x.id === FB.personaRemota);
 
+  if (p && p.activo === false) {
+    S.error = `La cuenta ${correo} está inactiva. Pídele al dueño de la finca que la reactive.`;
+    S.persona = null;
+    try { salirFirebase(); } catch {}
+    return;
+  }
+
   if (p) {
     if (FB.rolRemoto && RANGO[FB.rolRemoto] > (RANGO[p.rol] ?? 0)) p.rol = FB.rolRemoto;
     S.persona = p; S.modo = "firebase"; S.error = "";
@@ -2975,8 +3127,10 @@ function vistaPermitida(id) {
   const seccion = { superadmins:"superadmin", duenos:"dueno",
                     administradores:"administrador", empleados:"empleado" }[id];
   if (seccion) {
-    // El superadministrador también se ve a sí mismo y a sus pares.
     if (seccion === "superadmin") return esSuper();
+    // Cada quien ve las secciones por debajo de su rango, y además la suya
+    // propia (donde solo se encuentra a sí mismo).
+    if (rolActual() === seccion) return puede("personas");
     return puede("personas") && miRango() > RANGO[seccion];
   }
   if (id === "configuracion") return true;
@@ -3495,7 +3649,7 @@ function vPersonas(rol) {
   <header class="cab"><div><h1>${R.plural}</h1>
     <p>${L.length} de ${tot.length} registrados</p></div>
     ${(() => {
-      if (!puede("editaPersona") || !rolesQuePuedoCrear().includes(rol)) return "";
+      if (!puedoAgregarEn(rol)) return "";
       const clave = rol === "administrador" ? "administradores" : rol === "empleado" ? "empleados" : null;
       if (!clave) return `<button class="btn btn-firme" data-nuevo="persona" data-rol="${rol}">Añadir ${R.et.toLowerCase()}</button>`;
       const c = cupo(clave);
@@ -3847,8 +4001,21 @@ function fichaAnimal(id) {
         <li><dt>Alerta celo</dt><dd>${e.alertaCelo
           ? `<span class="p ${e.alertaCelo.nivel === "alta" ? "roja" : "ambar"}">${e.alertaCelo.texto}</span>`
           : "—"}</dd></li>
-        <li><dt>Total inseminaciones</dt><dd class="g">${e.totalInsemCiclo}</dd>
-          ${e.totalInsemHistorico !== e.totalInsemCiclo ? `<span class="sub">${e.totalInsemHistorico} en total</span>` : ""}</li>
+        ${a.sinPalpar ? '<li><dt>Palpación</dt><dd><span class="p gris">No se palpa</span></dd></li>' : ""}
+        ${e.servicioValido?.dePalpacion ? `<li><dt>Gestación calculada desde</dt>
+          <dd>la palpación</dd><span class="sub">manda sobre la fecha del servicio</span></li>` : ""}
+        <li><dt>Número de intento</dt><dd class="g">${e.totalInsemCiclo}</dd>
+          <span class="sub">${(() => {
+            if (!e.totalInsemCiclo) return e.ultParto
+              ? `sin servir desde el ${e.ultParto.tipo === "aborto" ? "aborto" : "parto"} del ${fmtCorto(e.ultParto.fecha)}`
+              : "sin servicios registrados";
+            const desde = e.ultParto
+              ? `desde el ${e.ultParto.tipo === "aborto" ? "aborto" : "parto"} del ${fmtCorto(e.ultParto.fecha)}`
+              : "en total";
+            return `servicio${e.totalInsemCiclo === 1 ? "" : "s"} ${desde}`;
+          })()}</span></li>
+        <li><dt>Inseminaciones en total</dt><dd class="g">${e.totalInsemHistorico}</dd>
+          <span class="sub">de toda su vida, sin reiniciar</span></li>
         <li class="${e.ultPartoReal && !e.ultPartoReal.previo ? "liga" : ""}" ${e.ultPartoReal && !e.ultPartoReal.previo ? `data-ev="parto:${e.ultPartoReal.id}"` : ""}>
           <dt>Fecha parto</dt><dd>${e.ultPartoReal ? fmt(e.ultPartoReal.fecha) : "—"}</dd></li>
         <li class="${e.ultInsem ? "liga" : ""}" ${e.ultInsem ? `data-ev="insem:${e.ultInsem.id}"` : ""}>
@@ -3901,11 +4068,16 @@ function fichaAnimal(id) {
 
       ${subTabla("Palpaciones", palps.length,
         (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="palpacion" data-an="${id}">Añadir</button>` : ""),
-        ["Fecha","Resultado","Días gestación","Observaciones"],
+        ["Fecha","Resultado","De cuánto","Parto probable","Observaciones"],
         palps.map(p => `<tr class="fila" data-ev="palp:${p.id}">
             <td>${fmtCorto(p.fecha)}</td>
             <td><span class="p ${p.resultado === "prenada" ? "verde" : "roja"}">${p.resultado === "prenada" ? "Preñada" : "Vacía"}</span></td>
-            <td class="num">${p.diasGestacion || "—"}</td><td><span class="sub">${esc(p.observaciones) || "—"}</span></td></tr>`).join(""))}
+            <td>${p.resultado === "prenada"
+              ? `${p.mesesGest || 0} m ${p.diasGest || 0} d${p.manda
+                  ? ' <span class="p verde">manda</span>' : ""}`
+              : "—"}</td>
+            <td>${p.resultado === "prenada" ? fmtCorto(partoDePalpacion(p, a)) : "—"}</td>
+            <td><span class="sub">${esc(p.observaciones) || "—"}</span></td></tr>`).join(""))}
 
       ${!P.lechero && secadosDe(id).length === 0 ? "" : subTabla("Secados", secadosDe(id).length,
         (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="secado" data-an="${id}">Añadir</button>` : ""),
@@ -3968,24 +4140,46 @@ function formAnimal(id) {
           <span class="ayuda" data-gest></span></div>
         <div class="campo"><label>Raza</label><div data-raza-caja></div></div>
         <div class="campo"><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento" value="${a.fechaNacimiento||""}"></div>
+        <div class="campo ancho" data-solo-hembra hidden>
+          <label class="recordar" style="margin:0">
+            <input type="checkbox" name="sinPalpar" ${a.sinPalpar ? "checked" : ""}>
+            <span>A esta no se le palpa
+            <em>Márcalo cuando el inseminador ya confirma la preñez y no hace falta
+            palparla. No saldrá en las alertas ni en la lista de palpar en grupo.</em></span>
+          </label></div>
 
-        <!-- Solo para Vaca: historia previa a la app -->
-        <div class="campo ancho" data-solo-vaca hidden>
-          <div class="nota" style="margin:0">Como es una hembra adulta, trae historia. Estos dos datos arrancan
-          los contadores sin tener que digitar todos los partos viejos uno por uno.</div></div>
-        <div class="campo" data-solo-vaca hidden><label>Partos anteriores</label>
-          <input type="number" min="0" name="partosPrevios" value="${a.partosPrevios||0}">
-          <span class="ayuda">Los que tuvo antes de entrar a la app</span></div>
-        <div class="campo" data-solo-vaca hidden><label>Fecha del último parto</label>
-          <input type="date" name="ultimoPartoPrevio" value="${a.ultimoPartoPrevio||""}">
-          <span class="ayuda">Desde aquí cuentan los días vacía</span></div>
+        <!-- Solo para hembras adultas: historia previa a la app. Si ya tiene
+             partos registrados, el total sale de ellos y no se escribe. -->
+        ${(() => {
+          const suyos = id ? partosDe(id).filter(p => p.tipo === "parto") : [];
+          if (suyos.length) return `<div class="campo ancho" data-solo-vaca hidden>
+            <div class="nota" style="margin:0">Tiene <strong>${suyos.length} parto(s)
+            registrados</strong>, el último el ${fmt(suyos[0].fecha)}. El total y la fecha
+            se calculan solos de esos registros, por eso no se escriben aquí.</div></div>`;
+          return `
+            <div class="campo ancho" data-solo-vaca hidden>
+              <div class="nota" style="margin:0">Como es una hembra adulta, puede traer historia.
+              Estos dos datos arrancan los contadores sin digitar los partos viejos uno por uno.
+              En cuanto registres partos en la app, el total se calcula de ellos.</div></div>
+            <div class="campo" data-solo-vaca hidden><label>Total partos</label>
+              <input type="number" min="0" name="partosPrevios" value="${a.partosPrevios||0}">
+              <span class="ayuda">Cuántos ha tenido en total hasta hoy</span></div>
+            <div class="campo" data-solo-vaca hidden><label>Fecha del último parto</label>
+              <input type="date" name="ultimoPartoPrevio" value="${a.ultimoPartoPrevio||""}">
+              <span class="ayuda">Desde aquí cuentan los días vacía</span></div>`;
+        })()}
 
-        <div class="campo"><label>Estado</label><select name="estado">
+        <div class="campo"><label>Estado</label><select name="estado" data-estado>
           ${[["activo","En el hato"],["vendido","Vendido"],["muerto","Muerto"]].map(([v,t])=>`<option value="${v}" ${a.estado===v?"selected":""}>${t}</option>`).join("")}
         </select></div>
-        <div class="campo"><label>Fecha de salida</label><input type="date" name="fechaSalida" value="${a.fechaSalida||""}">
-          <span class="ayuda">Solo si fue vendido o murió</span></div>
-        <div class="campo ancho"><label>Motivo de salida</label><input name="motivoSalida" value="${esc(a.motivoSalida)}"></div>
+        <div class="campo" data-solo-salida ${a.estado==="activo"?"hidden":""}>
+          <label>Fecha de salida</label>
+          <input type="date" name="fechaSalida" value="${a.fechaSalida||""}">
+          <span class="ayuda">Obligatoria si salió del hato</span></div>
+        <div class="campo ancho" data-solo-salida ${a.estado==="activo"?"hidden":""}>
+          <label>Motivo de salida</label>
+          <input name="motivoSalida" value="${esc(a.motivoSalida)}"
+            placeholder="A quién se vendió, causa de la muerte…"></div>
         <div class="campo ancho"><label>Detalles</label><textarea name="detalles">${esc(a.detalles)}</textarea></div>
       </div></div>
       <div class="hoja-pie">
@@ -4014,7 +4208,7 @@ function formAnimal(id) {
     cajaRaza.innerHTML = comboRazas("raza", esp, mantener ? a.raza : "");
     conectarCombos(cajaCat);
     conectarCombos(cajaRaza);
-    cajaCat.querySelector("[data-combo]").addEventListener("change", alternar);
+    cajaCat.addEventListener("change", alternar);   // sube desde el combo
 
     const p = parEspecie(esp);
     ayuda.textContent = `Gesta ${p.gestacion} días · palpación a los ${p.palpar}` +
@@ -4024,9 +4218,21 @@ function formAnimal(id) {
 
   const alternar = () => {
     const c = CATEGORIAS[valorCat()];
-    const traeHistoria = c && c.sexo === "H" && c.etapa === "adulta";
+    // Solo hembras adultas de especie que se sirve: ni machos ni levante.
+    const traeHistoria = !!c && c.sexo === "H" && c.etapa === "adulta";
     hojaAbierta.querySelectorAll("[data-solo-vaca]").forEach(el => el.hidden = !traeHistoria);
+    // La opción de no palpar aplica a cualquier hembra que se sirva.
+    const sirve = !!c && c.sexo === "H" && c.etapa !== "cria";
+    hojaAbierta.querySelectorAll("[data-solo-hembra]").forEach(el => el.hidden = !sirve);
   };
+
+  const selEstado = hojaAbierta.querySelector("[data-estado]");
+  const verSalida = () => {
+    const fuera = selEstado.value !== "activo";
+    hojaAbierta.querySelectorAll("[data-solo-salida]").forEach(el => el.hidden = !fuera);
+  };
+  selEstado.onchange = verSalida;
+  verSalida();
 
   selEsp.onchange = () => poblar(false);
   poblar(true);
@@ -4241,36 +4447,87 @@ function formInsem(id, anId) {
     caja.appendChild(fila);
     conectarCombos(fila);
     refrescarQuitar();
-    fila.querySelector("[name=ap_hora]")?.focus();
+    fila.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
   refrescarQuitar();
 }
 
 function formPalpacion(id, anId) {
   const p = id ? D.palpaciones.find(x => x.id === id)
-              : { animalId: anId || "", fecha: hoyISO(), resultado: "prenada", diasGestacion: "", observaciones: "" };
+              : { animalId: anId || "", fecha: hoyISO(), resultado: "prenada",
+                  mesesGest: 0, diasGest: 0, manda: false, observaciones: "" };
+
   abrirHoja(`
     <div class="hoja-cab"><h2>${id ? "Editar palpación" : "Registrar palpación"}</h2>
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-guardar="palp:${id||""}">
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div>
-        <div class="nota">Si sale vacía, el servicio anterior se marca como repetido y la vaca vuelve a la lista de servicio.</div>
         <div class="rej">
-        <div class="campo ancho"><label>Animal</label><select name="animalId" required>
-          <option value="">Selecciona…</option>${opAnimales(p.animalId, a => par(a).sirve)}</select></div>
-        <div class="campo"><label>Fecha</label><input type="date" name="fecha" value="${p.fecha}" required></div>
-        <div class="campo"><label>Resultado</label><select name="resultado">
-          <option value="prenada" ${p.resultado==="prenada"?"selected":""}>Preñada</option>
-          <option value="vacia" ${p.resultado==="vacia"?"selected":""}>Vacía</option></select></div>
-        <div class="campo"><label>Días de gestación</label><input type="number" min="0" name="diasGestacion" value="${p.diasGestacion||""}">
-          <span class="ayuda">Lo que estimó el veterinario</span></div>
-        <div class="campo ancho"><label>Observaciones</label><input name="observaciones" value="${esc(p.observaciones)}"></div>
-      </div></div>
+          <div class="campo ancho"><label>Nombre</label>
+            ${comboAnimales("animalId", p.animalId, a => par(a).sirve)}</div>
+          <div class="campo"><label>Fecha de la palpación</label>
+            <input type="date" name="fecha" value="${p.fecha}" required></div>
+          <div class="campo"><label>Resultado</label>
+            ${seg("resultado", [["prenada","Preñada"],["vacia","Vacía"]], p.resultado)}</div>
+
+          <div class="campo ancho" data-solo-prenada>
+            <div class="nota" style="margin:0">Escribe de cuánto la encontró el veterinario.
+            De ahí sale cuándo quedó preñada y la fecha del parto, contando meses de
+            calendario de verdad.</div></div>
+          <div class="campo" data-solo-prenada><label>Meses de gestación</label>
+            <input type="number" name="mesesGest" min="0" max="12" step="1"
+              value="${p.mesesGest || 0}" inputmode="numeric"></div>
+          <div class="campo" data-solo-prenada><label>Días</label>
+            <input type="number" name="diasGest" min="0" max="60" step="1"
+              value="${p.diasGest || 0}" inputmode="numeric"></div>
+          <div class="campo ancho" data-solo-prenada>
+            <div class="nota" data-calculo style="margin:0"></div></div>
+
+          <div class="campo ancho" data-solo-prenada>
+            <label class="recordar" style="margin:0">
+              <input type="checkbox" name="manda" ${p.manda ? "checked" : ""}>
+              <span>Que esta palpación mande sobre la inseminación
+              <em>Marca esto si confías más en lo que dijo el veterinario que en la fecha
+              del servicio. Todos los cálculos —gestación, secado, parto probable— saldrán
+              de aquí.</em></span></label></div>
+
+          <div class="campo ancho"><label>Observaciones</label>
+            <input name="observaciones" value="${esc(p.observaciones || "")}"></div>
+        </div>
+      </div>
       <div class="hoja-pie">
-        ${id ? '<button type="button" class="btn btn-baja" data-borrar="palp:'+id+'">Eliminar</button>' : ""}
+        ${id && puede("borra") ? '<button type="button" class="btn btn-baja" data-borrar="palp:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
+
+  // Ir mostrando lo que implica cada número.
+  const caja = hojaAbierta.querySelector("[data-calculo]");
+  const recalcular = () => {
+    const v = {
+      fecha: hojaAbierta.querySelector("[name=fecha]").value,
+      mesesGest: hojaAbierta.querySelector("[name=mesesGest]").value,
+      diasGest: hojaAbierta.querySelector("[name=diasGest]").value,
+    };
+    const idA = hojaAbierta.querySelector("input[name=animalId]")?.value;
+    const a = idA ? animal(idA) : null;
+    const c = concepcionDePalpacion(v);
+    if (!c || !a) { caja.textContent = "Elige el animal y la fecha para ver el cálculo."; return; }
+    const parto = partoDePalpacion(v, a);
+    caja.innerHTML = `Quedó preñada alrededor del <strong>${fmt(c)}</strong>.
+      Parto probable: <strong>${fmt(parto)}</strong>
+      (gestación de ${par(a).gestacion} días).`;
+  };
+  const prenada = () => {
+    const r = hojaAbierta.querySelector("[name=resultado]:checked")?.value === "prenada";
+    hojaAbierta.querySelectorAll("[data-solo-prenada]").forEach(el => el.hidden = !r);
+    if (r) recalcular();
+  };
+  ["fecha","mesesGest","diasGest"].forEach(n =>
+    hojaAbierta.querySelector(`[name=${n}]`).oninput = recalcular);
+  hojaAbierta.querySelectorAll("[name=resultado]").forEach(x => x.onchange = prenada);
+  hojaAbierta.querySelector("[data-combo]")?.addEventListener("change", recalcular);
+  prenada();
 }
 
 function formParto(id, anId) {
@@ -5396,6 +5653,137 @@ function unificarPersonas() {
 }
 
 /* ==========================================================
+   PALPAR EN GRUPO
+   Como la pantalla de AppSheet: una fila por animal, se escriben
+   los meses y los días, y la fecha de parto sale sola.
+   ========================================================== */
+
+function abrirPalpacionGrupo() {
+  const candidatas = misAnimales()
+    .filter(a => a.estado === "activo" && par(a).sirve && !a.sinPalpar)
+    .filter(a => {
+      const e = estado(a);
+      return e.ultInsem && !(e.ultParto && e.ultParto.fecha > e.ultInsem.fecha);
+    })
+    .sort((a, b) => {
+      const fa = estado(a).fechaPalpacion || "9999", fb = estado(b).fechaPalpacion || "9999";
+      return fa.localeCompare(fb) || a.nombre.localeCompare(b.nombre, "es");
+    });
+
+  if (!candidatas.length) {
+    return alert("No hay hembras servidas pendientes de palpar.\\n\\n" +
+      "Aparecen aquí las que tienen un servicio sin parto posterior y no están " +
+      "marcadas como «no se palpa».");
+  }
+
+  const porFinca = {};
+  candidatas.forEach(a => { (porFinca[a.fincaId] ||= []).push(a); });
+
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Palpar en grupo</h2>
+      <div class="sub">${candidatas.length} hembras servidas</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <form data-palpar-grupo>
+      <div class="hoja-cuerpo">
+        <div class="aviso" data-error hidden></div>
+        <div class="rej">
+          <div class="campo"><label>Fecha de la palpación</label>
+            <input type="date" name="fecha" value="${hoyISO()}" required></div>
+          <div class="campo"><label>Aplicar a</label>
+            <span class="ayuda" style="margin-top:9px">Solo se guardan las filas donde
+            marques un resultado. Las demás se dejan como están.</span></div>
+        </div>
+
+        <div class="nota">Escribe de cuánto la encontró el veterinario. La fecha del parto
+        se calcula sola con meses de calendario.</div>
+
+        ${Object.entries(porFinca).map(([fid, lista]) => `
+          <h4 class="sub-titulo">${esc(nombreFinca(fid))} · ${lista.length}</h4>
+          <div class="palpa-lista">
+            ${lista.map(a => {
+              const e = estado(a);
+              return `<div class="palpa-fila" data-animal="${a.id}">
+                <div class="palpa-quien">
+                  <span class="chap">${esc(a.chapeta)}</span>
+                  <div><strong>${esc(a.nombre)}</strong>
+                  <em>${e.ultInsem ? "última: " + fmtCorto(e.ultInsem.fecha) : "sin servicio"}
+                  ${e.fechaPalpacion ? " · palpar " + fmtCorto(e.fechaPalpacion) : ""}</em></div>
+                </div>
+                <div class="palpa-res">
+                  ${[["", "—"], ["prenada", "Preñada"], ["vacia", "Vacía"]].map(([v, t]) => `
+                    <label><input type="radio" name="r_${a.id}" value="${v}"
+                      ${v === "" ? "checked" : ""}><span>${t}</span></label>`).join("")}
+                </div>
+                <div class="palpa-nums">
+                  <label>Meses<input type="number" name="m_${a.id}" min="0" max="12"
+                    placeholder="0" inputmode="numeric"></label>
+                  <label>Días<input type="number" name="d_${a.id}" min="0" max="60"
+                    placeholder="0" inputmode="numeric"></label>
+                </div>
+                <div class="palpa-calc" data-calc>—</div>
+              </div>`;
+            }).join("")}
+          </div>`).join("")}
+      </div>
+      <div class="hoja-pie">
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button class="btn btn-firme">Guardar las palpaciones</button>
+      </div>
+    </form>`, true);
+
+  const fechaInp = hojaAbierta.querySelector("[name=fecha]");
+  const refrescar = (fila) => {
+    const idA = fila.dataset.animal;
+    const a = animal(idA);
+    const res = fila.querySelector(`[name=r_${idA}]:checked`)?.value;
+    const caja = fila.querySelector("[data-calc]");
+    fila.classList.toggle("marcada", !!res);
+    if (res === "vacia") { caja.innerHTML = '<span class="p roja">Vacía</span>'; return; }
+    if (res !== "prenada") { caja.textContent = "—"; return; }
+    const v = { fecha: fechaInp.value,
+                mesesGest: fila.querySelector(`[name=m_${idA}]`).value,
+                diasGest: fila.querySelector(`[name=d_${idA}]`).value };
+    const parto = partoDePalpacion(v, a);
+    caja.innerHTML = parto
+      ? `Parto <strong>${fmtCorto(parto)}</strong><em>preñada desde ${fmtCorto(concepcionDePalpacion(v))}</em>`
+      : "—";
+  };
+  const todas = () => hojaAbierta.querySelectorAll(".palpa-fila").forEach(refrescar);
+  hojaAbierta.querySelectorAll(".palpa-fila").forEach(fila => {
+    fila.addEventListener("input", () => refrescar(fila));
+    fila.addEventListener("change", () => refrescar(fila));
+  });
+  fechaInp.oninput = todas;
+  todas();
+}
+
+function guardarPalpacionGrupo(f) {
+  const fecha = f.querySelector("[name=fecha]").value;
+  if (!fecha) return error(f, "Pon la fecha de la palpación.");
+  if (dias(fecha) < 0) return error(f, "Esa fecha todavía no ha llegado.");
+
+  let n = 0;
+  for (const fila of f.querySelectorAll(".palpa-fila")) {
+    const idA = fila.dataset.animal;
+    const res = fila.querySelector(`[name=r_${idA}]:checked`)?.value;
+    if (!res) continue;
+    const a = animal(idA);
+    if (!a) continue;
+    const mesesGest = res === "prenada" ? Number(fila.querySelector(`[name=m_${idA}]`).value) || 0 : 0;
+    const diasGest  = res === "prenada" ? Number(fila.querySelector(`[name=d_${idA}]`).value) || 0 : 0;
+    D.palpaciones.push({
+      id: uid(), animalId: idA, fincaId: a.fincaId, fecha,
+      resultado: res, mesesGest, diasGest, manda: false,
+      observaciones: "", creadoPor: S.persona?.id || null,
+    });
+    n++;
+  }
+  if (!n) return error(f, "No marcaste ningún resultado.");
+  recalcularAccesos(); guardar(); cerrarHoja(); pintar();
+  avisar(`${n} palpación(es) registradas`);
+}
+
+/* ==========================================================
    CARGA MASIVA
    Pega lo copiado de Google Sheets o sube un CSV. La app
    adivina las columnas, resuelve las referencias por nombre
@@ -6370,6 +6758,19 @@ function escucharTodo() {
       const datos = snap.data();
       FB.rolRemoto = datos.rol || null;
       FB.personaRemota = datos.persona || null;
+
+      // Si alguien lo puso inactivo, sale de inmediato aunque esté trabajando.
+      if (datos.activo === false) {
+        FB.estado = "listo";
+        salirFirebase();
+        S.persona = null; S.modo = null;
+        S.error = "Tu acceso fue desactivado. Habla con el dueño de la finca.";
+        CLAVE_DATOS = null;
+        const cfg = D.config;
+        D = migrar({ ...semilla(), config: cfg });
+        pantallaAcceso();
+        return;
+      }
       const mias = (datos.fincas || []).filter(Boolean);
       const clave = JSON.stringify(mias.slice().sort());
       if (clave === FB.claveFincas) return;    // nada cambió
@@ -6562,7 +6963,8 @@ async function sincronizarUsuarios() {
     for (const p of D.personas) {
       if (!p.correo) continue;
       lote.set(fs.doc(FB.db, "usuarios", p.correo.toLowerCase()),
-               { rol: p.rol, fincas: p.fincas || [], persona: p.id }, { merge: true });
+               { rol: p.rol, fincas: p.fincas || [], persona: p.id,
+                 activo: p.activo !== false }, { merge: true });
       n++;
     }
     if (n) await lote.commit();
@@ -7500,7 +7902,7 @@ async function recuperarMisFincas(silencioso) {
 
   try {
     await fs.setDoc(fs.doc(FB.db, "usuarios", correo),
-      { rol, fincas: union, persona: buena.id }, { merge: true });
+      { rol, fincas: union, persona: buena.id, activo: true }, { merge: true });
   } catch (e) {
     if (!silencioso) alert("No se pudo actualizar tu permiso: " + errorFB(e));
     return 0;
@@ -7537,8 +7939,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data;
     }
     function registrado() {
+      // Tiene que existir su documento y NO estar inactivo.
       return request.auth != null
-        && exists(/databases/$(database)/documents/usuarios/$(request.auth.token.email));
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.token.email))
+        && yo().get('activo', true) != false;
     }
     function misFincas()  { return yo().fincas; }
     function rol()        { return yo().rol; }
@@ -8804,6 +9208,9 @@ function conectarHoja(d) {
     pintarImportador();
   });
 
+  const fpg = d.querySelector("form[data-palpar-grupo]");
+  if (fpg) fpg.onsubmit = (e) => { e.preventDefault(); guardarPalpacionGrupo(fpg); };
+
   const fl = d.querySelector("form[data-lote]");
   if (fl) fl.onsubmit = (e) => { e.preventDefault(); aplicarLote(fl); };
 
@@ -8855,6 +9262,13 @@ function enviar(f) {
       const antes = animal(id);
       if (!puedoEditarAnimal(antes)) return error(f, mensajeBloqueo(antes));
     }
+    if (v.estado !== "activo" && !v.fechaSalida) {
+      return error(f, `Pon la fecha en que ${v.estado === "vendido" ? "se vendió" : "murió"}.`);
+    }
+    if (v.estado !== "activo" && dias(v.fechaSalida) < 0) {
+      return error(f, "Esa fecha de salida todavía no ha llegado.");
+    }
+    if (v.estado === "activo") { v.fechaSalida = null; v.motivoSalida = ""; }
     if (D.animales.some(a => a.chapeta === v.chapeta && a.id !== id))
       return error(f, `La chapeta ${v.chapeta} ya está registrada.`);
     if (v.estado !== "activo" && !v.fechaSalida)
@@ -8960,6 +9374,20 @@ function enviar(f) {
   }
 
   if (tipo === "palp") {
+    v.mesesGest = Math.max(0, Number(v.mesesGest) || 0);
+    v.diasGest = Math.max(0, Number(v.diasGest) || 0);
+    v.manda = v.manda === "on" || v.manda === true;
+    if (v.resultado !== "prenada") { v.mesesGest = 0; v.diasGest = 0; v.manda = false; }
+    delete v.diasGestacion;
+    if (v.resultado === "prenada" && v.animalId) {
+      const a2 = animal(v.animalId);
+      const d = dias(concepcionDePalpacion(v));
+      if (a2 && d !== null && d > par(a2).gestacion + 40) {
+        return error(f, `De ${v.mesesGest} meses y ${v.diasGest} días, esa preñez ya habría ` +
+          `terminado hace rato. Revisa los números.`);
+      }
+      if (d !== null && d < 0) return error(f, "Esos meses y días dan una fecha en el futuro.");
+    }
     v.diasGestacion = v.diasGestacion ? Number(v.diasGestacion) : null;
     if (id) Object.assign(D.palpaciones.find(x => x.id === id), v);
     else D.palpaciones.push(nuevo(v));
@@ -9240,6 +9668,7 @@ conectarFirebase(true);
     return;
   }
   if (a === "volver-recorte") { volverAlRecorte(); pintar(); return; }
+  if (a === "palpar-grupo") { abrirPalpacionGrupo(); return; }
   if (a === "todo-historial") {
     if (!confirm("Se va a bajar todo el historial de tus fincas, sin recorte de fechas.\n\n" +
                  "En una finca con años de registros puede tardar y consumir datos. ¿Continuar?")) return;
