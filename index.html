@@ -761,11 +761,18 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.31.0";
+const VERSION = "1.32.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.32.0", "2 sep 2026", [
+    "Recupera las fincas que quedaron atadas a fichas viejas del mismo correo. Antes no " +
+      "podía verlas: las fincas estaban en las fichas duplicadas, y las fichas duplicadas " +
+      "no se bajaban porque sus fincas no estaban en la lista de permisos.",
+    "Ahora la app siempre baja tus propias fichas, estén en la finca que estén.",
+    "Se ejecuta sola al entrar, y hay un botón en el diagnóstico por si acaso.",
+  ]],
   ["1.31.0", "1 sep 2026", [
     "Botón «Ya los creé, volver a intentar» para reconectar con los índices nuevos sin " +
       "tener que recargar la página.",
@@ -2756,6 +2763,21 @@ function asegurarPersona(email) {
   if (manda()) {
     const n = unificarPersonas();
     if (n) avisar(`Se unieron ${n} fichas duplicadas de la misma persona`);
+  }
+
+  // Y si quedaron fincas colgando de fichas viejas, se recuperan.
+  if (!S.fincasRevisadas && FB.db) {
+    S.fincasRevisadas = true;
+    setTimeout(async () => {
+      const r = await recuperarMisFincas(true);
+      if (r && r.fincas) {
+        setTimeout(() => {
+          unificarPersonas();
+          pintar();
+          avisar(`Se recuperaron ${r.fincas} finca(s) de ${r.fichas} fichas tuyas`);
+        }, 1200);
+      }
+    }, 900);
   }
 
   let p = D.personas.find(x => (x.correo || "").toLowerCase() === correo);
@@ -6355,7 +6377,7 @@ function escucharColecciones(mias) {
         if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) {
           FB.ultimaSync = Date.now();
         }
-        if (!snap.docChanges().length && FB.cajones[nombre]?.[via]) {
+        if (!snap.docChanges().length && FB.cajones?.[nombre]?.[via]) {
           recalcularPendientes();
           pintarPronto();
           return;
@@ -6363,7 +6385,7 @@ function escucharColecciones(mias) {
 
         FB.aplicando = true;
 
-        ((FB.cajones[nombre] ||= {}))[via] = snap.docs
+        ((FB.cajones ||= {})[nombre] ||= {})[via] = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(d => !estaBorrado(nombre, d.id));
         let docs = recombinar(nombre);
@@ -6447,6 +6469,12 @@ function escucharColecciones(mias) {
     // Las que nadie ha asignado: quedan disponibles para cualquier dueño.
     escuchar("personas", fs.query(col("personas"),
       fs.where("sinFinca", "==", true)), "sueltas");
+    // Y las mías, estén en la finca que estén. Sin esto no se pueden
+    // detectar las fichas duplicadas del mismo correo.
+    if (FB.user?.email) {
+      escuchar("personas", fs.query(col("personas"),
+        fs.where("correo", "==", FB.user.email.toLowerCase())), "mias");
+    }
   }
   const corte = FB.todoElHistorial ? null : corteVentana();
   FB.corte = corte;
@@ -6478,7 +6506,7 @@ async function borrarUsuarioRemoto(correo) {
 /** Une todos los cajones de una colección: escuchas y historial pedido a mano. */
 function recombinar(nombre) {
   const juntos = new Map();
-  for (const lista of Object.values(FB.cajones[nombre] || {})) {
+  for (const lista of Object.values(FB.cajones?.[nombre] || {})) {
     for (const doc of lista) juntos.set(doc.id, doc);
   }
   return [...juntos.values()];
@@ -6542,7 +6570,7 @@ FB.borrados = {};
 
 function borrarRemoto(coleccion, id) {
   (FB.borrados[coleccion] ||= new Set()).add(id);
-  if (FB.espejo[coleccion]) delete FB.espejo[coleccion][id];
+  if (FB.espejo?.[coleccion]) delete FB.espejo[coleccion][id];
   for (const cajon of Object.values(FB.cajones?.[coleccion] || {})) {
     const i = cajon.findIndex(x => x.id === id);
     if (i >= 0) cajon.splice(i, 1);
@@ -6563,7 +6591,8 @@ function borrarRemoto(coleccion, id) {
 const estaBorrado = (coleccion, id) => !!FB.borrados[coleccion]?.has(id);
 
 function recalcularPendientes() {
-  FB.sinSubir = Object.values(FB.sinConfirmar).reduce((n, s) => n + s.size, 0);
+  FB.sinConfirmar ||= {};
+  FB.sinSubir = Object.values(FB.sinConfirmar).reduce((n, s) => n + (s?.size || 0), 0);
 }
 
 let empujando = false;
@@ -7363,6 +7392,65 @@ function conCuenta(url) {
                              `console.firebase.google.com/u/${n}/`);
 }
 
+
+/* ==========================================================
+   RECUPERAR MIS FINCAS
+
+   Si en versiones anteriores se crearon varias fichas para el
+   mismo correo, las fincas quedaron repartidas entre ellas. La
+   app no puede leerlas porque no están en su lista de permisos,
+   y no puede arreglar la lista porque no ve las fincas.
+
+   Se rompe por el único lado permitido: cada ficha guarda su
+   propia lista de fincas, y el correo propio siempre se puede
+   leer. Con la unión de todas se rehace el permiso.
+   ========================================================== */
+
+async function recuperarMisFincas(silencioso) {
+  if (!FB.db || !FB.user) return 0;
+  const { fs } = FB.mods;
+  const correo = FB.user.email.toLowerCase();
+
+  let fichas = [];
+  try {
+    const s = await fs.getDocs(fs.query(fs.collection(FB.db, "personas"),
+      fs.where("correo", "==", correo)));
+    fichas = s.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    if (!silencioso) alert("No se pudieron leer tus fichas: " + errorFB(e));
+    return 0;
+  }
+  if (fichas.length < 2) return 0;
+
+  // Todas las fincas que aparecen en cualquiera de mis fichas.
+  const union = [...new Set(fichas.flatMap(f => f.fincas || []).filter(Boolean))];
+
+  // La ficha que se queda, el mejor nombre y el rol más alto.
+  const puntos = (p) => (p.fincas || []).length * 100 +
+    (p.nombrePorDefecto ? 0 : 50) + (RANGO[p.rol] ?? 0);
+  fichas.sort((a, b) => puntos(b) - puntos(a));
+  const buena = fichas[0];
+  const conNombre = fichas.find(p => !p.nombrePorDefecto && (p.nombre || "").trim());
+  const rol = fichas.reduce((r, p) => (RANGO[p.rol] ?? 0) > (RANGO[r] ?? 0) ? p.rol : r, buena.rol);
+
+  try {
+    await fs.setDoc(fs.doc(FB.db, "usuarios", correo),
+      { rol, fincas: union, persona: buena.id }, { merge: true });
+  } catch (e) {
+    if (!silencioso) alert("No se pudo actualizar tu permiso: " + errorFB(e));
+    return 0;
+  }
+
+  // Con el permiso rehecho ya se pueden bajar todas las fincas.
+  FB.claveFincas = null;
+  FB.rolRemoto = rol;
+  FB.personaRemota = buena.id;
+  escucharColecciones(union);
+
+  return { fichas: fichas.length, fincas: union.length,
+           nombre: conNombre?.nombre || buena.nombre, rol };
+}
+
 /* ==========================================================
    CONFIGURACIÓN
    ========================================================== */
@@ -7828,7 +7916,7 @@ function vConfiguracion() {
           Hay <strong>${n} correo(s) con más de una ficha</strong>. Eso pasaba en versiones
           anteriores al entrar desde otro equipo, y es lo que hace que no se vean las fincas.
           <div class="fila-btn" style="margin-top:9px">
-            <button class="btn" data-acc="unificar-personas">Unir las fichas duplicadas</button>
+            <button class="btn" data-acc="recuperar-fincas">Recuperar mis fincas y unir las fichas</button>
           </div></div>` : "";
       })()}
 
@@ -7868,6 +7956,12 @@ function vConfiguracion() {
         <div class="fila-btn" style="margin-top:9px">
           <button class="btn btn-firme" data-acc="reintentar-indices">Ya los creé, volver a intentar</button>
         </div></div>` : ""}
+
+      <div class="fila-btn" style="margin-bottom:12px">
+        <button class="btn" data-acc="recuperar-fincas">Recuperar fincas de fichas viejas</button>
+      </div>
+      <p class="expl">Si tienes fincas que creaste antes y ya no aparecen, es porque quedaron
+      atadas a una ficha vieja de tu mismo correo. Esto las busca y te las devuelve.</p>
 
       <div class="fila-btn">
         <button class="btn btn-firme" data-acc="diagnosticar">Revisar la conexión</button>
@@ -9007,6 +9101,27 @@ conectarFirebase(true);
         else avisar(`Se abrieron ${n} pestañas. En cada una pulsa Crear.`);
       }, 300);
     }, i * 350));
+    return;
+  }
+  if (a === "recuperar-fincas") {
+    if (!FB.user) return alert("Primero inicia sesión.");
+    avisar("Buscando tus fincas…");
+    const r = await recuperarMisFincas(false);
+    if (!r) {
+      const n = unificarPersonas(); pintar();
+      return alert(n ? `Se unieron ${n} ficha(s). No había fincas colgando de otras.`
+                     : "Solo tienes una ficha y todas tus fincas están a la vista.");
+    }
+    setTimeout(() => {
+      const n = unificarPersonas();
+      pintar();
+      alert(`Listo.\n\n` +
+        `• ${r.fichas} fichas tuyas encontradas\n` +
+        `• ${r.fincas} finca(s) recuperadas\n` +
+        `• Nombre: ${r.nombre}\n` +
+        `• Rol: ${ROLES[r.rol]?.et || r.rol}` +
+        (n ? `\n• ${n} ficha(s) duplicadas unidas` : ""));
+    }, 1500);
     return;
   }
   if (a === "unificar-personas") {
