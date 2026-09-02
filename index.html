@@ -800,11 +800,19 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.42.0";
+const VERSION = "1.43.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.43.0", "2 sep 2026", [
+    "ARREGLO DE RAÍZ: el permiso podía quedar apuntando a fincas ya borradas y dejar fuera " +
+      "la finca real. Firebase entonces rechazaba en silencio todo lo que se intentara " +
+      "guardar, y por eso los animales y los registros no llegaban a la base de datos.",
+    "La app lo detecta sola al entrar y lo corrige.",
+    "El botón de Configuración ahora repara el permiso completo: quita las fincas fantasma " +
+      "y pone las que existen de verdad.",
+  ]],
   ["1.42.0", "2 sep 2026", [
     "ARREGLO GRAVE: «Ver todo el historial» podía borrar de la pantalla todas las fincas " +
       "y los animales. Usaba la lista local de fincas, que a veces viene vacía; ahora usa " +
@@ -6939,6 +6947,21 @@ function escucharTodo() {
       FB.personaRemota = datos.persona || null;
       FB.fincasRemotas = datos.fincas || [];
 
+      // ¿El permiso apunta a fincas que ya no existen y deja fuera las reales?
+      if (!FB.permisoRevisado && S.persona) {
+        FB.permisoRevisado = true;
+        setTimeout(async () => {
+          const idsReales = new Set(D.fincas.map(f => f.id));
+          const autorizadas = new Set(FB.fincasRemotas || []);
+          const fantasmas = [...autorizadas].filter(x => !idsReales.has(x));
+          const huerfanas = D.fincas.filter(f => !autorizadas.has(f.id));
+          if (fantasmas.length && (huerfanas.length || !autorizadas.size)) {
+            const r = await repararPermiso(true);
+            if (r) { pintar(); avisar(`Permiso corregido: ${r.buenas} finca(s)`); }
+          }
+        }, 2500);
+      }
+
       // Si le cambiaron el rol o las fincas, lo que tenga abierto ya no vale.
       const cambioRol = rolAntes && rolAntes !== FB.rolRemoto;
       const cambioFincas = fincasAntes && fincasAntes !== FB.fincasRemotas.join(",");
@@ -8125,6 +8148,75 @@ function conCuenta(url) {
    leer. Con la unión de todas se rehace el permiso.
    ========================================================== */
 
+/**
+ * Rehace el permiso comparándolo con lo que existe de verdad.
+ *
+ * El documento de usuario puede quedar apuntando a fincas borradas: entonces
+ * Firebase da permiso sobre nada y rechaza todo lo que se intente guardar en
+ * la finca real. Esto lo detecta y lo corrige.
+ */
+async function repararPermiso(silencioso) {
+  if (!FB.db || !FB.user) return null;
+  const { fs } = FB.mods;
+  const correo = FB.user.email.toLowerCase();
+
+  // Mis fichas, que siempre puedo leer por ser mi correo.
+  let mias = [];
+  try {
+    const s = await fs.getDocs(fs.query(fs.collection(FB.db, "personas"),
+      fs.where("correo", "==", correo)));
+    mias = s.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    if (!silencioso) alert("No pude leer tus fichas: " + errorFB(e));
+    return null;
+  }
+  const misIds = new Set(mias.map(p => p.id));
+  const rol = mias.reduce((r, p) => (RANGO[p.rol] ?? 0) > (RANGO[r] ?? 0) ? p.rol : r,
+                          FB.rolRemoto || "empleado");
+
+  let buenas = [];
+  const antes = [...(FB.fincasRemotas || [])];
+
+  if (rol === "superadmin") {
+    // El superadministrador puede leerlas todas: se toman las que existen.
+    try {
+      const s = await fs.getDocs(fs.collection(FB.db, "fincas"));
+      buenas = s.docs.map(d => d.id);
+    } catch (e) {
+      if (!silencioso) alert("No pude leer las fincas: " + errorFB(e));
+      return null;
+    }
+  } else {
+    // Los demás: se comprueba una por una cuáles existen y siguen siendo suyas.
+    const candidatas = [...new Set([...antes, ...mias.flatMap(p => p.fincas || [])])];
+    for (const id of candidatas) {
+      try {
+        const d = await fs.getDoc(fs.doc(FB.db, "fincas", id));
+        if (d.exists() && (d.data().personas || []).some(x => misIds.has(x))) buenas.push(id);
+      } catch { /* no existe o no alcanza: fuera */ }
+    }
+  }
+
+  const fantasmas = antes.filter(x => !buenas.includes(x));
+  const nuevas = buenas.filter(x => !antes.includes(x));
+  const persona = mias.find(p => (p.fincas || []).length) || mias[0];
+
+  try {
+    await fs.setDoc(fs.doc(FB.db, "usuarios", correo),
+      { rol, fincas: buenas, persona: persona?.id || null, activo: true }, { merge: true });
+  } catch (e) {
+    if (!silencioso) alert("No pude corregir tu permiso: " + errorFB(e));
+    return null;
+  }
+
+  FB.rolRemoto = rol;
+  FB.fincasRemotas = buenas;
+  FB.claveFincas = null;
+  escucharColecciones(buenas);
+
+  return { rol, buenas: buenas.length, fantasmas, nuevas, fichas: mias.length };
+}
+
 async function recuperarMisFincas(silencioso) {
   if (!FB.db || !FB.user) return 0;
   const { fs } = FB.mods;
@@ -8679,10 +8771,11 @@ function vConfiguracion() {
         </div></div>` : ""}
 
       <div class="fila-btn" style="margin-bottom:12px">
-        <button class="btn" data-acc="recuperar-fincas">Recuperar fincas de fichas viejas</button>
+        <button class="btn btn-firme" data-acc="recuperar-fincas">Revisar y corregir mi permiso</button>
       </div>
-      <p class="expl">Si tienes fincas que creaste antes y ya no aparecen, es porque quedaron
-      atadas a una ficha vieja de tu mismo correo. Esto las busca y te las devuelve.</p>
+      <p class="expl">Úsalo si no aparecen tus fincas, o si guardas algo y no llega a la base
+      de datos. Tu permiso puede estar apuntando a fincas que ya borraste: cuando eso pasa,
+      Firebase rechaza todo lo que intentes guardar en las fincas reales, sin decir nada.</p>
 
       <div class="fila-btn">
         <button class="btn btn-firme" data-acc="diagnosticar">Revisar la conexión</button>
@@ -9895,7 +9988,24 @@ conectarFirebase(true);
   }
   if (a === "recuperar-fincas") {
     if (!FB.user) return alert("Primero inicia sesión.");
-    avisar("Buscando tus fincas…");
+    avisar("Revisando tus permisos…");
+
+    // 1) Corregir el permiso: quitar fincas que ya no existen y poner las que sí.
+    const rp = await repararPermiso(false);
+    if (rp) {
+      const lineas = [];
+      if (rp.fantasmas.length) lineas.push(`• ${rp.fantasmas.length} finca(s) que ya no existen, quitadas`);
+      if (rp.nuevas.length) lineas.push(`• ${rp.nuevas.length} finca(s) recuperadas`);
+      if (lineas.length) {
+        setTimeout(() => { unificarPersonas(); pintar(); }, 1200);
+        return alert(`Permiso corregido.\n\n${lineas.join("\n")}\n\n` +
+          `Ahora tienes ${rp.buenas} finca(s) y rol ${ROLES[rp.rol]?.et || rp.rol}.\n\n` +
+          `Si habías intentado guardar animales y no subían, vuelve a intentarlo: ` +
+          `Firebase los rechazaba porque el permiso apuntaba a fincas borradas.`);
+      }
+    }
+
+    avisar("Buscando fincas en fichas viejas…");
     const r = await recuperarMisFincas(false);
     if (!r) {
       const n = unificarPersonas(); pintar();
