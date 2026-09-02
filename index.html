@@ -761,11 +761,19 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.29.0";
+const VERSION = "1.31.0";
 const FECHA_VERSION = "30 ago 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.31.0", "1 sep 2026", [
+    "Botón «Ya los creé, volver a intentar» para reconectar con los índices nuevos sin " +
+      "tener que recargar la página.",
+  ]],
+  ["1.30.0", "1 sep 2026", [
+    "Los enlaces para crear índices ahora respetan con cuál cuenta de Google entras a " +
+      "Firebase. Antes salía «403 no tienes acceso» si el proyecto estaba en tu segunda cuenta.",
+  ]],
   ["1.29.0", "1 sep 2026", [
     "Botón para abrir de una vez todas las pestañas de los índices que falten, con la " +
       "lista de enlaces por si el navegador bloquea las emergentes.",
@@ -1548,6 +1556,7 @@ function migrar(d) {
   d.config.ventanaMeses ??= 24;
   d.config.recordarSesion ??= false;
   d.config.tema ??= "auto";
+  d.config.cuentaGoogle ??= 0;
   d.config.limites ??= { global: {}, por: {} };
   d.config.limites.global ??= {};
   d.config.limites.por ??= {};
@@ -7341,6 +7350,19 @@ async function diagnosticar() {
   return out;
 }
 
+
+/**
+ * Chrome abre los enlaces de Google con la primera cuenta que tengas
+ * conectada. Si el proyecto de Firebase está en la segunda, sale un 403.
+ * Esto mete el número de cuenta en la dirección para que abra con la buena.
+ */
+function conCuenta(url) {
+  const n = Number(D.config.cuentaGoogle) || 0;
+  if (!n) return url;
+  return String(url).replace("console.firebase.google.com/",
+                             `console.firebase.google.com/u/${n}/`);
+}
+
 /* ==========================================================
    CONFIGURACIÓN
    ========================================================== */
@@ -7814,6 +7836,17 @@ function vConfiguracion() {
         <div class="nota recorte" style="display:block">
           Faltan <strong>${Object.keys(FB.indicesFaltantes).length} índices</strong> en Firestore.
           Sin ellos esas secciones no cargan.
+          <div class="campo" style="margin-top:11px;max-width:320px">
+            <label>¿Con cuál cuenta de Google entras a Firebase?</label>
+            <select id="cuenta-google">
+              ${[0,1,2,3,4].map(n => `<option value="${n}"
+                ${Number(D.config.cuentaGoogle || 0) === n ? "selected" : ""}>
+                ${n === 0 ? "La primera del navegador" : `La ${n + 1}ª (u/${n})`}</option>`).join("")}
+            </select>
+            <span class="ayuda">Si al abrir el enlace sale «403 no tienes acceso», es que el
+            proyecto está en otra cuenta. Mira la dirección de tu consola de Firebase: el
+            número que sale después de <strong>/u/</strong> es el que va aquí.</span>
+          </div>
           <div class="fila-btn" style="margin-top:9px">
             <button class="btn btn-firme" data-acc="abrir-indices">Abrir todos para crearlos</button>
             <button class="btn" data-acc="sin-recorte">O bajar sin recorte de fechas</button>
@@ -7824,10 +7857,17 @@ function vConfiguracion() {
           <ul class="lista-correos" style="margin-top:9px">
             ${Object.entries(FB.indicesFaltantes).map(([col, url]) => `
               <li><span>${esc(col)}</span>
-                <a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">Crear</a></li>
+                <a class="btn btn-sm" href="${esc(conCuenta(url))}" target="_blank" rel="noopener">Crear</a></li>
             `).join("")}
           </ul>
         </div>` : ""}
+
+      ${FB.sinIndice?.size ? `<div class="nota" style="display:block">
+        Si acabas de crear los índices en Firebase, espera a que digan <strong>Habilitado</strong>
+        y pulsa aquí. Firestore tarda un momento en darse cuenta.
+        <div class="fila-btn" style="margin-top:9px">
+          <button class="btn btn-firme" data-acc="reintentar-indices">Ya los creé, volver a intentar</button>
+        </div></div>` : ""}
 
       <div class="fila-btn">
         <button class="btn btn-firme" data-acc="diagnosticar">Revisar la conexión</button>
@@ -8317,6 +8357,15 @@ conectarFirebase(true);
     avisar(rc.checked
       ? "La sesión quedará abierta en este equipo"
       : "Cada pestaña pedirá su propio usuario. Aplica al volver a entrar.");
+  };
+
+  const cg = document.getElementById("cuenta-google");
+  if (cg) cg.onchange = () => {
+    D.config.cuentaGoogle = Number(cg.value) || 0;
+    guardarLocal(); pintar();
+    avisar(D.config.cuentaGoogle
+      ? `Los enlaces abrirán con la cuenta u/${D.config.cuentaGoogle}`
+      : "Los enlaces abrirán con la primera cuenta");
   };
 
   document.querySelectorAll("[data-tema-btn]").forEach(b => b.onclick = () => {
@@ -8929,12 +8978,28 @@ conectarFirebase(true);
     guardar(); pintar(); avisar(abrir ? "Todas abiertas" : "Todas cerradas");
     return;
   }
+  if (a === "reintentar-indices") {
+    if (!FB.user) return alert("Primero inicia sesión.");
+    FB.sinIndice = new Set();
+    FB.indicesFaltantes = {};
+    FB.fallos = {};
+    FB.estado = "listo"; FB.error = "";
+    FB.claveFincas = null;
+    escucharColecciones(misFincas());
+    pintar();
+    avisar("Volviendo a intentar con los índices nuevos…");
+    setTimeout(async () => {
+      const caja = document.querySelector("[data-diagnostico]");
+      if (caja) { caja.innerHTML = '<p class="expl">Revisando…</p>'; await acciones("diagnosticar"); }
+    }, 1500);
+    return;
+  }
   if (a === "abrir-indices") {
     const urls = Object.values(FB.indicesFaltantes || {});
     if (!urls.length) return alert("No hay índices pendientes.");
     let n = 0;
     urls.forEach((u2, i) => setTimeout(() => {
-      const v = window.open(u2, "_blank", "noopener");
+      const v = window.open(conCuenta(u2), "_blank", "noopener");
       if (v) n++;
       if (i === urls.length - 1) setTimeout(() => {
         if (!n) alert("El navegador bloqueó las ventanas emergentes.\n\n" +
