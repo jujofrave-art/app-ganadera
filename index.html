@@ -818,11 +818,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.56.0";
+const VERSION = "1.57.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.57.0", "3 sep 2026", [
+    "ARREGLO: en Palpación, la columna «Servicio anterior» quedaba cortada en «Última: " +
+      "7 ago 2026 ·» sin decir la pajilla. Buscaba la pajilla donde ya no está: desde que un " +
+      "servicio puede llevar varias, van dentro del servicio y no sueltas.",
+    "Esa misma columna dice ahora si fue inseminación o monta natural, y marca las dudosas. " +
+      "Así se ve de un vistazo por qué una vaca está en la lista.",
+    "La columna «Tipo» pasa a llamarse «Categoría»: mostraba vaca o novillona y se confundía " +
+      "con el tipo de servicio.",
+  ]],
   ["1.56.0", "3 sep 2026", [
     "La vista de Palpación dice siempre cuál de las dos reglas está activa, no solo cuando " +
       "es la de montas. Sin eso no había forma de saber por qué salía una vaca en la lista.",
@@ -3922,7 +3931,8 @@ function vPalpacion() {
   L.sort((x, y) => (x.e.fechaPalpacion || "9999").localeCompare(y.e.fechaPalpacion || "9999"));
 
   const base = misAnimales().filter(a => a.estado === "activo").map(a => estado(a));
-  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Tipo"},{et:"Fecha estimada"},{et:"Servicio anterior"},{et:"Última palpación"}];
+  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Categoría"},{et:"Fecha estimada"},
+                {et:"Servicio anterior"},{et:"Última palpación"}];
 
   return `
   <header class="cab"><div><h1>Palpación</h1>
@@ -3944,7 +3954,10 @@ function vPalpacion() {
       <td>${e.fechaPalpacion
             ? `${fmt(e.fechaPalpacion)} ${d>=0?`<span class="p roja">vencida ${d}d</span>`:`<span class="sub">en ${-d} d</span>`}`
             : '<span class="sub">—</span>'}</td>
-      <td>${e.ultInsem ? `<span class="sub">Última: ${fmt(e.ultInsem.fecha)} · ${esc(e.ultInsem.pajilla)}</span>`
+      <td>${e.ultInsem ? `<span class="sub">Última: ${fmt(e.ultInsem.fecha)} · ${esc(pajillasDe(e.ultInsem))}</span>
+             <span class="p ${e.ultInsem.tipo === "monta" ? "ambar" : "gris"}">${
+               e.ultInsem.tipo === "monta" ? "Monta natural" : "Inseminación"}</span>${
+               e.ultInsem.palpar ? '<span class="p ambar">Dudosa</span>' : ""}`
                        : '<span class="sub">Sin registros de servicio</span>'}</td>
       <td>${e.ultPalp
             ? `${fmt(e.ultPalp.fecha)} <span class="p ${e.ultPalp.resultado==="prenada"?"verde":"roja"}">${e.ultPalp.resultado==="prenada"?"Preñada":"Vacía"}</span>`
