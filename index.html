@@ -81,6 +81,12 @@
 }
 
 *{box-sizing:border-box}
+/* El navegador trae [hidden]{display:none}, pero cualquier clase con display
+   propio (.campo, .chip, .palpa-fila, .combo-lista li) le gana. Por eso
+   ocultar con el atributo hidden no hacía nada: salían la fecha y el motivo
+   de salida de un animal en el hato, y no filtraban ni los desplegables con
+   buscador, ni la palpación en grupo, ni las personas de una finca. */
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--papel);color:var(--tinta);font-family:var(--texto);font-size:13.5px;-webkit-font-smoothing:antialiased}
 button{font:inherit;cursor:pointer}
@@ -804,7 +810,7 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
 let CONFIG_INCLUIDA = {"apiKey": "AIzaSyCjOJ5K5ek4nOMjooBg1sLLjpKfS2URHfQ", "authDomain": "app-ganadera-42eff.firebaseapp.com", "projectId": "app-ganadera-42eff", "storageBucket": "app-ganadera-42eff.firebasestorage.app", "messagingSenderId": "633091361694", "appId": "1:633091361694:web:f13f7eda9435ac3783248f"}; /*[[CONFIG-FIREBASE]]*/
 
 /* Código del service worker, para descargarlo desde Configuración. */
-const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app y el SDK de Firebase en el tel\u00e9fono para que\n   todo abra sin se\u00f1al. S\u00fabelo junto al index.html.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v3\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(\n    caches.open(CACHE)\n      .then((c) => c.addAll([BASE, BASE + \"index.html\"]).catch(() => c.add(BASE)))\n      .catch(() => {})\n  );\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\n/** El SDK de Firebase lleva la versi\u00f3n en la URL, as\u00ed que nunca cambia:\n    se puede guardar para siempre. Sin esto la app no abre sin se\u00f1al. */\nconst esSDK = (u) =>\n  u.hostname === \"www.gstatic.com\" && u.pathname.includes(\"/firebasejs/\");\n\n/** Las tipograf\u00edas tampoco cambian. */\nconst esTipografia = (u) =>\n  u.hostname === \"fonts.googleapis.com\" || u.hostname === \"fonts.gstatic.com\";\n\n/** Datos en vivo: nunca se cachean, Firestore ya trae su propio offline. */\nconst esDatos = (u) =>\n  /firestore\\.googleapis|identitytoolkit|securetoken|firebaseio|firebaseinstallations/\n    .test(u.hostname);\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n  const url = new URL(req.url);\n\n  if (esDatos(url)) return;   // que pase directo\n\n  // La app: primero la red salt\u00e1ndose la cach\u00e9 del navegador, para que las\n  // actualizaciones lleguen solas. Si no hay se\u00f1al, la copia guardada.\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n        .then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(BASE, copia)).catch(() => {});\n          }\n          return r;\n        })\n        .catch(() =>\n          caches.match(BASE)\n            .then((r) => r || caches.match(BASE + \"index.html\"))\n            .then((r) => r || new Response(\n              \"<!doctype html><meta charset=utf-8><title>Sin conexion</title>\" +\n              \"<body style='font-family:system-ui;padding:40px;text-align:center'>\" +\n              \"<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder \" +\n              \"usarla despues sin senal.</p></body>\",\n              { headers: { \"Content-Type\": \"text/html; charset=utf-8\" } }))\n        )\n    );\n    return;\n  }\n\n  // SDK y tipograf\u00edas: primero lo guardado. Es lo que permite abrir sin se\u00f1al.\n  if (esSDK(url) || esTipografia(url)) {\n    e.respondWith(\n      caches.match(req).then((hit) => {\n        if (hit) {\n          fetch(req).then((r) => {\n            if (r && r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));\n          }).catch(() => {});\n          return hit;\n        }\n        return fetch(req).then((r) => {\n          if (r && (r.ok || r.type === \"opaque\")) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        });\n      })\n    );\n    return;\n  }\n\n  if (url.origin === self.location.origin) {\n    e.respondWith(\n      caches.match(req).then((hit) =>\n        hit || fetch(req).then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        }).catch(() => hit)\n      )\n    );\n  }\n});\n\n/** Permite que la app pida guardar el SDK apenas termina de cargar. */\nself.addEventListener(\"message\", (e) => {\n  if (e.data && e.data.tipo === \"guardar-sdk\" && Array.isArray(e.data.urls)) {\n    e.waitUntil(\n      caches.open(CACHE).then((c) =>\n        Promise.all(e.data.urls.map((u) => c.add(u).catch(() => {})))\n      )\n    );\n  }\n});\n";
+const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app y el SDK de Firebase en el tel\u00e9fono para que\n   todo abra sin se\u00f1al. S\u00fabelo junto al index.html.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v4\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(\n    caches.open(CACHE)\n      .then((c) => c.addAll([BASE, BASE + \"index.html\"]).catch(() => c.add(BASE)))\n      .catch(() => {})\n  );\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\n/** El SDK de Firebase lleva la versi\u00f3n en la URL, as\u00ed que nunca cambia:\n    se puede guardar para siempre. Sin esto la app no abre sin se\u00f1al. */\nconst esSDK = (u) =>\n  u.hostname === \"www.gstatic.com\" && u.pathname.includes(\"/firebasejs/\");\n\n/** Las tipograf\u00edas tampoco cambian. */\nconst esTipografia = (u) =>\n  u.hostname === \"fonts.googleapis.com\" || u.hostname === \"fonts.gstatic.com\";\n\n/** Datos en vivo: nunca se cachean, Firestore ya trae su propio offline. */\nconst esDatos = (u) =>\n  /firestore\\.googleapis|identitytoolkit|securetoken|firebaseio|firebaseinstallations/\n    .test(u.hostname);\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n  const url = new URL(req.url);\n\n  if (esDatos(url)) return;   // que pase directo\n\n  /* La app: primero la copia guardada, para que abra al instante aunque no\n     haya se\u00f1al en el corral. Detr\u00e1s, sin hacer esperar a nadie, se baja la\n     versi\u00f3n de internet y se reemplaza la copia. La app ya avisa sola cuando\n     hay una versi\u00f3n m\u00e1s reciente, as\u00ed que nada se queda atr\u00e1s por esto. */\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      caches.match(BASE)\n        .then((r) => r || caches.match(BASE + \"index.html\"))\n        .then((guardada) => {\n          const red = fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n            .then((r) => {\n              if (r && r.ok) {\n                const copia = r.clone();\n                caches.open(CACHE).then((c) => c.put(BASE, copia)).catch(() => {});\n              }\n              return r;\n            });\n\n          if (guardada) { e.waitUntil(red.catch(() => {})); return guardada; }\n\n          // Primera vez en este tel\u00e9fono: no hay copia, toca esperar la red.\n          return red.catch(() => new Response(\n            \"<!doctype html><meta charset=utf-8><title>Sin conexion</title>\" +\n            \"<body style='font-family:system-ui;padding:40px;text-align:center'>\" +\n            \"<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder \" +\n            \"usarla despues sin senal.</p></body>\",\n            { headers: { \"Content-Type\": \"text/html; charset=utf-8\" } }));\n        })\n    );\n    return;\n  }\n\n  // SDK y tipograf\u00edas: primero lo guardado. Es lo que permite abrir sin se\u00f1al.\n  if (esSDK(url) || esTipografia(url)) {\n    e.respondWith(\n      caches.match(req).then((hit) => {\n        if (hit) {\n          fetch(req).then((r) => {\n            if (r && r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));\n          }).catch(() => {});\n          return hit;\n        }\n        return fetch(req).then((r) => {\n          if (r && (r.ok || r.type === \"opaque\")) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        });\n      })\n    );\n    return;\n  }\n\n  if (url.origin === self.location.origin) {\n    /* Las consultas con ?v=... son la revision de version: cada una es una\n       direccion distinta, asi que guardarlas llenaba el telefono con una\n       copia nueva del archivo cada dos minutos. Van directo a la red. */\n    if (url.search) return;\n\n    e.respondWith(\n      caches.match(req).then((hit) =>\n        hit || fetch(req).then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        }).catch(() => hit)\n      )\n    );\n  }\n});\n\n/** Permite que la app pida guardar el SDK apenas termina de cargar. */\nself.addEventListener(\"message\", (e) => {\n  if (e.data && e.data.tipo === \"guardar-sdk\" && Array.isArray(e.data.urls)) {\n    e.waitUntil(\n      caches.open(CACHE).then((c) =>\n        Promise.all(e.data.urls.map((u) => c.add(u).catch(() => {})))\n      )\n    );\n  }\n});\n";
 
 /* ==========================================================
    CONTROL GANADERO
@@ -812,11 +818,55 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.48.0";
-const FECHA_VERSION = "30 ago 2026";
+const VERSION = "1.51.0";
+const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.51.0", "3 sep 2026", [
+    "Se puede registrar un animal directamente en la tabla de Vendido-Muerto. Antes solo " +
+      "se podía añadir en Activos y después cambiarle el estado.",
+    "El formulario abre con el estado de la pestaña en la que estés: en Muerto llega como " +
+      "muerto, en Vendido como vendido, y la fecha y el motivo de salida ya salen a la vista.",
+  ]],
+  ["1.50.0", "3 sep 2026", [
+    "ARREGLO DE RAÍZ: ocultar un campo no ocultaba nada. El navegador trae una regla para " +
+      "el atributo hidden, pero cualquier clase con estilo propio le gana, y todas las de " +
+      "la app lo tenían. Por eso salían la fecha y el motivo de salida en un animal que " +
+      "está en el hato.",
+    "Con eso vuelven a funcionar también: el buscador de TODOS los desplegables (animales, " +
+      "fincas, razas, categorías), que no filtraba nada al escribir; el filtro de la " +
+      "palpación en grupo; y el buscador de personas del formulario de finca.",
+    "La fecha y el motivo de salida solo aparecen si el animal está vendido o muerto.",
+    "El total de partos y la fecha del último salen de la tabla de Partos y ya no se " +
+      "escriben en el formulario del animal. En su lugar sale una nota con lo que tiene " +
+      "registrado. Lo que ya estuviera guardado se respeta, y la historia vieja se sigue " +
+      "pudiendo cargar por Importar.",
+  ]],
+  ["1.49.0", "3 sep 2026", [
+    "ARREGLO GRAVE: el bloque de arranque de la app había quedado pegado por error dentro " +
+      "del buscador y dentro de «guardar configuración». Cada letra que se escribía en la " +
+      "búsqueda volvía a conectar con Firebase y a reabrir la sesión; por eso la búsqueda " +
+      "iba a tirones y a veces se cambiaban los datos a la vista.",
+    "SEGURIDAD: las reglas dejaban que un administrador se ascendiera a sí mismo a " +
+      "superadministrador y se asignara todas las fincas escribiendo directo en la base. " +
+      "Ahora nadie puede tocar su propio permiso, ni dar un rango igual o mayor al suyo, " +
+      "ni asignar fincas que no tenga. Hay que volver a publicar las reglas.",
+    "SEGURIDAD: editar y eliminar personas no filtraba por finca, así que un administrador " +
+      "alcanzaba a cualquiera del proyecto. Ahora solo llega a quien comparte finca con él " +
+      "o a quien haya registrado.",
+    "ARREGLO: lo que se anotaba después de las 7 de la noche quedaba con la fecha del día " +
+      "siguiente. La fecha se calculaba en hora de Londres, no en la de la finca.",
+    "Las fotos ya no van en el almacenamiento del navegador, que se llenaba a las ochenta: " +
+      "pasan a IndexedDB, que no tiene ese techo. Las que ya estaban se mudan solas.",
+    "Las fotos ya no se vuelven a subir enteras cada vez que se abre la app.",
+    "La app abre al instante con lo guardado y busca la versión nueva por detrás. Antes, " +
+      "con señal mala, se quedaba en blanco esperando la red.",
+    "La revisión de versión guardaba una copia del archivo cada dos minutos y llenaba el " +
+      "teléfono. Ya no se guarda.",
+    "Al recargarse la pantalla ya no se pierde el punto donde ibas en la lista.",
+    "El service worker cambió: hay que volver a subir sw.js.",
+  ]],
   ["1.48.0", "2 sep 2026", [
     "La palpación en grupo no revisaba si los meses y días tenían sentido: se podía guardar " +
       "una novillona «de 11 meses» con fecha de parto ya pasada.",
@@ -1423,7 +1473,13 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 /* ---------- fechas ---------- */
 function aFecha(s) { return s ? new Date(s + "T12:00:00") : null; }
-function hoyISO() { return new Date().toISOString().slice(0, 10); }
+/** La fecha de hoy en la hora de la finca. Con toISOString se calculaba en
+    hora de Londres: en Colombia, todo lo anotado después de las 7 p. m.
+    quedaba con la fecha del día siguiente. */
+function aISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function hoyISO() { return aISO(new Date()); }
 /** Solo la parte de fecha, a medianoche local. */
 function aMedianoche(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
@@ -1507,7 +1563,7 @@ function mesesEntre(desde) {
 function sumarDias(s, n) {
   const d = aFecha(s);
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return aISO(d);
 }
 /* ----------------------------------------------------------
    TEMA
@@ -1673,6 +1729,112 @@ const CLAVE_FOTO = (id) => (CLAVE_DATOS || CLAVE) + "-f-" + id;
 const MARCA_FOTO = "@disco";
 let _fotosEnDisco = null;
 
+/* ----------------------------------------------------------
+   FOTOS EN EL DISCO
+
+   localStorage tiene un tope de unos 5 MB. Con fotos de 40 a 70 KB
+   la app se llenaba a las ochenta y pico y salía el aviso de
+   espacio. IndexedDB no tiene ese techo y además escribe sin
+   congelar la pantalla.
+
+   Las fotos no hacen falta para dibujar la primera pantalla: se
+   leen enseguida, por detrás, y luego se repinta.
+   ---------------------------------------------------------- */
+const BD_FOTOS = "control-ganadero-fotos";
+let _bd = undefined;
+
+function bdFotos() {
+  if (_bd !== undefined) return _bd;
+  _bd = new Promise((res) => {
+    try {
+      if (!self.indexedDB) return res(null);
+      const p = indexedDB.open(BD_FOTOS, 1);
+      p.onupgradeneeded = () => {
+        if (!p.result.objectStoreNames.contains("fotos")) p.result.createObjectStore("fotos");
+      };
+      p.onsuccess = () => res(p.result);
+      p.onerror = () => res(null);
+      p.onblocked = () => res(null);
+    } catch { res(null); }
+  });
+  return _bd;
+}
+
+function _pedir(peticion) {
+  return new Promise((res) => {
+    peticion.onsuccess = () => res(peticion.result);
+    peticion.onerror = () => res(undefined);
+  });
+}
+
+/** Lee una foto. Si no hay IndexedDB, cae a localStorage como antes. */
+async function fotoLeer(clave) {
+  const bd = await bdFotos();
+  if (!bd) { try { return localStorage.getItem(clave); } catch { return null; } }
+  try {
+    const t = bd.transaction("fotos", "readonly");
+    return (await _pedir(t.objectStore("fotos").get(clave))) ?? null;
+  } catch { return null; }
+}
+
+async function fotoEscribir(clave, dato) {
+  const bd = await bdFotos();
+  if (!bd) { try { localStorage.setItem(clave, dato); } catch {} return false; }
+  try {
+    const t = bd.transaction("fotos", "readwrite");
+    await _pedir(t.objectStore("fotos").put(dato, clave));
+    return true;
+  } catch { return false; }
+}
+
+async function fotoBorrar(clave) {
+  const bd = await bdFotos();
+  if (!bd) { try { localStorage.removeItem(clave); } catch {} return; }
+  try {
+    const t = bd.transaction("fotos", "readwrite");
+    await _pedir(t.objectStore("fotos").delete(clave));
+  } catch {}
+}
+
+async function fotoClaves() {
+  const bd = await bdFotos();
+  if (!bd) { try { return Object.keys(localStorage); } catch { return []; } }
+  try {
+    const t = bd.transaction("fotos", "readonly");
+    return (await _pedir(t.objectStore("fotos").getAllKeys())) || [];
+  } catch { return []; }
+}
+
+/**
+ * Trae del disco las fotos de quien acaba de entrar. Lo primero que hace es
+ * mudar las que quedaran en localStorage de versiones anteriores.
+ */
+async function cargarFotosDeDisco() {
+  const marca = CLAVE_DATOS;
+  const pre = (marca || CLAVE) + "-f-";
+  const conBD = !!(await bdFotos());
+
+  if (conBD) {
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (!k.startsWith(pre)) continue;
+        const dato = localStorage.getItem(k);
+        if (dato && await fotoEscribir(k, dato)) localStorage.removeItem(k);
+      }
+    } catch {}
+  }
+
+  let n = 0;
+  for (const a of (D.animales || [])) {
+    if (a.foto && a.foto !== MARCA_FOTO) continue;   // ya la tiene en memoria
+    const dato = await fotoLeer(pre + a.id);
+    if (CLAVE_DATOS !== marca) return;               // cambió de persona entre tanto
+    if (dato) { a.foto = dato; _fotosEnDisco.set(a.id, dato); n++; }
+    else if (a.foto === MARCA_FOTO) a.foto = null;   // el archivo ya no está
+  }
+  if (n && S.persona) pintar();
+}
+
 function cargarConfig() {
   try { return JSON.parse(localStorage.getItem(CLAVE_CONFIG)) || null; } catch { return null; }
 }
@@ -1681,6 +1843,8 @@ function cargarConfig() {
 function abrirDatosDe(quien) {
   CLAVE_DATOS = CLAVE + "::" + (quien || "local");
   _fotosEnDisco = new Map();
+  // El espejo de fotos ya subidas es de cada quien: se vuelve a leer.
+  if (typeof FB === "object") { FB.fotosSubidas = new Map(); _subidasCargadas = false; }
 
   let d = null;
   try {
@@ -1709,12 +1873,9 @@ function abrirDatosDe(quien) {
   const cfg = D?.config;                    // la del equipo, ya cargada
   D = migrar({ ...(d || semilla()), ...(cfg ? { config: cfg } : {}) });
 
-  (D.animales || []).forEach(a => {
-    if (a.foto === MARCA_FOTO) {
-      a.foto = localStorage.getItem(CLAVE_FOTO(a.id)) || null;
-      if (a.foto) _fotosEnDisco.set(a.id, a.foto);
-    }
-  });
+  // Las fotos se leen del disco por detrás: no hacen falta para la primera
+  // pantalla y leerlas aquí dejaba la app quieta mientras tanto.
+  cargarFotosDeDisco();
   VERSION_DATOS++;
 }
 
@@ -1728,14 +1889,14 @@ function guardarLocal() {
     const animales = (D.animales || []).map(a => {
       if (a.foto && a.foto !== MARCA_FOTO) {
         if (_fotosEnDisco.get(a.id) !== a.foto) {
-          localStorage.setItem(CLAVE_FOTO(a.id), a.foto);
           _fotosEnDisco.set(a.id, a.foto);
+          fotoEscribir(CLAVE_FOTO(a.id), a.foto);   // sin esperar: no traba la pantalla
         }
         return { ...a, foto: MARCA_FOTO };
       }
       if (!a.foto && _fotosEnDisco.has(a.id)) {
-        localStorage.removeItem(CLAVE_FOTO(a.id));
         _fotosEnDisco.delete(a.id);
+        fotoBorrar(CLAVE_FOTO(a.id));
       }
       return a;
     });
@@ -1745,8 +1906,9 @@ function guardarLocal() {
   } catch (e) {
     memoria = JSON.parse(JSON.stringify(D));
     if (String(e).includes("uota")) {
-      alert("El navegador se quedó sin espacio, casi siempre por las fotos.\n\n" +
-            "Exporta una copia desde Configuración y borra algunas fotos viejas.");
+      alert("El navegador se quedó sin espacio.\n\n" +
+            "Exporta una copia desde Configuración y borra los registros más viejos " +
+            "con la herramienta de limpieza.");
     }
   }
 }
@@ -3343,6 +3505,9 @@ const filtroEspecie = (a) => V.especie === "todas" || especieDe(a) === V.especie
 /* ---------- armazón ---------- */
 function pintar() {
   if (!S.persona) return pantallaAcceso();
+  // Dónde iba la lista, para no devolverla al principio en cada repintado.
+  const _alto = document.querySelector(".lienzo")?.scrollTop || 0;
+  const _altoVentana = window.scrollY || 0;
   let v = VISTAS.find(x => x.id === V.vista);
   if (v && !vistaPermitida(v.id)) { V.vista = "activos"; v = VISTAS.find(x => x.id === "activos"); }
   const grupos = [...new Set(VISTAS.map(x => x.grupo))];
@@ -3413,6 +3578,8 @@ function pintar() {
       ? sinFincas() : cuerpo(v)}</main>
   </div>`;
   conectar();
+  if (_alto) { const l = document.querySelector(".lienzo"); if (l) l.scrollTop = _alto; }
+  if (_altoVentana) window.scrollTo(0, _altoVentana);
 }
 
 function selectorFinca() {
@@ -3618,9 +3785,17 @@ function vSalidas() {
   const tot = misAnimales().filter(a => a.estado !== "activo");
   const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Salida"},{et:"Motivo"},{et:"Partos",num:1}];
 
+  // Desde esta tabla se registra directo un animal que ya salió: el
+  // formulario abre con el estado de la pestaña en la que se esté.
+  const iniEstado = V.sub === "muerto" ? "muerto" : "vendido";
+  const iniTexto  = V.sub === "muerto" ? "Añadir muerto"
+                  : V.sub === "vendido" ? "Añadir vendido" : "Añadir salida";
+
   return `
   <header class="cab"><div><h1>Vendido-Muerto</h1>
-    <p>Animales que salieron del hato. Conservan todo su historial.</p></div></header>
+    <p>Animales que salieron del hato. Conservan todo su historial.</p></div>
+    <button class="btn btn-firme" data-nuevo="animal"
+      data-estado-ini="${iniEstado}">${iniTexto}</button></header>
   <div class="barra">${buscador("Buscar en todo: nombre, chapeta, raza, pajilla, detalles…")}${selectorFinca()}</div>
   ${fichas([["todos","Todo",tot.length],["vendido","Vendido",tot.filter(a=>a.estado==="vendido").length],
             ["muerto","Muerto",tot.filter(a=>a.estado==="muerto").length]])}
@@ -4297,7 +4472,7 @@ function subTabla(titulo, n, boton, cols, filas) {
 }
 
 /* ---------- FORMULARIOS ---------- */
-function formAnimal(id) {
+function formAnimal(id, estadoIni) {
   if (misFincasObj().length === 0) {
     return abrirHoja(`
       <div class="hoja-cab"><h2>Primero la finca</h2><button class="cerrar" data-cerrar>×</button></div>
@@ -4307,11 +4482,17 @@ function formAnimal(id) {
         ${puede("editaFinca") ? '<button class="btn btn-firme" data-nuevo="finca">Crear finca</button>' : ""}
       </div>`);
   }
+  // Al añadir desde la tabla de Vendido-Muerto, el estado ya viene puesto y
+  // el formulario abre mostrando la fecha y el motivo de salida.
+  const inicial = ["vendido", "muerto"].includes(estadoIni) ? estadoIni : "activo";
   const a = id ? animal(id) : { nombre:"", chapeta:"", fincaId:D.fincas[0]?.id, categoria:"vaca",
-    estado:"activo", fechaNacimiento:"", raza:"", detalles:"", partosPrevios:0, ultimoPartoPrevio:"",
+    estado:inicial, fechaNacimiento:"", raza:"", detalles:"", partosPrevios:0, ultimoPartoPrevio:"",
     fechaSalida:"", motivoSalida:"", observaciones:"" };
   abrirHoja(`
-    <div class="hoja-cab"><h2>${id ? "Editar animal" : "Añadir animal"}</h2>
+    <div class="hoja-cab"><h2>${id ? "Editar animal"
+      : inicial === "vendido" ? "Añadir animal vendido"
+      : inicial === "muerto"  ? "Añadir animal muerto"
+      : "Añadir animal"}</h2>
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-guardar="animal:${id||""}">
       <div class="hoja-cuerpo"><div class="aviso" data-error hidden></div><div class="rej">
@@ -4335,25 +4516,23 @@ function formAnimal(id) {
             Sirve para cualquier especie.</em></span>
           </label></div>
 
-        <!-- Solo para hembras adultas: historia previa a la app. Si ya tiene
-             partos registrados, el total sale de ellos y no se escribe. -->
+        <!-- Solo para hembras adultas. El total de partos y la fecha del
+             último NO se escriben: salen de la tabla de Partos. -->
         ${(() => {
           const suyos = id ? partosDe(id).filter(p => p.tipo === "parto") : [];
-          if (suyos.length) return `<div class="campo ancho" data-solo-vaca hidden>
-            <div class="nota" style="margin:0">Tiene <strong>${suyos.length} parto(s)
-            registrados</strong>, el último el ${fmt(suyos[0].fecha)}. El total y la fecha
-            se calculan solos de esos registros, por eso no se escriben aquí.</div></div>`;
-          return `
-            <div class="campo ancho" data-solo-vaca hidden>
-              <div class="nota" style="margin:0">Como es una hembra adulta, puede traer historia.
-              Estos dos datos arrancan los contadores sin digitar los partos viejos uno por uno.
-              En cuanto registres partos en la app, el total se calcula de ellos.</div></div>
-            <div class="campo" data-solo-vaca hidden><label>Total partos</label>
-              <input type="number" min="0" name="partosPrevios" value="${a.partosPrevios||0}">
-              <span class="ayuda">Cuántos ha tenido en total hasta hoy</span></div>
-            <div class="campo" data-solo-vaca hidden><label>Fecha del último parto</label>
-              <input type="date" name="ultimoPartoPrevio" value="${a.ultimoPartoPrevio||""}">
-              <span class="ayuda">Desde aquí cuentan los días vacía</span></div>`;
+          const previos = Number(a.partosPrevios) || 0;
+          return `<div class="campo ancho" data-solo-vaca hidden>
+            <div class="nota" style="margin:0">
+              ${suyos.length
+                ? `Tiene <strong>${suyos.length} parto(s) registrados</strong>, el último el
+                   ${fmt(suyos[0].fecha)}.`
+                : previos
+                  ? `Trae <strong>${previos} parto(s)</strong> de antes de la app.`
+                  : `Todavía no tiene partos registrados.`}
+              El total de partos y la fecha del último se calculan de la tabla de
+              <strong>Partos</strong>, así que no se escriben aquí. Si trae historia
+              vieja, súbela por <strong>Importar</strong> o registra los partos.
+            </div></div>`;
         })()}
 
         <div class="campo"><label>Estado</label><select name="estado" data-estado>
@@ -7231,8 +7410,11 @@ function escucharColecciones(mias) {
           const locales = new Map((D.animales || []).map(a => [a.id, a.foto]));
           docs = docs.map(a => {
             const mia = locales.get(a.id) || null;
-            if (a.tieneFoto && mia) FB.fotosSubidas.set(a.id, mia);
-            if (!a.tieneFoto) FB.fotosSubidas.set(a.id, null);
+            // El servidor ya tiene esta foto: se anota su huella para no
+            // volver a subirla. Si dice que no tiene, se olvida.
+            cargarSubidas();
+            if (a.tieneFoto && mia) FB.fotosSubidas.set(a.id, huellaFoto(mia));
+            if (!a.tieneFoto) FB.fotosSubidas.delete(a.id);
             return { ...a, foto: a.foto || mia || null };
           });
         }
@@ -7989,22 +8171,60 @@ if (location.protocol.startsWith("http")) {
    liviana. Se suben aparte y se bajan solo al abrir la ficha.
    ========================================================== */
 
+/* Qué foto tiene ya subida cada animal. Se guarda una huella corta, no la
+   foto entera, y queda en el equipo: si no, al abrir la app se resubían
+   todas las fotos otra vez, que en el campo son datos del plan. */
 FB.fotosSubidas = new Map();
+let _subidasCargadas = false;
+
+function huellaFoto(s) {
+  const t = String(s || "");
+  let a = 5381;
+  for (let i = 0; i < t.length; i++) a = ((a * 33) ^ t.charCodeAt(i)) >>> 0;
+  return t.length + ":" + a.toString(36);
+}
+const CLAVE_SUBIDAS = () => (CLAVE_DATOS || CLAVE) + "-fsub";
+
+function cargarSubidas() {
+  if (_subidasCargadas) return;
+  _subidasCargadas = true;
+  try {
+    FB.fotosSubidas = new Map(Object.entries(
+      JSON.parse(localStorage.getItem(CLAVE_SUBIDAS()) || "{}")));
+  } catch { FB.fotosSubidas = new Map(); }
+}
+function guardarSubidas() {
+  try {
+    localStorage.setItem(CLAVE_SUBIDAS(), JSON.stringify(Object.fromEntries(FB.fotosSubidas)));
+  } catch {}
+}
 
 async function subirFotos() {
   if (!FB.db || !FB.user) return;
+  cargarSubidas();
   const { fs } = FB.mods;
+  let cambio = false;
   for (const a of D.animales) {
-    const actual = a.foto || null;
-    if (FB.fotosSubidas.has(a.id) && FB.fotosSubidas.get(a.id) === actual) continue;
-    if (!actual && !FB.fotosSubidas.has(a.id)) continue;   // nunca tuvo
+    // Todavía no se ha leído del disco: no se sabe qué tiene, no se toca.
+    // Sin esto, borraría en Firebase la foto de un animal que sí la tiene.
+    if (a.tieneFoto && !a.foto) continue;
+
+    const marca = a.foto ? huellaFoto(a.foto) : null;
+    if (FB.fotosSubidas.get(a.id) === marca) continue;
+    if (!marca && !FB.fotosSubidas.has(a.id)) continue;   // nunca tuvo
     try {
       const ref = fs.doc(FB.db, "fotos", a.id);
-      if (actual) fs.setDoc(ref, { fincaId: a.fincaId, dato: actual }).catch(() => {});
-      else fs.deleteDoc(ref).catch(() => {});
-      FB.fotosSubidas.set(a.id, actual);
+      if (marca) {
+        fs.setDoc(ref, { fincaId: a.fincaId, dato: a.foto }).catch(() => {});
+        FB.fotosSubidas.set(a.id, marca);
+      } else {
+        fs.deleteDoc(ref).catch(() => {});
+        FB.fotosSubidas.delete(a.id);
+      }
+      cambio = true;
     } catch (e) { /* sin señal: Firestore la encola */ }
   }
+  if (cambio) guardarSubidas();
 }
 
 /** Baja la foto de un animal concreto. Devuelve true si llegó. */
@@ -8017,7 +8237,9 @@ async function cargarFoto(animalId) {
     const s = await FB.mods.fs.getDoc(FB.mods.fs.doc(FB.db, "fotos", animalId));
     if (s.exists() && s.data().dato) {
       a.foto = s.data().dato;
-      FB.fotosSubidas.set(animalId, a.foto);
+      cargarSubidas();
+      FB.fotosSubidas.set(animalId, huellaFoto(a.foto));
+      guardarSubidas();
       guardarLocal();
       return true;
     }
@@ -8057,14 +8279,19 @@ function soltarFincasAjenas(mias) {
   // persona desde que los datos se separaron por usuario.
   const vivos = new Set(D.animales.map(a => a.id));
   const pre = (CLAVE_DATOS || CLAVE) + "-f-";
-  try {
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith(pre) && !vivos.has(k.slice(pre.length))) {
-        localStorage.removeItem(k);
-        _fotosEnDisco?.delete(k.slice(pre.length));
+  (async () => {
+    try {
+      for (const k of await fotoClaves()) {
+        if (typeof k === "string" && k.startsWith(pre) && !vivos.has(k.slice(pre.length))) {
+          await fotoBorrar(k);
+          _fotosEnDisco?.delete(k.slice(pre.length));
+        }
       }
-    }
-  } catch {}
+      for (const k of Object.keys(localStorage)) {   // restos de versiones viejas
+        if (k.startsWith(pre) && !vivos.has(k.slice(pre.length))) localStorage.removeItem(k);
+      }
+    } catch {}
+  })();
   if (n) { FB.espejo = {}; FB.cajones = {}; guardarLocal(); }
   return n;
 }
@@ -8183,7 +8410,10 @@ async function barrerAnimalRemoto(animalId, fincaId) {
     } catch (e) { console.warn("barrer:", errorFB(e)); }
   }
   try { await fs.deleteDoc(fs.doc(FB.db, "fotos", animalId)); } catch {}
+  fotoBorrar(CLAVE_FOTO(animalId));       // y la copia de este equipo
+  _fotosEnDisco?.delete(animalId);
   FB.fotosSubidas.delete(animalId);
+  guardarSubidas();
   return n;
 }
 
@@ -8571,11 +8801,48 @@ service cloud.firestore {
     function mia()        { return esSuper() || resource.data.fincaId in misFincas(); }
     function seraMia()    { return esSuper() || request.resource.data.fincaId in misFincas(); }
 
+    // De menor a mayor. Sirve para que nadie reparta un puesto igual o
+    // mayor al suyo, ni le quite el suyo a alguien que está por encima.
+    function rango(r) {
+      return r == 'superadmin' ? 4 : r == 'dueno' ? 3 : r == 'administrador' ? 2 : 1;
+    }
+
     // ---- quién puede entrar y a qué fincas ----
+    // OJO: este documento ES el permiso. Quien pueda escribirlo a su antojo
+    // manda en todo, así que aquí no basta con "es administrador": antes,
+    // cualquier administrador podía ponerse superadmin desde la consola del
+    // navegador y quedarse con todas las fincas.
     match /usuarios/{correo} {
-      allow read:  if request.auth != null
-                   && (correo == request.auth.token.email || (registrado() && manda()));
-      allow write: if registrado() && manda();
+      function esMio() { return correo == request.auth.token.email; }
+
+      // Sobre el propio permiso: la app lo repara sola (recuperar fincas,
+      // unir fichas duplicadas), así que hay que dejarla escribir. Lo que
+      // NO puede cambiar nunca es su rol ni volverse a activar.
+      function arregloMio() {
+        return esMio() && (esSuper() || (
+          request.resource.data.rol == resource.data.rol
+          && request.resource.data.get('activo', true) == resource.data.get('activo', true)
+        ));
+      }
+
+      // Sobre el permiso de otro: solo alguien de rango mayor, sin repartir
+      // fincas que no tenga ni puestos iguales o mayores al suyo.
+      function otorgoAOtro() {
+        return !esMio() && manda() && (esSuper() || (
+          rango(request.resource.data.rol) < rango(rol())
+          && request.resource.data.fincas is list
+          && request.resource.data.fincas.hasOnly(misFincas())
+        ));
+      }
+
+      allow read:   if request.auth != null
+                    && (esMio() || (registrado() && manda()));
+      allow create: if registrado() && otorgoAOtro();
+      allow update: if registrado() && (arregloMio() ||
+                    (otorgoAOtro()
+                     && (esSuper() || rango(resource.data.get('rol', 'empleado')) < rango(rol()))));
+      allow delete: if registrado() && !esMio() && (esSuper()
+                    || (manda() && rango(resource.data.get('rol', 'empleado')) < rango(rol())));
     }
 
     // ---- fincas: solo las asignadas ----
@@ -8594,9 +8861,28 @@ service cloud.firestore {
                       || (manda() && resource.data.creadoPor == yo().persona)
                       || (manda() && resource.data.sinFinca == true)
                       || resource.data.correo == request.auth.token.email);
-      allow create: if registrado() && manda();
-      allow update: if registrado() && manda();
-      allow delete: if registrado() && manda();
+      // Antes bastaba con ser administrador para editar o borrar a
+      // CUALQUIERA del proyecto, aunque fuera de otra finca. Ahora alcanza
+      // solo a quien comparte finca conmigo o a quien yo registré, y nunca
+      // a alguien de rango igual o mayor.
+      function alcanzo() {
+        return esSuper() || (manda() && (
+          resource.data.fincas.hasAny(misFincas())
+          || resource.data.creadoPor == yo().persona
+          || resource.data.sinFinca == true
+        ) && rango(resource.data.get('rol', 'empleado')) < rango(rol()));
+      }
+      // Su propia ficha sí la edita cada quien (nombre, teléfono), pero
+      // sin cambiarse el rol.
+      function miFicha() {
+        return resource.data.get('correo', '') == request.auth.token.email
+               && request.resource.data.rol == resource.data.rol;
+      }
+      allow create: if registrado() && manda()
+                    && (esSuper() || rango(request.resource.data.rol) < rango(rol()));
+      allow update: if registrado() && (miFicha() || (alcanzo()
+                    && (esSuper() || rango(request.resource.data.rol) < rango(rol()))));
+      allow delete: if registrado() && alcanzo();
     }
 
     // ---- ganado y sus eventos: filtrados por finca ----
@@ -9505,15 +9791,7 @@ function conectar() {
   if (bi) bi.oninput = (e) => {
     V.busca = e.target.value;
     const pos = e.target.selectionStart;
-    aplicarTema();
-aplicarGiro(false);
-recuperarSesion();
-pintar();
-
-// Si el archivo cambió de versión desde la última vez, avisarlo.
-const versionPrevia = revisarVersion();
-if (versionPrevia) setTimeout(() => avisar(`Actualizada de la ${versionPrevia} a la ${VERSION}`), 900);
-conectarFirebase(true);
+    pintar();
     const n = $("[data-f=busca]"); n.focus(); n.setSelectionRange(pos, pos);
   };
 
@@ -9537,7 +9815,8 @@ conectarFirebase(true);
   document.querySelectorAll("[data-ev]").forEach(el =>
     el.onclick = () => { const [t, id] = el.dataset.ev.split(":"); ABRIR_EV[t](id); });
   document.querySelectorAll("[data-nuevo]").forEach(el =>
-    el.onclick = () => ABRIR_NUEVO[el.dataset.nuevo](null, el.dataset.an || el.dataset.rol));
+    el.onclick = () => ABRIR_NUEVO[el.dataset.nuevo](
+      null, el.dataset.an || el.dataset.rol || el.dataset.estadoIni));
 
   document.querySelectorAll("[data-listo]").forEach(b => b.onclick = (e) => {
     e.stopPropagation();
@@ -9783,7 +10062,8 @@ function conectarHoja(d) {
   });
 
   d.querySelectorAll("[data-nuevo]").forEach(el =>
-    el.onclick = () => ABRIR_NUEVO[el.dataset.nuevo](null, el.dataset.an || el.dataset.rol));
+    el.onclick = () => ABRIR_NUEVO[el.dataset.nuevo](
+      null, el.dataset.an || el.dataset.rol || el.dataset.estadoIni));
 
   d.querySelectorAll("[data-editar]").forEach(b => b.onclick = () => {
     const [t, id] = b.dataset.editar.split(":");
@@ -10001,8 +10281,11 @@ function enviar(f) {
   const nuevo = (o) => ({ id: uid(), creadoPor: S.persona?.id || null, ...o });
 
   if (tipo === "animal") {
-    v.partosPrevios = Number(v.partosPrevios) || 0;
-    v.ultimoPartoPrevio = v.ultimoPartoPrevio || null;
+    // Estos dos ya no se escriben a mano: salen de los partos registrados.
+    // Lo que traiga de antes (importado o de una versión anterior) se respeta.
+    const previo = id ? animal(id) : null;
+    v.partosPrevios = previo ? (Number(previo.partosPrevios) || 0) : 0;
+    v.ultimoPartoPrevio = previo ? (previo.ultimoPartoPrevio || null) : null;
     delete v.especie;   // se deriva de la categoría
     const cat = CATEGORIAS[v.categoria];
     if (!cat || cat.sexo !== "H" || cat.etapa !== "adulta") {
@@ -10265,15 +10548,7 @@ async function acciones(a) {
     const cfg = leerConfigPegada(val("cfg-pegar"));
     if (!cfg) return alert("No encontré apiKey ni projectId ahí.\n\n" +
       "Copia el bloque completo desde Configuración del proyecto → Tus apps → Web.");
-    D.config.firebase = cfg; guardarLocal(); aplicarTema();
-aplicarGiro(false);
-recuperarSesion();
-pintar();
-
-// Si el archivo cambió de versión desde la última vez, avisarlo.
-const versionPrevia = revisarVersion();
-if (versionPrevia) setTimeout(() => avisar(`Actualizada de la ${versionPrevia} a la ${VERSION}`), 900);
-conectarFirebase(true);
+    D.config.firebase = cfg; guardarLocal();
     avisar("Configuración guardada"); conectarFirebase();
     return;
   }
@@ -10543,13 +10818,21 @@ conectarFirebase(true);
     if (!confirm("Esto borra todos los animales, fincas, personas y eventos de este equipo.\n\n" +
                  "Si tienes Firebase conectado, los datos de la nube NO se borran.\n\n¿Seguro?")) return;
     if (!confirm("Última confirmación: no hay forma de deshacer esto.")) return;
+    const pre = (CLAVE_DATOS || CLAVE) + "-f-";
     try {
       for (const k of Object.keys(localStorage)) {
-        if (k.startsWith((CLAVE_DATOS || CLAVE) + "-f-")) localStorage.removeItem(k);
+        if (k.startsWith(pre)) localStorage.removeItem(k);
       }
+      localStorage.removeItem(CLAVE_SUBIDAS());
       if (CLAVE_DATOS) localStorage.removeItem(CLAVE_DATOS);
     } catch {}
+    (async () => {
+      for (const k of await fotoClaves()) {
+        if (typeof k === "string" && k.startsWith(pre)) await fotoBorrar(k);
+      }
+    })();
     _fotosEnDisco = new Map();
+    FB.fotosSubidas = new Map(); _subidasCargadas = false;
     const cfg = D.config;
     D = migrar({ ...semilla(), config: cfg });
     guardarLocal();

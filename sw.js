@@ -4,7 +4,7 @@
    todo abra sin señal. Súbelo junto al index.html.
    ========================================================== */
 
-const CACHE = "ganadero-v3";
+const CACHE = "ganadero-v4";
 const BASE = new URL("./", self.location).pathname;
 
 self.addEventListener("install", (e) => {
@@ -45,28 +45,34 @@ self.addEventListener("fetch", (e) => {
 
   if (esDatos(url)) return;   // que pase directo
 
-  // La app: primero la red saltándose la caché del navegador, para que las
-  // actualizaciones lleguen solas. Si no hay señal, la copia guardada.
+  /* La app: primero la copia guardada, para que abra al instante aunque no
+     haya señal en el corral. Detrás, sin hacer esperar a nadie, se baja la
+     versión de internet y se reemplaza la copia. La app ya avisa sola cuando
+     hay una versión más reciente, así que nada se queda atrás por esto. */
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(new Request(req.url, { cache: "reload", credentials: "same-origin" }))
-        .then((r) => {
-          if (r && r.ok) {
-            const copia = r.clone();
-            caches.open(CACHE).then((c) => c.put(BASE, copia)).catch(() => {});
-          }
-          return r;
+      caches.match(BASE)
+        .then((r) => r || caches.match(BASE + "index.html"))
+        .then((guardada) => {
+          const red = fetch(new Request(req.url, { cache: "reload", credentials: "same-origin" }))
+            .then((r) => {
+              if (r && r.ok) {
+                const copia = r.clone();
+                caches.open(CACHE).then((c) => c.put(BASE, copia)).catch(() => {});
+              }
+              return r;
+            });
+
+          if (guardada) { e.waitUntil(red.catch(() => {})); return guardada; }
+
+          // Primera vez en este teléfono: no hay copia, toca esperar la red.
+          return red.catch(() => new Response(
+            "<!doctype html><meta charset=utf-8><title>Sin conexion</title>" +
+            "<body style='font-family:system-ui;padding:40px;text-align:center'>" +
+            "<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder " +
+            "usarla despues sin senal.</p></body>",
+            { headers: { "Content-Type": "text/html; charset=utf-8" } }));
         })
-        .catch(() =>
-          caches.match(BASE)
-            .then((r) => r || caches.match(BASE + "index.html"))
-            .then((r) => r || new Response(
-              "<!doctype html><meta charset=utf-8><title>Sin conexion</title>" +
-              "<body style='font-family:system-ui;padding:40px;text-align:center'>" +
-              "<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder " +
-              "usarla despues sin senal.</p></body>",
-              { headers: { "Content-Type": "text/html; charset=utf-8" } }))
-        )
     );
     return;
   }
@@ -94,6 +100,11 @@ self.addEventListener("fetch", (e) => {
   }
 
   if (url.origin === self.location.origin) {
+    /* Las consultas con ?v=... son la revision de version: cada una es una
+       direccion distinta, asi que guardarlas llenaba el telefono con una
+       copia nueva del archivo cada dos minutos. Van directo a la red. */
+    if (url.search) return;
+
     e.respondWith(
       caches.match(req).then((hit) =>
         hit || fetch(req).then((r) => {
