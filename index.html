@@ -818,11 +818,50 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.57.0";
+const VERSION = "1.61.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.61.0", "3 sep 2026", [
+    "ARREGLO IMPORTANTE PARA EL CAMPO: con la app instalada en el celular, la sesión ya no " +
+      "se cierra al salir de la app. Antes se guardaba solo mientras durara la pestaña, y " +
+      "en el celular esa pestaña muere al cambiar de aplicación. Al volver pedía entrar " +
+      "otra vez, y entrar necesita internet: sin señal la app no servía para nada.",
+    "ARREGLO: el botón «trabajar sin señal» buscaba la sesión guardada donde nunca se " +
+      "escribía, así que no funcionaba nunca. Ahora sí entra con lo que haya en el equipo.",
+    "Ese botón sale también cuando simplemente no hay señal, no solo cuando Firebase falla.",
+    "Cerrar sesión a propósito sí borra el apunte: no se entra solo la próxima vez.",
+  ]],
+  ["1.60.0", "3 sep 2026", [
+    "El botón de fijar la pantalla decía «instala la app y funcionará» aunque la app ya " +
+      "estuviera instalada, que no llevaba a ninguna parte. Ahora dice qué pasó de verdad.",
+    "En iPhone y iPad el botón ya no sale: Apple no deja fijar la orientación desde la web, " +
+      "ni con la app instalada. En su lugar se explica cómo hacerlo con el Centro de control.",
+    "Si se está en el navegador y no en la app instalada, Configuración lo dice.",
+  ]],
+  ["1.59.0", "3 sep 2026", [
+    "SEGURIDAD: cerrarle una sección a alguien, darle acceso a la configuración avanzada o " +
+      "ponerle un cupo solo valía en el equipo donde se hizo. Todo eso vivía en el " +
+      "navegador. La misma persona abría en el celular y veía de todo. Ahora esos permisos " +
+      "viajan por Firestore y son iguales en todas partes.",
+    "Los parámetros de la finca y el ajuste de a quién se le palpa también viajan: son de " +
+      "la finca, no del aparato. Antes las alertas salían distintas en el computador y en " +
+      "el celular sin que nada lo dijera.",
+    "Lo que sigue siendo de cada equipo: el tema, cuánto historial se baja, el bloqueo de " +
+      "giro y la conexión con Firebase.",
+    "Un equipo recién instalado no sube nada hasta haber leído lo que ya hay, para no " +
+      "pisarle a la finca sus números con los de fábrica.",
+    "HAY QUE VOLVER A PUBLICAR LAS REGLAS: llevan una sección nueva para /ajustes.",
+  ]],
+  ["1.58.0", "3 sep 2026", [
+    "ARREGLO: el ajuste de a quién se le palpa estaba dentro del formulario de parámetros, " +
+      "y su botón Guardar queda abajo del todo, después de siete bloques de especies. Se " +
+      "marcaba la opción, se cambiaba de pantalla y se perdía sin avisar. Ahora se guarda " +
+      "en el momento de tocarlo.",
+    "Configuración avisa que se queda en este equipo y no sube a Firebase, que era otra " +
+      "cosa que no estaba dicha en ninguna parte.",
+  ]],
   ["1.57.0", "3 sep 2026", [
     "ARREGLO: en Palpación, la columna «Servicio anterior» quedaba cortada en «Última: " +
       "7 ago 2026 ·» sin decir la pajilla. Buscaba la pajilla donde ya no está: desde que un " +
@@ -1638,6 +1677,21 @@ function temaEfectivo() {
    ---------------------------------------------------------- */
 const puedeGirar = () => typeof screen !== "undefined" && !!screen.orientation?.lock;
 
+/** iPhone y iPad NO dejan fijar la orientación desde la web, ni siquiera con
+    la app instalada. Es una decisión de Apple. Decírselo a la gente es más
+    honesto que mandarla a instalar algo que tampoco lo va a arreglar. */
+const enLinea = () => { try { return navigator.onLine !== false; } catch { return true; } };
+
+const esIOS = () => {
+  try {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  } catch { return false; }
+};
+
+/** ¿Tiene sentido siquiera enseñar el botón en este aparato? */
+const giroPosible = () => !esIOS() && puedeGirar();
+
 const estaInstalada = () => {
   try {
     return window.matchMedia("(display-mode: standalone)").matches ||
@@ -1646,9 +1700,22 @@ const estaInstalada = () => {
 };
 
 async function aplicarGiro(avisando) {
+  if (esIOS()) {
+    if (avisando) {
+      D.config.giroBloqueado = false; guardarLocal();
+      alert("En iPhone y iPad no se puede fijar la pantalla desde la app. " +
+        "Es una limitación de Apple: no la deja ni con la app instalada.\n\n" +
+        "Usa el bloqueo del sistema: desliza desde la esquina de arriba a la derecha " +
+        "para abrir el Centro de control y toca el candado con la flecha alrededor.");
+    }
+    return false;
+  }
   if (!puedeGirar()) {
-    if (avisando) alert("Este navegador no deja fijar la orientación.\n\n" +
-      "Instala la app desde Configuración → Instalar en el celular y funcionará.");
+    if (avisando) {
+      D.config.giroBloqueado = false; guardarLocal();
+      alert("Este navegador no trae la función de fijar la orientación.\n\n" +
+        "Usa el bloqueo de rotación del celular, en la barra de ajustes rápidos.");
+    }
     return false;
   }
   try {
@@ -1668,8 +1735,16 @@ async function aplicarGiro(avisando) {
     if (avisando) {
       D.config.giroBloqueado = false;
       guardarLocal();
-      alert("No se pudo fijar la orientación en este navegador.\n\n" +
-        "Instala la app desde Configuración → Instalar en el celular: ahí sí funciona.");
+      // Decir qué falló de verdad. El mensaje de antes mandaba a instalar la
+      // app aunque ya estuviera instalada, y así no había por dónde seguir.
+      alert(estaInstalada()
+        ? "La app está instalada, pero el sistema no dejó fijar la pantalla.\n\n" +
+          "Motivo técnico: " + (e?.name || e) + ".\n\n" +
+          "Usa mientras tanto el bloqueo de rotación del celular, en la barra de " +
+          "ajustes rápidos."
+        : "Estás abriendo la app desde el navegador, no desde el icono instalado.\n\n" +
+          "Instálala con el menú del navegador → «Instalar aplicación» o «Añadir a " +
+          "pantalla de inicio», y ábrela desde ese icono.");
     }
     return false;
   }
@@ -2974,9 +3049,12 @@ function bloqueClave() {
     ${S.aviso ? `<div class="nota">${esc(S.aviso)}</div>` : ""}
     ${enArchivoLocal() ? `<div class="aviso">El archivo está abierto con doble clic y el
       navegador bloquea Firebase. Ábrelo desde su dirección en internet.</div>` : ""}
-    ${FB.estado === "error" && haySesionGuardada() ? `<div class="nota">
-      No se pudo conectar con Firebase. Puedes seguir trabajando con lo que hay guardado
-      en este equipo; los cambios suben solos cuando vuelva la señal.
+${(FB.estado === "error" || !enLinea()) && haySesionGuardada() ? `<div class="nota">
+      ${FB.estado === "error"
+        ? "No se pudo conectar con Firebase."
+        : "No hay señal, y entrar con el correo la necesita."}
+      Puedes seguir trabajando con lo que hay guardado en este equipo; los cambios suben
+      solos cuando vuelva la señal.
       <div class="fila-btn" style="margin-top:9px">
         <button class="btn btn-sm" data-acc="sin-senal">Trabajar sin señal</button>
       </div></div>` : ""}
@@ -2987,12 +3065,15 @@ function bloqueClave() {
           autocomplete="username" required></div>
       <div class="campo"><label>Contraseña</label>
         <input name="clave" type="password" autocomplete="current-password" required></div>
-      <label class="recordar">
+      ${estaInstalada() ? `<div class="nota" style="margin-bottom:12px">
+        Como la app está instalada, la sesión <strong>se queda abierta</strong>. Así puedes
+        salir de la app, volver y seguir anotando aunque no haya señal.</div>`
+      : `<label class="recordar">
         <input type="checkbox" name="recordar" ${D.config.recordarSesion ? "checked" : ""}>
         <span>Mantener la sesión abierta en este equipo
         <em>Déjalo sin marcar si varias personas usan este computador: así cada pestaña
-        pide su propio usuario.</em></span>
-      </label>
+        pide su propio usuario. En el celular, con la app instalada, se mantiene siempre.</em></span>
+      </label>`}
       <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
         ${S.cargando ? "Entrando…" : "Entrar"}</button>
     </form>
@@ -3254,10 +3335,33 @@ function crearPrimerUsuario(nombre, correo) {
 /* La sesión vive en sessionStorage: es propia de cada pestaña. Así dos
    personas pueden trabajar a la vez en el mismo computador. */
 const CLAVE_SESION = CLAVE + "-sesion";
+/* La sesión de la pestaña se pierde al cerrarla. En el celular eso ocurre
+   cada vez que se sale de la app. Aparte se deja apuntado de quién fue la
+   última sesión en este equipo, para poder entrar sin señal. */
+const CLAVE_ULTIMA = CLAVE + "-ultima-sesion";
+
+/** ¿La sesión debe quedarse abierta? Con la app instalada, siempre: no hay
+    varias pestañas ni gente distinta compartiendo el aparato. */
+const sesionPersistente = () => !!D.config.recordarSesion || estaInstalada();
+
+function ultimaSesion() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_ULTIMA) || "null"); }
+  catch { return null; }
+}
+
 function guardarSesion() {
   try {
-    if (S.persona) sessionStorage.setItem(CLAVE_SESION, S.persona.id);
-    else sessionStorage.removeItem(CLAVE_SESION);
+    if (S.persona) {
+      sessionStorage.setItem(CLAVE_SESION, S.persona.id);
+      localStorage.setItem(CLAVE_ULTIMA, JSON.stringify({
+        id: S.persona.id,
+        correo: (S.persona.correo || D.config.correo || "").toLowerCase(),
+      }));
+    } else {
+      sessionStorage.removeItem(CLAVE_SESION);
+      // Salir a propósito sí borra el apunte: no se entra solo la próxima vez.
+      localStorage.removeItem(CLAVE_ULTIMA);
+    }
   } catch {}
 }
 function recuperarSesion() {
@@ -3276,8 +3380,21 @@ function recuperarSesion() {
  */
 function entrarSinSenal() {
   let id = null;
-  try { id = localStorage.getItem(CLAVE_SESION); } catch {}
-  const p = id ? persona(id) : null;
+  try { id = sessionStorage.getItem(CLAVE_SESION); } catch {}
+  let p = id ? persona(id) : null;
+
+  // Si la pestaña ya no existe, se abre la caja de la última persona que
+  // entró en este equipo. Antes se buscaba en localStorage una clave que
+  // nunca se escribía ahí, así que este salvavidas no servía nunca.
+  if (!p) {
+    const u = ultimaSesion();
+    if (u?.correo) {
+      abrirDatosDe(u.correo);
+      p = (u.id && persona(u.id))
+        || D.personas.find(x => (x.correo || "").toLowerCase() === u.correo)
+        || null;
+    }
+  }
   if (!p) return false;
   S.persona = p; S.modo = "offline"; S.error = "";
   pintar();
@@ -3391,8 +3508,13 @@ function ofrecerClave() {
 function haySesionGuardada() {
   try {
     const id = sessionStorage.getItem(CLAVE_SESION);
-    return !!(id && persona(id) && D.fincas.length);
-  } catch { return false; }
+    if (id && persona(id) && D.fincas.length) return true;
+  } catch {}
+  // La pestaña puede haberse cerrado (en el celular pasa cada vez que se sale
+  // de la app), pero los datos siguen en el equipo. Eso basta para trabajar.
+  const u = ultimaSesion();
+  if (!u?.correo) return false;
+  try { return !!localStorage.getItem(CLAVE + "::" + u.correo); } catch { return false; }
 }
 
 
@@ -3590,10 +3712,10 @@ function pintar() {
         <path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <div class="topbar-tit">${esc(v ? v.et : "Control Ganadero")}</div>
-    <button class="topbar-giro ${D.config.giroBloqueado ? "on" : ""}" data-acc="giro"
+    ${giroPosible() ? `<button class="topbar-giro ${D.config.giroBloqueado ? "on" : ""}" data-acc="giro"
       title="${D.config.giroBloqueado ? "Pantalla fija. Toca para permitir el giro"
                                       : "Toca para dejar la pantalla fija"}"
-      aria-label="Bloquear giro">${D.config.giroBloqueado ? "🔒" : "⟳"}</button>
+      aria-label="Bloquear giro">${D.config.giroBloqueado ? "🔒" : "⟳"}</button>` : ""}
     <span class="ver-chip sync-chip ${estadoSync().clase}">${estadoSync().corto}</span>
     ${nAlertas ? `<button class="topbar-alertas" data-ir="alertas">${nAlertas}</button>` : ""}
   </header>
@@ -7266,6 +7388,31 @@ const sinRecorte = () => !!FB.todoElHistorial || !Number(D.config?.ventanaMeses 
 const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
                      "palpaciones", "partos", "secados", "tratamientos", "leche", "anotaciones"];
 
+/* ==========================================================
+   AJUSTES QUE SON DE LA FINCA, NO DEL APARATO
+
+   Toda la configuración vivía solo en cada equipo. Para el tema
+   oscuro o los meses de historial está bien: dependen del
+   aparato. Pero que una vaca geste 283 días es de la finca, y
+   cerrarle una sección a un empleado es un permiso: hacerlo en
+   el computador no servía de nada porque en el celular seguía
+   viendo todo.
+
+   Estos dos grupos viajan por Firestore. Van en documentos
+   separados porque no los escribe la misma gente.
+   ========================================================== */
+const AJUSTES = {
+  // Reglas de manejo. Las cambia quien manda en la finca.
+  finca: ["params", "palpaSegun"],
+  // Permisos y propiedad de la base. Solo dueño o superadministrador.
+  mando: ["permisos", "accesoConfig", "limites", "maestro"],
+};
+
+/** Lo que se queda en este equipo: firebase, sinFirebase, sesionDe,
+    ventanaMeses, recordarSesion, tema, cuentaGoogle, giroBloqueado, correo. */
+const puedeEscribirAjustes = (cual) =>
+  cual === "finca" ? manda() : (esSuper() || rolActual() === "dueno");
+
 const FB = {
   mods: null, app: null, db: null, auth: null, user: null,
   estado: "apagado",   // apagado | cargando | listo | error
@@ -7333,7 +7480,11 @@ async function conectarFirebase(silencioso) {
       // Por defecto la sesión es de la pestaña. Solo se guarda en el equipo
       // si la persona lo pidió expresamente.
       try {
-        await auth.setPersistence(FB.auth, D.config.recordarSesion
+        // Con la app instalada en el celular la sesión SIEMPRE se guarda.
+        // Antes se borraba al salir de la app, y al volver pedía entrar otra
+        // vez... cosa que necesita internet. En el corral eso dejaba la app
+        // inservible justo cuando más falta hace.
+        await auth.setPersistence(FB.auth, sesionPersistente()
           ? auth.browserLocalPersistence : auth.browserSessionPersistence);
       } catch {}
       try {
@@ -7620,9 +7771,66 @@ function escucharColecciones(mias) {
     escuchar(n, filtros.length ? fs.query(col(n), ...filtros) : col(n));
   }
 
+  escucharAjustes();
+
   FB.estado = "listo";
   pintar();
-  // La configuración se queda local: cada equipo tiene la suya.
+  // El resto de la configuración se queda local: cada equipo tiene la suya.
+}
+
+/**
+ * Trae los ajustes compartidos y los mete en D.config sin tocar los que son
+ * de este aparato. Hasta que no llega el primero, este equipo no sube nada:
+ * si no, un computador recién instalado le pisaba a la finca sus parámetros
+ * con los de fábrica.
+ */
+function escucharAjustes() {
+  const { fs } = FB.mods;
+  FB.espejoAjustes = {};
+  FB.ajustesLeidos = {};
+
+  for (const [cual, claves] of Object.entries(AJUSTES)) {
+    const u = fs.onSnapshot(fs.doc(FB.db, "ajustes", cual),
+      (snap) => {
+        FB.ajustesLeidos[cual] = true;
+        if (!snap.exists()) { pintarPronto(); return; }
+        const d = snap.data() || {};
+        let cambio = false;
+        for (const k of claves) {
+          if (d[k] === undefined) continue;
+          const json = JSON.stringify(d[k]);
+          FB.espejoAjustes[k] = json;
+          if (JSON.stringify(D.config[k]) !== json) {
+            D.config[k] = JSON.parse(json);
+            cambio = true;
+          }
+        }
+        if (cambio) { guardarPronto(); pintarPronto(); }
+      },
+      () => { FB.ajustesLeidos[cual] = true; });   // sin permiso: se sigue local
+    FB.escuchas.push(u);
+  }
+}
+
+/** Sube los ajustes compartidos que hayan cambiado en este equipo. */
+function empujarAjustes() {
+  if (!FB.db || !FB.user) return;
+  const { fs } = FB.mods;
+  for (const [cual, claves] of Object.entries(AJUSTES)) {
+    if (!FB.ajustesLeidos?.[cual]) continue;      // todavía no sé qué hay allá
+    if (!puedeEscribirAjustes(cual)) continue;
+    const cambios = {};
+    for (const k of claves) {
+      if (D.config[k] === undefined) continue;
+      const json = JSON.stringify(D.config[k]);
+      if (FB.espejoAjustes?.[k] === json) continue;
+      cambios[k] = JSON.parse(json);
+      (FB.espejoAjustes ||= {})[k] = json;
+    }
+    if (!Object.keys(cambios).length) continue;
+    fs.setDoc(fs.doc(FB.db, "ajustes", cual), limpiarParaFirestore(cambios), { merge: true })
+      .catch(() => {});
+  }
 }
 
 /** Le quita el acceso a un correo. Sin esto seguiría entrando a la finca. */
@@ -7835,6 +8043,7 @@ async function empujar() {
     // Aquí solo se limpia el espejo de lo que ya no está.
     for (const id in espejo) if (!vistos.has(id)) delete espejo[id];
   }
+  empujarAjustes();
   if (!cambios.length) return sincronizarUsuarios();
 
   empujando = true;
@@ -8921,6 +9130,16 @@ service cloud.firestore {
       return r == 'superadmin' ? 4 : r == 'dueno' ? 3 : r == 'administrador' ? 2 : 1;
     }
 
+    // ---- ajustes que son de la finca, no de cada equipo ----
+    // «finca» lleva los parámetros de manejo; «mando» lleva permisos,
+    // cupos y quién es el dueño principal, que es cosa aparte.
+    match /ajustes/{cual} {
+      allow read:  if registrado();
+      allow write: if registrado() && (cual == 'finca'
+                     ? manda()
+                     : esDueno());
+    }
+
     // ---- quién puede entrar y a qué fincas ----
     // OJO: este documento ES el permiso. Quien pueda escribirlo a su antojo
     // manda en todo, así que aquí no basta con "es administrador": antes,
@@ -9362,14 +9581,20 @@ function vConfiguracion() {
     <div class="panel-cuerpo">
       <p class="expl">En automático sigue lo que tenga configurado el celular o el computador.
       El oscuro se agradece de noche y en el ordeño de la madrugada.</p>
-      <div class="fila-btn" style="margin-bottom:14px">
+      ${giroPosible() ? `<div class="fila-btn" style="margin-bottom:14px">
         <button class="btn ${D.config.giroBloqueado ? "btn-firme" : ""}" data-acc="giro">
           ${D.config.giroBloqueado ? "Pantalla fija · tocar para liberar" : "Dejar la pantalla fija"}
         </button>
       </div>
       <p class="expl">En el corral la pantalla se voltea sola y estorba. Con esto se queda
       quieta en la posición en la que esté. Solo funciona con la app instalada en el celular
-      o a pantalla completa; es una regla del navegador.</p>
+      o a pantalla completa; es una regla del navegador, no de la app.
+      ${estaInstalada() ? "" : "<strong>Ahora mismo estás en el navegador, no en la app instalada.</strong>"}</p>`
+      : `<p class="expl">${esIOS()
+        ? "En iPhone y iPad no se puede fijar la pantalla desde la app: Apple no lo permite, " +
+          "ni siquiera con la app instalada. Usa el bloqueo de rotación del Centro de control."
+        : "Este navegador no trae la función de fijar la orientación. Usa el bloqueo de " +
+          "rotación del aparato."}</p>`}
 
       <div class="interruptores">
         ${Object.entries(TEMAS).map(([k, et]) => `
@@ -9535,18 +9760,23 @@ function vConfiguracion() {
       <p class="expl">De estos números salen las fechas de palpación, secado y parto probable,
       y también las alertas. Cada especie tiene los suyos: una marrana gesta 114 días y una
       burra 365, así que ninguna fórmula puede asumir la vaca.</p>
-      <form data-guardar-params>
-        <h4 class="sub-titulo">A quién se le palpa</h4>
-        <div class="rej">
-          <div class="campo ancho"><label>Pedir palpación</label>
-            ${seg("palpaSegun", [["todas","A toda hembra servida"],["monta","Solo montas naturales"]],
-                  D.config.palpaSegun === "monta" ? "monta" : "todas")}
-            <span class="ayuda">Con pajilla queda apuntada la fecha exacta y muchas fincas no
-            palpan. Con monta natural nadie apunta nada, y palpar es la única forma de saber
-            si quedó preñada. Esto solo cambia a quién se le pide: lo que ya esté registrado
-            no se toca, y la casilla «a esta no se le palpa» de cada animal sigue mandando.</span>
-          </div>
+      <p class="expl">Esto sí viaja: los parámetros y a quién se le palpa son de la finca, así
+      que al guardarlos quedan iguales en todos los equipos. Lo que se queda en este aparato es
+      el tema, cuánto historial se baja, el bloqueo de giro y la conexión con Firebase.</p>
+      <h4 class="sub-titulo">A quién se le palpa</h4>
+      <div class="rej" data-palpa-segun>
+        <div class="campo ancho"><label>Pedir palpación</label>
+          ${seg("palpaSegun", [["todas","A toda hembra servida"],["monta","Solo montas naturales"]],
+                D.config.palpaSegun === "monta" ? "monta" : "todas")}
+          <span class="ayuda">Se guarda al tocarlo, no hace falta el botón de abajo.
+          Con pajilla queda apuntada la fecha exacta y muchas fincas no palpan. Con monta
+          natural nadie apunta nada, y palpar es la única forma de saber si quedó preñada.
+          Esto solo cambia a quién se le pide: lo que ya esté registrado no se toca, y la
+          casilla «a esta no se le palpa» de cada animal sigue mandando.</span>
         </div>
+      </div>
+
+      <form data-guardar-params>
         ${Object.entries(ESPECIES).map(([k, base]) => {
           const g = { ...base, ...(p[k] || {}) };
           return `
@@ -10100,6 +10330,16 @@ function conectar() {
     avisar(m ? `Se bajarán los últimos ${m} meses` : "Se bajará todo el historial");
   };
 
+  document.querySelectorAll('[data-palpa-segun] input[name="palpaSegun"]').forEach(r => {
+    r.onchange = () => {
+      D.config.palpaSegun = r.value === "monta" ? "monta" : "todas";
+      guardar(); pintar();
+      avisar(r.value === "monta"
+        ? "Se pedirá palpación solo en montas naturales"
+        : "Se pedirá palpación a toda hembra servida");
+    };
+  });
+
   const fp = document.querySelector("[data-guardar-params]");
   if (fp) fp.onsubmit = (e) => {
     e.preventDefault();
@@ -10117,7 +10357,7 @@ function conectar() {
       out[k] = g;
     }
     D.config.params = out;
-    D.config.palpaSegun = v.palpaSegun === "monta" ? "monta" : "todas";
+    if (v.palpaSegun) D.config.palpaSegun = v.palpaSegun === "monta" ? "monta" : "todas";
     guardar(); pintar(); avisar("Parámetros guardados");
   };
 }
