@@ -6466,8 +6466,14 @@ function abrirPalpacionGrupo(modo, fincaId) {
     actualizarConteo();
   };
   hojaAbierta.querySelectorAll(".palpa-fila").forEach(fila => {
-    fila.addEventListener("input", () => { refrescar(fila); actualizarConteo(); });
-    fila.addEventListener("change", () => { refrescar(fila); actualizarConteo(); });
+    // Si lo que se tocó fue la fecha de preñez, primero salen de ahí los
+    // meses y los días; luego ya se recalcula todo lo demás.
+    const mano = (ev) => {
+      if (ev.target?.name?.startsWith("c_")) desdeFecha(fila);
+      refrescar(fila); actualizarConteo();
+    };
+    fila.addEventListener("input", mano);
+    fila.addEventListener("change", mano);
   });
   fechaInp.oninput = todas;
   todas();
