@@ -818,11 +818,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.51.0";
+const VERSION = "1.52.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.52.0", "3 sep 2026", [
+    "ARREGLO: al abrir la app salían TODOS los registros y el recorte de fechas solo se " +
+      "aplicaba después de pulsar «traer todo» y luego «volver al recorte». La causa: el " +
+      "botón de emergencia «bajar sin necesidad de índices» dejaba la ventana guardada en 0 " +
+      "para siempre, y la app no lo decía en ninguna parte.",
+    "Ese botón ahora vale solo para la sesión en curso: al cerrar y volver a abrir, el " +
+      "recorte vuelve como estaba.",
+    "Cuando no hay recorte, las tablas lo dicen y traen el botón para volver a los últimos " +
+      "meses. Antes solo avisaba si lo habías pedido en esa sesión.",
+    "Si falta un índice en Firestore, la tabla lo dice y manda a Configuración. Antes la " +
+      "app se recuperaba sola bajando todo, pero en silencio.",
+    "La fecha de corte también se calculaba en hora de Londres.",
+  ]],
   ["1.51.0", "3 sep 2026", [
     "Se puede registrar un animal directamente en la tabla de Vendido-Muerto. Antes solo " +
       "se podía añadir en Activos y después cambiarle el estado.",
@@ -3634,10 +3647,21 @@ function fichas(lista) {
 function avisoRecorte(coleccion) {
   if (!CON_VENTANA[coleccion] || !FB.user) return "";
 
-  // Cuando está bajando todo, se ofrece volver al recorte.
-  if (FB.todoElHistorial) return `<div class="nota" style="display:flex;
+  // Falta el índice compuesto: la app se recuperó sola bajando todo. Antes
+  // lo hacía callada y no había forma de saber por qué salía de más.
+  if (FB.sinIndice?.has(coleccion)) return `<div class="nota" style="display:flex;
     align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
-    <span>Estás viendo <strong>todo el historial</strong>, sin recorte de fechas.</span>
+    <span>Falta un índice en Firestore para esta tabla, así que se está trayendo
+    <strong>todo el historial</strong> sin recorte de fechas. Se arregla creando el
+    índice desde Configuración → «¿Por qué no cargan los datos?».</span>
+    <button class="btn btn-sm" data-ir="configuracion">Ir a Configuración</button>
+  </div>`;
+
+  // Cuando está bajando todo, se ofrece volver al recorte.
+  if (sinRecorte()) return `<div class="nota" style="display:flex;
+    align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
+    <span>Estás viendo <strong>todo el historial</strong>, sin recorte de fechas.
+    ${!FB.todoElHistorial ? "Así quedó configurado en este equipo." : ""}</span>
     <button class="btn btn-sm" data-acc="volver-recorte">Volver a los últimos meses</button>
   </div>`;
 
@@ -7146,8 +7170,19 @@ function corteVentana() {
   if (!m) return null;                       // 0 = traer todo
   const d = new Date();
   d.setMonth(d.getMonth() - m);
-  return d.toISOString().slice(0, 10);
+  return aISO(d);
 }
+
+/**
+ * ¿Se está trayendo todo, sin recorte de fechas?
+ *
+ * Puede ser por dos motivos, y antes solo se detectaba uno: porque en esta
+ * sesión se pidió «traer todo», o porque la ventana guardada quedó en 0.
+ * Lo segundo pasaba solo, sin avisar: el botón de emergencia de «bajar sin
+ * necesidad de índices» dejaba la ventana en 0 para siempre, y desde
+ * entonces la app abría con la base entera y en silencio.
+ */
+const sinRecorte = () => !!FB.todoElHistorial || !Number(D.config?.ventanaMeses ?? 24);
 
 const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
                      "palpaciones", "partos", "secados", "tratamientos", "leche", "anotaciones"];
@@ -9394,13 +9429,20 @@ function vConfiguracion() {
         <div class="fila-btn">
           <button class="btn btn-firme">Guardar</button>
           ${historialRecortado() ? '<button type="button" class="btn" data-acc="todo-historial">Bajar todo ahora</button>' : ""}
-        ${FB.todoElHistorial && FB.user ? '<button type="button" class="btn" data-acc="volver-recorte">Volver al recorte</button>' : ""}
+        ${sinRecorte() && FB.user ? '<button type="button" class="btn" data-acc="volver-recorte">Volver al recorte</button>' : ""}
         </div>
       </form>
 
       ${historialRecortado() ? `<div class="nota" style="margin-top:12px">
         Ahora mismo tienes los eventos desde el <strong>${fmt(FB.corte)}</strong>.
         Lo anterior sigue en Firebase y se baja cuando lo pidas.</div>` : ""}
+
+      ${sinRecorte() && FB.user ? `<div class="nota recorte" style="margin-top:12px">
+        Ahora mismo <strong>no hay recorte</strong>: se está trayendo la base completa
+        cada vez que se abre la app. ${FB.todoElHistorial
+          ? "Es solo por esta sesión."
+          : "Está así guardado en este equipo. Con «Volver al recorte» queda en 24 meses."}
+      </div>` : ""}
     </div>
   </details>
 
@@ -10665,12 +10707,13 @@ async function acciones(a) {
     return;
   }
   if (a === "sin-recorte") {
-    D.config.ventanaMeses = 0;
+    // Solo mientras dure esta sesión. Antes dejaba la ventana en 0 guardada,
+    // y desde ahí la app abría siempre con la base entera sin decir nada:
+    // parecía que el recorte no se aplicaba al entrar.
     FB.todoElHistorial = true;
-    guardar();
     if (FB.user) { FB.claveFincas = null; escucharColecciones(fincasAutorizadas()); }
     pintar();
-    avisar("Se bajará todo el historial, sin necesidad de índices");
+    avisar("Se bajará todo el historial mientras dure esta sesión");
     return;
   }
   if (a === "diagnosticar") {
