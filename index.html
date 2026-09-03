@@ -818,11 +818,31 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.52.0";
+const VERSION = "1.55.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.55.0", "3 sep 2026", [
+    "En el formulario de servicio hay una casilla «hay que palparla», para la vaca que " +
+      "queda dudosa. Pide la palpación aunque la finca no palpe las inseminadas.",
+    "Vale solo para ese servicio: al registrarle uno nuevo se olvida sola, para no tener " +
+      "que acordarse de quitarla.",
+    "La alerta dice por qué sale: monta natural, o marcada a mano.",
+  ]],
+  ["1.54.0", "3 sep 2026", [
+    "La palpación ya no se le pide a toda hembra servida. En Configuración → Parámetros " +
+      "se elige entre «a toda hembra servida» (como estaba) y «solo montas naturales».",
+    "El servicio ya guardaba si fue inseminación o monta natural, pero ese dato no se usaba " +
+      "para nada más que mostrarlo. Ahora manda en las alertas y en palpar en grupo.",
+    "La vista de Palpación dice cuál de las dos reglas está activa, para que no se pierdan " +
+      "alertas en silencio.",
+  ]],
+  ["1.53.0", "3 sep 2026", [
+    "Al añadir desde la tabla de Vendido-Muerto, el estado ya no ofrece «En el hato»: solo " +
+      "Vendido o Muerto. Al editar un animal sí sigue saliendo, para poder devolverlo al " +
+      "hato si se marcó por equivocación.",
+  ]],
   ["1.52.0", "3 sep 2026", [
     "ARREGLO: al abrir la app salían TODOS los registros y el recorte de fechas solo se " +
       "aplicaba después de pulsar «traer todo» y luego «volver al recorte». La causa: el " +
@@ -2155,6 +2175,24 @@ function calcularAlertaCelo(totalInsemCiclo, ultPartoReal, a) {
   return null;
 }
 
+/**
+ * ¿A esta hembra le toca palpación por este servicio?
+ *
+ * Con pajilla queda apuntada la fecha exacta y la repetición del celo dice
+ * casi todo, así que en muchas fincas no se palpa. Con monta natural nadie
+ * apunta nada, y la palpación es la única forma de saber si quedó preñada.
+ * Cada finca lo decide en Configuración → Parámetros.
+ */
+function palpaPorServicio(insem) {
+  if (!insem) return false;
+  // Marcado a mano en el servicio: manda siempre, venga de pajilla o de toro.
+  // Es para la vaca dudosa, que hay que palpar aunque la finca no palpe las
+  // inseminadas. Muere con el servicio: al registrarle uno nuevo, se olvida.
+  if (insem.palpar) return true;
+  if ((D.config?.palpaSegun || "todas") !== "monta") return true;
+  return (insem.tipo || "inseminacion") === "monta";
+}
+
 function estado(a) {
   const P = par(a);
   const partos = partosDe(a.id);
@@ -2232,6 +2270,7 @@ function estado(a) {
   const dentroVentana = ultInsem && dias(ultInsem.fecha) <= P.gestacion - 45;
   // A las que no se palpan no se les calcula fecha de palpación.
   const fechaPalpacion = (!a.sinPalpar && ultInsem && !yaPalpada && dentroVentana &&
+    palpaPorServicio(ultInsem) &&
     !(ultParto && ultParto.fecha > ultInsem.fecha))
     ? sumarDias(ultInsem.fecha, P.palpar) : null;
 
@@ -2348,8 +2387,10 @@ function alertas(incluirHechas) {
     // 1. Palpación, solo en las que sí se palpan
     if (e.fechaPalpacion && !a.sinPalpar) {
       const d = dias(e.fechaPalpacion);
+      const porQue = e.ultInsem.palpar ? " Marcada a mano como dudosa."
+                   : e.ultInsem.tipo === "monta" ? " Monta natural." : "";
       if (d >= 0) push("alta", "Palpación vencida",
-        `Servicio del ${fmt(e.ultInsem.fecha)}. ${d === 0 ? "Toca palparla hoy." :
+        `Servicio del ${fmt(e.ultInsem.fecha)}.${porQue} ${d === 0 ? "Toca palparla hoy." :
           `Debió palparse hace ${d} ${d===1?"día":"días"}.`}`,
         1000 + d, `palpar:${e.ultInsem.fecha}`);
       else if (d >= -7) push("media", "Palpación próxima",
@@ -2561,7 +2602,8 @@ function idxInsem(i) {
     return [idxDeAnimal(i.animalId), pajillasDe(i), i.detalles, fechaBuscable(i.fecha),
       ...(i.aplicaciones || []).flatMap(x => [x.pajilla, x.detalles, fechaBuscable(x.fecha)]),
       `intento ${c.intento}`, c.repitio ? "repitió" : "no aplica",
-      RESULTADOS[c.resultado]?.et, i.tipo === "monta" ? "monta natural" : "inseminación"
+      RESULTADOS[c.resultado]?.et, i.tipo === "monta" ? "monta natural" : "inseminación",
+      i.palpar ? "hay que palparla dudosa" : ""
     ].filter(Boolean).join(" ");
   });
 }
@@ -3878,7 +3920,10 @@ function vPalpacion() {
 
   return `
   <header class="cab"><div><h1>Palpación</h1>
-    <p>La fecha se calcula a ${DIAS_PALPAR} días del servicio. Se palpa para confirmar preñez.</p></div>
+    <p>La fecha se calcula a ${DIAS_PALPAR} días del servicio. Se palpa para confirmar preñez.
+    ${D.config.palpaSegun === "monta"
+      ? "Ahora mismo <strong>solo se pide en montas naturales</strong>."
+      : ""}</p></div>
     <button class="btn btn-firme" data-nuevo="palpacion">Registrar palpación</button></header>
   <div class="barra">${buscador("Buscar en todo: nombre, chapeta, raza, pajilla, detalles…")}${selectorFinca()}</div>
   ${fichas([["todos","Todas"],["pendiente","Pendientes",base.filter(e=>e.fechaPalpacion).length],
@@ -4559,8 +4604,13 @@ function formAnimal(id, estadoIni) {
             </div></div>`;
         })()}
 
+        <!-- Al añadir desde la tabla de Vendido-Muerto no tiene sentido
+             ofrecer «En el hato»: ahí solo se registran animales que ya
+             salieron. Al editar sí sale, para poder deshacer un error. -->
         <div class="campo"><label>Estado</label><select name="estado" data-estado>
-          ${[["activo","En el hato"],["vendido","Vendido"],["muerto","Muerto"]].map(([v,t])=>`<option value="${v}" ${a.estado===v?"selected":""}>${t}</option>`).join("")}
+          ${[["activo","En el hato"],["vendido","Vendido"],["muerto","Muerto"]]
+            .filter(([v]) => !(!id && inicial !== "activo" && v === "activo"))
+            .map(([v,t])=>`<option value="${v}" ${a.estado===v?"selected":""}>${t}</option>`).join("")}
         </select></div>
         <div class="campo" data-solo-salida ${a.estado==="activo"?"hidden":""}>
           <label>Fecha de salida</label>
@@ -4810,6 +4860,14 @@ function formInsem(id, anId) {
           <div class="campo ancho"><label>Tipo registro</label>
             ${seg("tipo", [["inseminacion","Inseminación"],["monta","Monta natural"]],
                   i.tipo || "inseminacion")}</div>
+          <div class="campo ancho">
+            <label class="recordar" style="margin:0">
+              <input type="checkbox" name="palpar" ${i.palpar ? "checked" : ""}>
+              <span>Hay que palparla
+              <em>Márcalo cuando el servicio queda dudoso. Pide la palpación de esta vaca
+              aunque la finca no palpe las inseminadas. Vale solo para este servicio: si se
+              le registra uno nuevo, se olvida.</em></span>
+            </label></div>
         </div>
       </div>
       <div class="hoja-pie">
@@ -6064,7 +6122,8 @@ function candidatasPalpacion(modo, fincaId) {
       const e = estado(a);
       // Con toro no hay servicio apuntado: en ese modo entran todas.
       if (modo === "todas") return true;
-      return e.ultInsem && !(e.ultParto && e.ultParto.fecha > e.ultInsem.fecha);
+      return e.ultInsem && palpaPorServicio(e.ultInsem)
+        && !(e.ultParto && e.ultParto.fecha > e.ultInsem.fecha);
     })
     .sort((a, b) => {
       const fa = estado(a).fechaPalpacion || "9999", fb = estado(b).fechaPalpacion || "9999";
@@ -9454,6 +9513,17 @@ function vConfiguracion() {
       y también las alertas. Cada especie tiene los suyos: una marrana gesta 114 días y una
       burra 365, así que ninguna fórmula puede asumir la vaca.</p>
       <form data-guardar-params>
+        <h4 class="sub-titulo">A quién se le palpa</h4>
+        <div class="rej">
+          <div class="campo ancho"><label>Pedir palpación</label>
+            ${seg("palpaSegun", [["todas","A toda hembra servida"],["monta","Solo montas naturales"]],
+                  D.config.palpaSegun === "monta" ? "monta" : "todas")}
+            <span class="ayuda">Con pajilla queda apuntada la fecha exacta y muchas fincas no
+            palpan. Con monta natural nadie apunta nada, y palpar es la única forma de saber
+            si quedó preñada. Esto solo cambia a quién se le pide: lo que ya esté registrado
+            no se toca, y la casilla «a esta no se le palpa» de cada animal sigue mandando.</span>
+          </div>
+        </div>
         ${Object.entries(ESPECIES).map(([k, base]) => {
           const g = { ...base, ...(p[k] || {}) };
           return `
@@ -10024,6 +10094,7 @@ function conectar() {
       out[k] = g;
     }
     D.config.params = out;
+    D.config.palpaSegun = v.palpaSegun === "monta" ? "monta" : "todas";
     guardar(); pintar(); avisar("Parámetros guardados");
   };
 }
@@ -10439,6 +10510,7 @@ function enviar(f) {
     }
 
     delete v.ap_fecha; delete v.ap_hora; delete v.ap_pajilla; delete v.ap_detalles;
+    v.palpar = v.palpar === "on" || v.palpar === true;
     v.aplicaciones = aplicaciones;
     v.fecha = aplicaciones[0].fecha;   // la gestación cuenta desde la primera
 
