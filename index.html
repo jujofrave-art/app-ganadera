@@ -818,11 +818,16 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.55.0";
+const VERSION = "1.56.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.56.0", "3 sep 2026", [
+    "La vista de Palpación dice siempre cuál de las dos reglas está activa, no solo cuando " +
+      "es la de montas. Sin eso no había forma de saber por qué salía una vaca en la lista.",
+    "El panel de Parámetros lo muestra también sin tener que abrirlo.",
+  ]],
   ["1.55.0", "3 sep 2026", [
     "En el formulario de servicio hay una casilla «hay que palparla», para la vaca que " +
       "queda dudosa. Pide la palpación aunque la finca no palpe las inseminadas.",
@@ -2011,6 +2016,7 @@ function migrar(d) {
   d.config.sinFirebase ??= false;
   d.config.sesionDe ??= "";
   d.config.ventanaMeses ??= 24;
+  d.config.palpaSegun ??= "todas";   // a quién se le pide palpación
   d.config.recordarSesion ??= false;
   d.config.tema ??= "auto";
   d.config.cuentaGoogle ??= 0;
@@ -3921,9 +3927,10 @@ function vPalpacion() {
   return `
   <header class="cab"><div><h1>Palpación</h1>
     <p>La fecha se calcula a ${DIAS_PALPAR} días del servicio. Se palpa para confirmar preñez.
-    ${D.config.palpaSegun === "monta"
-      ? "Ahora mismo <strong>solo se pide en montas naturales</strong>."
-      : ""}</p></div>
+    Ahora mismo se pide ${D.config.palpaSegun === "monta"
+      ? "<strong>solo en montas naturales</strong> y en los servicios marcados como dudosos"
+      : "<strong>a toda hembra servida</strong>, con pajilla o con toro"}.
+    Se cambia en Configuración → Parámetros.</p></div>
     <button class="btn btn-firme" data-nuevo="palpacion">Registrar palpación</button></header>
   <div class="barra">${buscador("Buscar en todo: nombre, chapeta, raza, pajilla, detalles…")}${selectorFinca()}</div>
   ${fichas([["todos","Todas"],["pendiente","Pendientes",base.filter(e=>e.fechaPalpacion).length],
@@ -9507,7 +9514,10 @@ function vConfiguracion() {
 
   <!-- ============ 3. PARÁMETROS ============ -->
   <details class="panel" ${abierto(ACORD++)}>
-    <summary class="panel-cab"><h2>Parámetros de la finca</h2><span class="flecha-acord">▾</span></summary>
+    <summary class="panel-cab"><h2>Parámetros de la finca</h2>
+      <span class="p gris">Palpar: ${D.config.palpaSegun === "monta"
+        ? "solo montas" : "todas las servidas"}</span>
+      <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">De estos números salen las fechas de palpación, secado y parto probable,
       y también las alertas. Cada especie tiene los suyos: una marrana gesta 114 días y una
