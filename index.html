@@ -849,11 +849,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.4.0", "4 sep 2026", [
+    "ARREGLO DE FONDO: la app resubía TODOS los animales en cada envío. Para saber si un " +
+      "registro había cambiado comparaba su texto con el de la copia de referencia, y los " +
+      "campos venían en distinto orden desde Firestore que desde el equipo, así que la " +
+      "comparación decía siempre que había cambiado. Con los animales era peor todavía: la " +
+      "copia de referencia llevaba la foto y la que se enviaba no, con lo cual nunca " +
+      "coincidían.",
+    "De ahí salía que las alertas marcadas con «Listo» no llegaran al otro equipo: el " +
+      "computador mandaba el animal con la marca y el celular mandaba el suyo sin ella un " +
+      "segundo después, y ganaba el último.",
+    "Ahora la comparación ordena los campos antes de comparar, así que solo se manda lo que " +
+      "cambió de verdad. Se acaban los pisotones, y de paso baja mucho el gasto de datos.",
+  ]],
   ["2.3.0", "4 sep 2026", [
     "El buscador trae una <strong>equis para vaciarlo de un toque</strong>. En el celular no " +
       "hay tecla de suprimir y borrar con el retroceso era letra por letra.",
@@ -9163,7 +9176,7 @@ function escucharColecciones(mias) {
         }
 
         FB.espejo[nombre] = {};
-        docs.forEach(d => { FB.espejo[nombre][d.id] = JSON.stringify(d); });
+        docs.forEach(d => { FB.espejo[nombre][d.id] = firmaRemota(nombre, d); });
         D[nombre] = docs;
 
         // Lo que el servidor ya confirmó deja de estar pendiente.
@@ -9424,6 +9437,37 @@ function programarEmpuje() {
  * y obligaría a descargarlas todas para ver una lista. Va aparte, en su
  * propia colección, y solo se baja al abrir la ficha.
  */
+/**
+ * Firma de un documento, para saber si de verdad cambió.
+ *
+ * Firestore devuelve los campos en su propio orden y en el equipo están en el
+ * orden en que se crearon, así que comparar el JSON tal cual decía siempre
+ * «cambió». Y con los animales era peor: la copia de referencia llevaba la
+ * foto y la que se enviaba no, con lo cual NUNCA coincidían.
+ *
+ * Consecuencia: cada envio resubía el hato entero. Aparte del gasto, dos
+ * equipos se pisaban sin parar, y por eso un «Listo» dado en el computador
+ * podía quedar borrado por lo que mandaba el celular un segundo después.
+ */
+function firmaDoc(o) {
+  const ordenar = (x) => {
+    if (Array.isArray(x)) return x.map(ordenar);
+    if (x && typeof x === "object" && !(x instanceof Date)) {
+      const out = {};
+      for (const k of Object.keys(x).sort()) out[k] = ordenar(x[k]);
+      return out;
+    }
+    return x === undefined ? null : x;
+  };
+  return JSON.stringify(ordenar(o));
+}
+
+/** La firma de lo que de verdad se manda: sin el id, que va en la ruta. */
+function firmaRemota(col, doc) {
+  const { id, ...resto } = paraRemoto(col, doc);
+  return firmaDoc(resto);
+}
+
 function paraRemoto(col, doc) {
   if (col !== "animales") return doc;
   const { foto, ...resto } = doc;
@@ -9533,7 +9577,7 @@ async function empujar() {
     const vistos = new Set();
     for (const doc of (D[nombre] || [])) {
       vistos.add(doc.id);
-      const json = JSON.stringify(paraRemoto(nombre, doc));
+      const json = firmaRemota(nombre, doc);
       if (espejo[doc.id] !== json) cambios.push(["set", nombre, doc.id, doc, json]);
     }
     // Los borrados ya no se deducen: se ordenan al momento en borrarRemoto.
