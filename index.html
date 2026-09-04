@@ -841,11 +841,36 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.91.0";
+const VERSION = "1.94.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.94.0", "4 sep 2026", [
+    "La carga masiva sirve ahora para <strong>comprobar una carga anterior</strong>: se vuelve " +
+      "a pegar la misma hoja de Google y la app dice cuántas filas leyó, cuántas ya están y " +
+      "cuántas faltan, con la lista de las que faltan una por una y a qué tabla iban.",
+    "Botón <strong>«Solo comparar, no guardar»</strong> para salir sin tocar nada. Y si " +
+      "decides guardar, entran solo las que faltan: lo que ya está no se duplica.",
+    "Si el archivo no trae la columna de ID, la app avisa de que no puede emparejar las " +
+      "filas y por eso salen todas como nuevas.",
+  ]],
+  ["1.93.0", "4 sep 2026", [
+    "ARREGLO EN EL CELULAR: al buscar, el teclado se cerraba en cada letra y había que " +
+      "volver a abrirlo para escribir la siguiente. La app rehacía toda la pantalla en cada " +
+      "tecla, y con ella el campo de búsqueda; el teclado se cerraba porque el campo donde " +
+      "se estaba escribiendo dejaba de existir.",
+    "Ahora, cuando el buscador tiene el foco, se aparta antes de rehacer la pantalla y se " +
+      "vuelve a poner en su sitio: es el mismo campo de siempre, y el teclado no se entera.",
+  ]],
+  ["1.92.0", "4 sep 2026", [
+    "ARREGLO: lo que se marcaba con «Listo» desaparecía sin dejar rastro. La pestaña de " +
+      "Hechas salía de recalcular las alertas de hoy, así que si la vaca pasaba de «un mes " +
+      "sin caloriarse» a «dos meses», la primera dejaba de existir y el «Listo» que " +
+      "alguien le dio no se veía en ninguna parte. Por eso salía «Hechas 0».",
+    "Ahora esa pestaña sale de lo que de verdad quedó apuntado en cada animal, ordenado por " +
+      "fecha, y las que ya no aplican salen marcadas como tales. Se pueden buscar y deshacer.",
+  ]],
   ["1.91.0", "4 sep 2026", [
     "Alerta nueva: <strong>«Se seca en 7 días»</strong>. Sale antes de que se abra la ventana " +
       "de secado, para dar tiempo a conseguir la droga. Antes el primer aviso llegaba el " +
@@ -2952,6 +2977,59 @@ function marcarAlertaHecha(animalId, clave, accion) {
   return "hecha";
 }
 
+const ETIQUETA_ALERTA = {
+  palpar:   "Palpación",
+  secar:    "Secado",
+  presecar: "Aviso de secado",
+  preparto: "Cuido preparto",
+  parto:    "Parto próximo",
+  celo:     "Celo",
+  servir:   "Edad de servicio",
+  vacia:    "Servicio sin desenlace",
+};
+
+/**
+ * De qué era una alerta que ya no se genera.
+ *
+ * La clave lleva dentro el tipo y la fecha o el texto: «celo:2026-04-01:un mes
+ * sin caloriarse». Sirve para poder enseñar lo que alguien marcó como hecho
+ * aunque la situación haya cambiado y la alerta ya no exista.
+ */
+function descripcionAlertaHecha(clave) {
+  const p = String(clave || "").split(":");
+  const et = ETIQUETA_ALERTA[p[0]] || p[0] || "Alerta";
+  const ultimo = p[p.length - 1] || "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ultimo)) return `${et} · del ${fmtCorto(ultimo)}`;
+  return ultimo ? `${et} · ${ultimo}` : et;
+}
+
+/**
+ * Todo lo que se ha marcado como hecho, salga o no en las alertas de hoy.
+ *
+ * Antes la pestaña de Hechas salía de recalcular las alertas: si la vaca
+ * pasaba de «un mes sin caloriarse» a «dos meses», la primera dejaba de
+ * generarse y el «Listo» que alguien le dio no se veía en ninguna parte.
+ */
+function alertasHechas() {
+  const vivas = new Map();
+  for (const x of alertas(true)) if (x.hecha) vivas.set(x.animalId + "|" + x.clave, x);
+
+  const out = [];
+  const lista = (typeof misAnimales === "function") ? misAnimales() : D.animales;
+  for (const a of lista.filter(x => x.estado === "activo")) {
+    for (const [clave, fecha] of Object.entries(a.hechas || {})) {
+      const viva = vivas.get(a.id + "|" + clave);
+      out.push(viva || {
+        animalId: a.id, nombre: a.nombre, chapeta: a.chapeta, fincaId: a.fincaId,
+        nivel: "baja", titulo: descripcionAlertaHecha(clave),
+        detalle: "Se marcó como hecha. Ya no está pendiente: la situación cambió.",
+        orden: 0, clave, hecha: fecha, vieja: true,
+      });
+    }
+  }
+  return out.sort((x, y) => String(y.hecha).localeCompare(String(x.hecha)));
+}
+
 function deshacerAlerta(animalId, clave) {
   const a = animal(animalId);
   if (a && a.hechas) delete a.hechas[clave];
@@ -4278,6 +4356,21 @@ function pintar() {
   // Dónde iba la lista, para no devolverla al principio en cada repintado.
   const _alto = document.querySelector(".lienzo")?.scrollTop || 0;
   const _altoVentana = window.scrollY || 0;
+
+  /* Si el buscador tiene el foco, se aparta ANTES de rehacer la pantalla y
+     luego se vuelve a poner en su sitio. Rehacer el campo en cada letra
+     cerraba el teclado del celular: había que volver a abrirlo para escribir
+     la siguiente. Al conservar el mismo elemento, el teclado no se entera. */
+  const _foco = document.activeElement;
+  const _esBusca = !!(_foco && _foco.dataset && _foco.dataset.f === "busca" && _foco.isConnected);
+  let _sel = null;
+  if (_esBusca) {
+    try { _sel = [_foco.selectionStart, _foco.selectionEnd]; } catch {}
+    document.body.appendChild(_foco);        // sale del árbol sin perder el foco
+    _foco.style.position = "fixed";
+    _foco.style.opacity = "0";
+    _foco.style.pointerEvents = "none";
+  }
   let v = VISTAS.find(x => x.id === V.vista);
   if (v && !vistaPermitida(v.id)) { V.vista = "activos"; v = VISTAS.find(x => x.id === "activos"); }
   const grupos = [...new Set(VISTAS.map(x => x.grupo))];
@@ -4348,6 +4441,21 @@ function pintar() {
       ? sinFincas() : cuerpo(v)}</main>
   </div>`;
   conectar();
+
+  if (_esBusca) {
+    const nuevo = document.querySelector("[data-f=busca]");
+    if (nuevo) {
+      _foco.style.position = ""; _foco.style.opacity = ""; _foco.style.pointerEvents = "";
+      _foco.placeholder = nuevo.placeholder;
+      _foco.oninput = nuevo.oninput;         // el manejador recién conectado
+      nuevo.replaceWith(_foco);
+      if (_sel) { try { _foco.setSelectionRange(_sel[0], _sel[1]); } catch {} }
+      if (document.activeElement !== _foco) _foco.focus({ preventScroll: true });
+    } else {
+      _foco.remove();                         // la vista ya no tiene buscador
+    }
+  }
+
   if (_alto) { const l = document.querySelector(".lienzo"); if (l) l.scrollTop = _alto; }
   if (_altoVentana) window.scrollTo(0, _altoVentana);
 }
@@ -4485,7 +4593,8 @@ function cuerpo(v) {
 function vAlertas() {
   const todas = alertas(true);
   const pend = todas.filter(x => !x.hecha);
-  let L = (V.sub === "hechas" ? todas.filter(x => x.hecha) : pend)
+  const hechas = alertasHechas();
+  let L = (V.sub === "hechas" ? hechas : pend)
     .filter(x => filtroFinca(x.fincaId) && busca(idxAlerta(x)));
   if (["alta","media","baja"].includes(V.sub)) L = L.filter(x => x.nivel === V.sub);
 
@@ -4499,17 +4608,18 @@ function vAlertas() {
             ["alta","Urgente",pend.filter(x=>x.nivel==="alta").length],
             ["media","Pronto",pend.filter(x=>x.nivel==="media").length],
             ["baja","Aviso",pend.filter(x=>x.nivel==="baja").length],
-            ["hechas","Hechas",todas.filter(x=>x.hecha).length]])}
+            ["hechas","Hechas",hechas.length]])}
   ${L.length === 0
     ? vacio(V.sub === "hechas" ? "Nada marcado como hecho" : "Sin alertas pendientes",
-            V.sub === "hechas" ? "Aquí aparecen las que vayas resolviendo."
+            V.sub === "hechas" ? "Aquí queda todo lo que marques con «Listo», con la fecha."
                                : "Todo al día con los filtros actuales.")
     : L.map(x => `<div class="alerta-caja" data-n="${x.hecha ? "hecha" : x.nivel}">
         <span class="chap" data-abrir="${x.animalId}">${esc(x.chapeta)}</span>
         <div class="cu" data-abrir="${x.animalId}">
           <strong>${esc(x.nombre)} — ${esc(x.titulo)}</strong>
           <span>${esc(x.detalle)}</span>
-          ${x.hecha ? `<span class="hecha-el">Hecha el ${fmt(x.hecha)}</span>` : ""}
+          ${x.hecha ? `<span class="hecha-el">Marcada como hecha el ${fmt(x.hecha)}${
+            x.vieja ? " · ya no aplica" : ""}</span>` : ""}
         </div>
         <div class="alerta-acc">
           <span class="q">${esc(nombreFinca(x.fincaId))}</span>
@@ -8059,14 +8169,33 @@ function pasoRevisar() {
 
   abrirHoja(`
     <div class="hoja-cab"><div><h2>Revisa antes de guardar</h2>
-      <div class="sub">${DESTINOS[IMP.destino].et}</div></div>
+      <div class="sub">${DESTINOS[IMP.destino].et} · también sirve para comparar:
+      vuelve a pegar la hoja y mira cuántas faltan</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
     <div class="hoja-cuerpo">
       <dl class="conteos">
-        <div class="conteo"><dt>Nuevos</dt><dd>${r.nuevos}</dd></div>
-        <div class="conteo"><dt>Se actualizan</dt><dd>${r.actualiza}</dd></div>
+        <div class="conteo"><dt>Filas leídas</dt><dd>${r.leidas}</dd></div>
+        <div class="conteo"><dt>Ya están</dt><dd>${r.actualiza}</dd></div>
+        <div class="conteo"><dt>Faltan</dt><dd>${r.nuevos}</dd></div>
         <div class="conteo"><dt>Con problemas</dt><dd>${r.errores.length}</dd></div>
       </dl>
+
+      ${/* Comparar la hoja con lo que hay: si se vuelve a pegar el mismo
+            archivo, «ya están» son las que llegaron y «faltan» las que se
+            perdieron por el camino. */""}
+      ${r.actualiza && !r.nuevos && !r.errores.length ? `<div class="nota">
+        <strong>Está todo.</strong> Las ${r.actualiza} filas del archivo ya están en la app.
+        Si le das a Guardar no se duplica nada: se vuelven a escribir igual.</div>` : ""}
+
+      ${r.nuevos && r.actualiza ? `<div class="nota recorte" style="display:block">
+        De las ${r.leidas} filas del archivo, <strong>${r.actualiza} ya están</strong> en la app
+        y <strong>${r.nuevos} no</strong>. Si esto es una comprobación de una carga anterior,
+        esas ${r.nuevos} son las que se perdieron. Abajo están una por una.</div>` : ""}
+
+      ${r.faltantes.some(x => x.sinRef) ? `<div class="nota recorte" style="display:block">
+        Algunas filas no traen la columna de <strong>ID</strong> de tu hoja, así que no se
+        pueden emparejar con lo que ya hay y salen siempre como nuevas. Añade esa columna en
+        Google Sheets si vas a comparar seguido.</div>` : ""}
 
       ${r.porTabla && Object.keys(r.porTabla).length > 1 ? `
         <div class="nota">Se reparten así:
@@ -8087,6 +8216,16 @@ function pasoRevisar() {
         </table></div>
         ${r.errores.length > 40 ? `<p class="mini">Y ${r.errores.length - 40} más.</p>` : ""}` : ""}
 
+      ${r.faltantes.length ? `
+        <h4 class="sub-titulo">Del archivo, no están en la app (${r.faltantes.length})</h4>
+        <div class="sub-tabla" style="margin-top:9px"><table>
+          <thead><tr><th>Fila</th><th>Va a</th><th>Contenido</th></tr></thead>
+          <tbody>${r.faltantes.slice(0, 80).map(f => `<tr>
+            <td>${f.n}</td><td><span class="sub">${esc(f.coleccion)}</span></td>
+            <td><span class="sub">${esc(f.muestra)}</span></td></tr>`).join("")}</tbody>
+        </table></div>
+        ${r.faltantes.length > 80 ? `<p class="mini">Y ${r.faltantes.length - 80} más.</p>` : ""}` : ""}
+
       ${r.ejemplos.length ? `
         <h4 class="sub-titulo">Así van a quedar</h4>
         <div class="sub-tabla"><table><tbody>
@@ -8095,9 +8234,12 @@ function pasoRevisar() {
     </div>
     <div class="hoja-pie">
       <button type="button" class="btn" data-imp="atras2">Atrás</button>
+      <button type="button" class="btn" data-cerrar>Solo comparar, no guardar</button>
       <button class="btn btn-firme" data-imp="guardar"
         ${r.nuevos + r.actualiza ? "" : "disabled"}>
-        Guardar ${r.nuevos + r.actualiza} registros</button>
+        ${r.nuevos && !r.actualiza ? `Guardar ${r.nuevos} registros`
+          : r.nuevos ? `Guardar (${r.nuevos} nuevos, ${r.actualiza} al día)`
+          : `Guardar ${r.actualiza} registros`}</button>
     </div>`, true);
 }
 
@@ -8106,7 +8248,8 @@ function pasoRevisar() {
 function procesarImportacion(soloRevisar) {
   const filas = IMP.filas.slice(IMP.conEncabezado ? 1 : 0);
   const def = DESTINOS[IMP.destino];
-  const r = { nuevos: 0, actualiza: 0, errores: [], ejemplos: [], porTabla: {} };
+  const r = { nuevos: 0, actualiza: 0, errores: [], ejemplos: [], porTabla: {},
+              leidas: filas.length, faltantes: [] };
   const pendientes = [];
 
   filas.forEach((fila, i) => {
@@ -8134,7 +8277,8 @@ function procesarImportacion(soloRevisar) {
     const existente = val.refExterna
       ? (D[coleccion] || []).find(x => x.refExterna === val.refExterna)
       : null;
-    if (existente) r.actualiza++; else r.nuevos++;
+    if (existente) r.actualiza++;
+    else { r.nuevos++; r.faltantes.push({ n, muestra, coleccion, sinRef: !val.refExterna }); }
     r.porTabla[coleccion] = (r.porTabla[coleccion] || 0) + 1;
 
     if (r.ejemplos.length < 5) r.ejemplos.push(describir(coleccion, doc));
@@ -11389,7 +11533,11 @@ function conectar() {
     V.busca = e.target.value;
     const pos = e.target.selectionStart;
     pintar();
-    const n = $("[data-f=busca]"); n.focus(); n.setSelectionRange(pos, pos);
+    /* pintar() conserva el mismo campo si tenía el foco, así que no hay que
+       reponerlo. Solo se coloca el cursor por si el navegador lo movió. */
+    const n = $("[data-f=busca]");
+    if (n && n !== e.target) { n.focus(); }
+    try { $("[data-f=busca]")?.setSelectionRange(pos, pos); } catch {}
   };
 
   const sf = $("[data-f=finca]");
