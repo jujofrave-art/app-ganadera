@@ -841,11 +841,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.90.0";
+const VERSION = "1.91.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.91.0", "4 sep 2026", [
+    "Alerta nueva: <strong>«Se seca en 7 días»</strong>. Sale antes de que se abra la ventana " +
+      "de secado, para dar tiempo a conseguir la droga. Antes el primer aviso llegaba el " +
+      "mismo día en que ya tocaba secarla.",
+    "Los días de antelación se cambian en Configuración → Parámetros → Secado. Con 0 se " +
+      "apaga. Se guarda al escribir.",
+    "Sale como aviso, no como urgencia, y se calla sola en cuanto se abre la ventana o en " +
+      "cuanto se registra el secado.",
+  ]],
   ["1.90.0", "4 sep 2026", [
     "El secado se escribe ahora en <strong>días de descanso antes del parto</strong>, que es " +
       "como se piensa en la finca, y no en días de gestación. La vaca queda como «se seca " +
@@ -2403,6 +2412,7 @@ function migrar(d) {
   d.config.ventanaMeses ??= 24;
   d.config.palpaSegun ??= "todas";   // a quién se le pide palpación
   d.config.avisarSecadoSinRegistrar ??= false;
+  d.config.avisoSecadoDias ??= 7;    // días de antelación del aviso de secado
   d.config.borrar ??= {};            // quién puede eliminar, por puesto
   d.config.vistasRol ??= {};         // qué secciones ve cada puesto
   d.config.panelesRol ??= {};        // qué bloques de Configuración ve cada puesto
@@ -2832,6 +2842,19 @@ function alertas(incluirHechas) {
         `${e.gestacion} de gestación. Faltan ${faltan} días para el parto ` +
         `(${fmt(e.fechaProbableParto)}). Empieza el cuido de preparto.`,
         780 + e.diasGest, `preparto:${srv}`);
+    }
+
+    /* 3b. Se acerca el secado. La droga de secado hay que comprarla y no
+       siempre se tiene en la finca, así que el aviso llega con días de sobra.
+       Sale antes de que se abra la ventana y se calla en cuanto entra. */
+    const avisoDias = Math.max(0, Number(D.config.avisoSecadoDias ?? 7));
+    if (avisoDias && P.lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
+        e.diasGest >= P.secarDesde - avisoDias && e.diasGest < P.secarDesde) {
+      const faltan = P.secarDesde - e.diasGest;
+      push("media", `Se seca en ${faltan} día${faltan === 1 ? "" : "s"}`,
+        `${e.gestacion} de gestación. Toca secarla el ${fmt(sumarDias(srv, P.secarDesde))}. ` +
+        `Ve consiguiendo la droga de secado. Parto probable ${fmt(e.fechaProbableParto)}.`,
+        790 + e.diasGest, `presecar:${srv}`);
     }
 
     // 4. Secar: solo dentro de la ventana y si no la han secado
@@ -8330,7 +8353,7 @@ const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
    ========================================================== */
 const AJUSTES = {
   // Reglas de manejo. Las cambia quien manda en la finca.
-  finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar"],
+  finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar", "avisoSecadoDias"],
   // Permisos y propiedad de la base. Solo dueño o superadministrador.
   mando: ["permisos", "accesoConfig", "limites", "maestro",
           "borrar", "vistasRol", "panelesRol"],
@@ -10937,7 +10960,16 @@ function vConfiguracion() {
         Mientras tanto valen solo en este equipo.</div>` : ""}
 
       <h4 class="sub-titulo">Secado</h4>
-      <div class="rej" data-palpa-segun>
+      <div class="rej">
+        <div class="campo"><label>Avisar del secado con … días</label>
+          <input type="number" name="avisoSecadoDias" min="0" max="60"
+            value="${D.config.avisoSecadoDias ?? 7}" data-aviso-secado>
+          <span class="ayuda">${Number(D.config.avisoSecadoDias ?? 7)
+            ? `Sale una alerta ${D.config.avisoSecadoDias ?? 7} días antes de que toque secarla,
+               para dar tiempo a conseguir la droga. Se guarda al escribir.`
+            : "Sin aviso anticipado: la alerta sale el día que se abre la ventana."}</span></div>
+      </div>
+      <div class="rej">
         <div class="campo ancho">
           <label class="recordar" style="margin:0">
             <input type="checkbox" data-inter="secadoaviso"
@@ -11390,6 +11422,15 @@ function conectar() {
       guardar(); pintar();
     };
   });
+
+  const av = document.querySelector("[data-aviso-secado]");
+  if (av) av.onchange = () => {
+    D.config.avisoSecadoDias = Math.max(0, Math.min(60, Number(av.value) || 0));
+    guardar(); pintar();
+    avisar(D.config.avisoSecadoDias
+      ? `Se avisará ${D.config.avisoSecadoDias} días antes del secado`
+      : "Sin aviso anticipado del secado");
+  };
 
   const srp = $("[data-f=rangoPartos]");
   if (srp) srp.onchange = (e) => { V.rangoPartos = Number(e.target.value); pintar(); };
