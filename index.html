@@ -841,11 +841,32 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.88.0";
+const VERSION = "1.90.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.90.0", "4 sep 2026", [
+    "El secado se escribe ahora en <strong>días de descanso antes del parto</strong>, que es " +
+      "como se piensa en la finca, y no en días de gestación. La vaca queda como «se seca " +
+      "hasta 72 días antes y como mínimo 65», en vez de «del día 211 al 218». Por dentro se " +
+      "guarda igual que antes.",
+    "Cada especie lleva un interruptor de <strong>«aquí se ordeñan»</strong>. Antes estaba " +
+      "fijo en el archivo: bovinos, búfalos y caprinos sí; ovinos, porcinos, equinos y " +
+      "asnales no, sin poder cambiarlo. Hay fincas que ordeñan ovejas o burras.",
+    "Al encender una especie por primera vez se le pone un descanso de 60 días, que es lo " +
+      "común, y de ahí se ajusta.",
+  ]],
+  ["1.89.0", "4 sep 2026", [
+    "Se acabó la alerta de «secado vencido». La app se contradecía: pasada la ventana ya " +
+      "cuenta a la vaca como SECA y la saca del promedio de leche, pero en alertas seguía " +
+      "diciendo que faltaba secarla. En la tabla salía SECA y en alertas «vencido».",
+    "Quien sí lleva el registro de secados puede volver a encenderlo en Configuración → " +
+      "Parámetros. Vuelve como aviso normal, no como urgencia, y con otro texto: lo que " +
+      "falta es <em>apuntar</em> el secado, no hacerlo.",
+    "En la ficha, cuando la vaca se da por seca sin que haya secado registrado, se dice: " +
+      "sale «Seca · sin apuntar».",
+  ]],
   ["1.88.0", "3 sep 2026", [
     "Los interruptores de «quién puede eliminar» los aguantan también las reglas de " +
       "Firestore, no solo la pantalla. Si le das permiso de borrado a los empleados, " +
@@ -2381,6 +2402,7 @@ function migrar(d) {
   d.config.sesionDe ??= "";
   d.config.ventanaMeses ??= 24;
   d.config.palpaSegun ??= "todas";   // a quién se le pide palpación
+  d.config.avisarSecadoSinRegistrar ??= false;
   d.config.borrar ??= {};            // quién puede eliminar, por puesto
   d.config.vistasRol ??= {};         // qué secciones ve cada puesto
   d.config.panelesRol ??= {};        // qué bloques de Configuración ve cada puesto
@@ -2408,7 +2430,15 @@ function migrar(d) {
     delete g.secar;
     if (vieja.celo && esp === "bovino") g.celo = { ...g.celo, ...vieja.celo };
     g.celo = { ...PARAMS_BASE[esp].celo, ...(g.celo || {}) };
-    if (!ESPECIES[esp].lechero) { delete g.secarDesde; delete g.secarHasta; }
+    /* Si se ordeña o no dejó de estar fijo en el archivo: hay fincas que
+       ordeñan ovejas o burras. Al encenderlo por primera vez se le pone un
+       descanso de 60 días, que es lo común, y de ahí se ajusta. */
+    g.lechero = g.lechero === undefined ? !!ESPECIES[esp].lechero : !!g.lechero;
+    if (!g.lechero) { delete g.secarDesde; delete g.secarHasta; }
+    else if (!g.secarDesde) {
+      g.secarDesde = Math.max(1, g.gestacion - 60);
+      g.secarHasta = g.secarDesde + 7;
+    }
     d.config.params[esp] = g;
   }
   delete d.config.params.celo;
@@ -2815,13 +2845,23 @@ function alertas(incluirHechas) {
         800 + e.diasGest, `secar:${srv}`, "secar");
     }
 
-    // 5. Se pasó la ventana de secado
-    if (P.lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
+    /* 5. Se pasó la ventana de secado.
+
+       Pasada la ventana, la app ya la cuenta como SECA y la saca del promedio
+       de leche. Seguir diciendo «secado vencido» era contradecirse: en la
+       tabla salía SECA y en alertas que faltaba secarla. En la mayoría de
+       fincas se seca a mano y no se apunta, así que el aviso era ruido.
+
+       Quien sí lleva el registro de secados puede volver a encenderlo en
+       Configuración → Parámetros. */
+    if (D.config.avisarSecadoSinRegistrar &&
+        P.lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
         e.diasGest > P.secarHasta) {
       const tarde = e.diasGest - P.secarHasta;
-      push("alta", "Secado vencido",
-        `Van ${tarde} día${tarde === 1 ? "" : "s"} pasada la ventana y no hay secado ` +
-        `registrado. Parto probable ${fmt(e.fechaProbableParto)}.`,
+      push("media", "Falta apuntar el secado",
+        `La app ya la cuenta como seca (${e.gestacion} de gestación), pero no hay secado ` +
+        `registrado. Van ${tarde} día${tarde === 1 ? "" : "s"} desde el fin de la ventana. ` +
+        `Parto probable ${fmt(e.fechaProbableParto)}.`,
         850 + tarde, `secar:${srv}`, "secar");
     }
 
@@ -5178,7 +5218,9 @@ function fichaAnimal(id) {
       <ul class="medidas">
         <li><dt>Meses vacía</dt><dd class="g">${e.mesesVacia}</dd></li>
         <li><dt>Meses gestación</dt><dd class="g">${e.gestacion}</dd></li>
-        <li><dt>Estado productivo</dt><dd>${et.et}${e.secadoActual
+        <li><dt>Estado productivo</dt><dd>${et.et}${
+          e.etapa === "seca" && !e.secadoActual
+            ? '<span class="p gris" style="margin-left:6px">sin apuntar</span>' : ""}${e.secadoActual
           ? ` <span class="sub">secada a mano</span>` : ""}</dd></li>
         <li><dt>Total partos</dt><dd class="g">${e.totalPartos}</dd></li>
         <li><dt>Total abortos</dt><dd class="g">${abortos}</dd></li>
@@ -8288,7 +8330,7 @@ const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
    ========================================================== */
 const AJUSTES = {
   // Reglas de manejo. Las cambia quien manda en la finca.
-  finca: ["params", "palpaSegun"],
+  finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar"],
   // Permisos y propiedad de la base. Solo dueño o superadministrador.
   mando: ["permisos", "accesoConfig", "limites", "maestro",
           "borrar", "vistasRol", "panelesRol"],
@@ -10894,6 +10936,20 @@ function vConfiguracion() {
           : "Motivo: " + esc(String(Object.values(FB.ajustesError)[0])) + "."}
         Mientras tanto valen solo en este equipo.</div>` : ""}
 
+      <h4 class="sub-titulo">Secado</h4>
+      <div class="rej" data-palpa-segun>
+        <div class="campo ancho">
+          <label class="recordar" style="margin:0">
+            <input type="checkbox" data-inter="secadoaviso"
+              ${D.config.avisarSecadoSinRegistrar ? "checked" : ""}>
+            <span>Avisar cuando no se apunte el secado
+            <em>Pasada la ventana de secado, la app ya cuenta a la vaca como seca y la saca
+            del promedio de leche. Márcalo solo si llevas el registro de secados y quieres
+            que insista cuando falte apuntarlo.</em></span>
+          </label>
+        </div>
+      </div>
+
       <h4 class="sub-titulo">A quién se le palpa</h4>
       <div class="rej" data-palpa-segun>
         <div class="campo ancho"><label>Pedir palpación</label>
@@ -10921,14 +10977,27 @@ function vConfiguracion() {
               <input type="number" name="${k}_preparto" min="0" value="${g.preparto || 0}">
               <span class="ayuda">${g.preparto
                 ? `${g.gestacion - g.preparto} días antes del parto` : "sin alerta"}</span></div>
-            ${base.lechero ? `
-              <div class="campo"><label>Secado: desde el día</label>
-                <input type="number" name="${k}_secarD" min="1" value="${g.secarDesde}">
-                <span class="ayuda">${g.gestacion - g.secarDesde} días antes del parto</span></div>
-              <div class="campo"><label>… hasta el día</label>
-                <input type="number" name="${k}_secarH" min="1" value="${g.secarHasta}">
-                <span class="ayuda">Ventana de ${g.secarHasta - g.secarDesde + 1} días</span></div>
-            ` : `<div class="campo ancho"><span class="ayuda">Especie no lechera: no lleva secado.</span></div>`}
+            <div class="campo ancho">
+              <label class="recordar" style="margin:0">
+                <input type="checkbox" name="${k}_lechero" ${g.lechero ? "checked" : ""}>
+                <span>Aquí se ordeñan
+                <em>Si se apaga, esta especie no lleva secado ni entra en los promedios de
+                leche. Enciéndelo si en tu finca sí se ordeña.</em></span>
+              </label></div>
+            ${!g.lechero ? "" : `
+              <div class="campo"><label>Descanso: se seca hasta ${
+                g.gestacion - g.secarDesde} días antes</label>
+                <input type="number" name="${k}_descMax" min="1" max="${g.gestacion - 1}"
+                  value="${g.gestacion - g.secarDesde}">
+                <span class="ayuda">El descanso más largo. Empieza a avisar el día
+                ${g.secarDesde} de gestación</span></div>
+              <div class="campo"><label>… y como mínimo ${
+                g.gestacion - g.secarHasta} días antes</label>
+                <input type="number" name="${k}_descMin" min="1" max="${g.gestacion - 1}"
+                  value="${g.gestacion - g.secarHasta}">
+                <span class="ayuda">Pasado el día ${g.secarHasta} ya se da por seca.
+                Ventana de ${g.secarHasta - g.secarDesde + 1} días</span></div>
+            `}
             <div class="campo"><label>Edad mínima de servicio (meses)</label>
               <input type="number" name="${k}_edad" min="1" value="${g.edadServicio}"></div>
             <div class="campo"><label>Ciclo de celo (días)</label>
@@ -11309,7 +11378,9 @@ function conectar() {
   document.querySelectorAll("[data-inter]").forEach(el => {
     el.onchange = () => {
       const [que, a, b] = el.dataset.inter.split(":");
-      if (que === "borrar") {
+      if (que === "secadoaviso") {
+        D.config.avisarSecadoSinRegistrar = el.checked;
+      } else if (que === "borrar") {
         (D.config.borrar ||= {})[a] = el.checked;
       } else if (que === "vista") {
         ((D.config.vistasRol ||= {})[a] ||= {})[b] = el.checked;
@@ -11500,9 +11571,17 @@ function conectar() {
                   preparto: Math.max(0, Number(v[k+"_preparto"]) || 0),
                   edadServicio:n(v[k+"_edad"]), estro:n(v[k+"_estro"]),
                   celo:{ uno:n(v[k+"_celo1"]), dos:n(v[k+"_celo2"]), tres:n(v[k+"_celo3"]) } };
-      if (ESPECIES[k].lechero) {
-        g.secarDesde = n(v[k+"_secarD"]);
-        g.secarHasta = Math.max(g.secarDesde, n(v[k+"_secarH"]));
+      g.lechero = v[k+"_lechero"] === "on";
+      if (g.lechero) {
+        // Se escriben días de descanso antes del parto; por dentro se guardan
+        // como días de gestación, que es con lo que se compara.
+        const anterior = D.config.params?.[k] || {};
+        const maxD = Number(v[k+"_descMax"]) || (g.gestacion - (anterior.secarDesde || g.gestacion - 60));
+        const minD = Number(v[k+"_descMin"]) || Math.max(1, maxD - 7);
+        const largo = Math.min(g.gestacion - 1, Math.max(maxD, minD));
+        const corto = Math.min(largo, Math.max(1, Math.min(maxD, minD)));
+        g.secarDesde = g.gestacion - largo;
+        g.secarHasta = g.gestacion - corto;
       }
       out[k] = g;
     }
