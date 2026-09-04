@@ -444,6 +444,23 @@ details.panel:not([open])>summary{border-bottom:0}
   color:var(--tenue);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--linea)}
 .sub-titulo:first-child{margin-top:0}
 .fila-btn{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+
+/* ---------- interruptores de permisos ---------- */
+.tabla-inter{width:100%;border-collapse:collapse;font-size:13px}
+.tabla-inter th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--tenue);font-weight:600;padding:6px 8px;text-align:left;font-family:var(--dato)}
+.tabla-inter th.num,.tabla-inter td.num{text-align:center;width:74px}
+.tabla-inter td{padding:7px 8px;border-top:1px solid var(--linea);vertical-align:middle}
+.tabla-inter td .sub{display:block;font-size:10.5px;color:var(--tenue);font-family:var(--dato)}
+.inter{display:inline-flex;cursor:pointer;position:relative}
+.inter input{position:absolute;opacity:0;width:0;height:0}
+.inter span{width:38px;height:21px;border-radius:11px;background:var(--linea);
+  display:block;position:relative;transition:background .15s}
+.inter span::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;
+  border-radius:50%;background:var(--papel);transition:transform .15s}
+.inter input:checked + span{background:var(--pasto)}
+.inter input:checked + span::after{transform:translateX(17px)}
+.inter input:focus-visible + span{outline:2px solid var(--pasto);outline-offset:2px}
 .panel textarea{font-family:var(--dato);font-size:11.5px;line-height:1.5}
 
 .cambios{margin:0 0 4px;padding-left:18px;font-size:13px;line-height:1.6;color:var(--tinta2)}
@@ -824,11 +841,44 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.84.0";
+const VERSION = "1.88.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.88.0", "3 sep 2026", [
+    "Los interruptores de «quién puede eliminar» los aguantan también las reglas de " +
+      "Firestore, no solo la pantalla. Si le das permiso de borrado a los empleados, " +
+      "Firestore se lo acepta; si se lo quitas a los administradores, se lo rechaza.",
+    "HAY QUE VOLVER A PUBLICAR LAS REGLAS.",
+  ]],
+  ["1.87.0", "3 sep 2026", [
+    "Panel <strong>Quién puede eliminar</strong> en Configuración: un interruptor por puesto. " +
+      "Antes estaba fijo en el archivo y el empleado nunca podía borrar.",
+    "Panel <strong>Qué ve cada puesto</strong>: se apagan secciones enteras del menú por " +
+      "puesto, y además cada bloque de Configuración por separado. Es distinto de cerrarle " +
+      "una sección a una persona concreta, que se sigue haciendo en su ficha; aquí vale " +
+      "para todos los que tengan ese puesto.",
+    "Los dos paneles solo los ven el dueño y el superadministrador, y viajan a los demás " +
+      "equipos como los otros permisos.",
+    "El superadministrador queda siempre fuera de estos candados, para que nadie se " +
+      "encierre a sí mismo.",
+  ]],
+  ["1.86.0", "3 sep 2026", [
+    "El formulario del animal pregunta ahora <strong>de dónde salió</strong>. Si nació en la " +
+      "finca, pide la fecha de nacimiento; si es comprado, la fecha de compra o entrada, los " +
+      "detalles de la compra, y la de nacimiento solo si se sabe.",
+    "Se pueden escribir por fin las <strong>chapetas de la madre y del padre</strong>. El dato " +
+      "existía en la app y se usaba para contar las crías, pero no había dónde meterlo: solo " +
+      "entraba por Importar.",
+    "En el comprado también se pueden poner, por si vienen en su chapeta.",
+    "Los animales que ya estaban se dan por nacidos en la finca, que es como estaban tratados.",
+  ]],
+  ["1.85.0", "3 sep 2026", [
+    "La pantalla seguía ofreciéndole a cualquier superadministrador la opción de nombrar a " +
+      "otro, que Firestore ya rechazaba desde la 1.84. Ahora ese rango solo aparece en el " +
+      "desplegable para la cuenta raíz.",
+  ]],
   ["1.84.0", "3 sep 2026", [
     "Nuevo panel <strong>Control raíz</strong> en Configuración: ahí se decide qué correos " +
       "pueden ser superadministradores. Solo lo ve jujofrave@gmail.com.",
@@ -2331,6 +2381,9 @@ function migrar(d) {
   d.config.sesionDe ??= "";
   d.config.ventanaMeses ??= 24;
   d.config.palpaSegun ??= "todas";   // a quién se le pide palpación
+  d.config.borrar ??= {};            // quién puede eliminar, por puesto
+  d.config.vistasRol ??= {};         // qué secciones ve cada puesto
+  d.config.panelesRol ??= {};        // qué bloques de Configuración ve cada puesto
   d.config.recordarSesion ??= false;
   d.config.tema ??= "auto";
   d.config.cuentaGoogle ??= 0;
@@ -2411,6 +2464,8 @@ function migrar(d) {
       if (suyos[0] && !suyos[0].palpar) suyos[0].palpar = "no";
     }
     delete a.sinPalpar;
+    // Antes se daba por hecho que todo animal había nacido aquí.
+    a.origen ??= (a.fechaIngreso || a.detallesCompra) ? "comprado" : "nacido";
     a.hechas ??= {};   // alertas que alguien ya marcó como cumplidas
   }
   (d.inseminaciones || []).forEach(i => {
@@ -3211,7 +3266,9 @@ const PERMISOS = {
 const rolActual = () => S.persona?.rol || "empleado";
 const esSuper = () => rolActual() === "superadmin";
 const miRango = () => RANGO[rolActual()] ?? 0;
-const puede = (q) => !!PERMISOS[rolActual()]?.[q];
+const puede = (q) => q === "borra"
+  ? borradoPermitido()
+  : !!PERMISOS[rolActual()]?.[q];
 /* El superadministrador también manda: es quien reparte los permisos.
    Dejarlo fuera hacía que su app nunca actualizara /usuarios, y por eso
    asignar una finca no llegaba sola a los otros dispositivos.
@@ -3263,9 +3320,13 @@ const misPersonas = () => {
 };
 
 /** Roles que esta persona puede otorgar: solo por debajo del suyo. */
-const rolesQuePuedoCrear = () =>
-  esSuper() ? Object.keys(ROLES)
-            : Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
+const rolesQuePuedoCrear = () => {
+  const bajo = Object.keys(ROLES).filter(r => (RANGO[r] ?? 0) < miRango());
+  // El rango de superadministrador solo lo reparte la cuenta raíz, y solo a
+  // los correos que estén en su lista. Las reglas de Firestore lo exigen.
+  if (soyRaiz()) return Object.keys(ROLES);
+  return bajo;   // ni el superadministrador puede nombrar a otro
+};
 
 /** ¿Puede añadir gente en esa sección? Solo por debajo de su rango. */
 const puedoAgregarEn = (rol) => puede("editaPersona") && rolesQuePuedoCrear().includes(rol);
@@ -3876,6 +3937,50 @@ function haySesionGuardada() {
    dueño. Cero significa sin límite.
    ========================================================== */
 
+/* Cada bloque de Configuración, con nombre, para poder apagarlo por rol. */
+const PANELES_CONFIG = [
+  ["version", "Versión y novedades"],
+  ["firebase", "Conexión con Firebase"],
+  ["arranque", "Cómo dejarlo funcionando"],
+  ["acceso", "Cómo entra cada persona"],
+  ["apariencia", "Apariencia"],
+  ["diagnostico", "¿Por qué no cargan los datos?"],
+  ["historial", "Cuánto historial se baja"],
+  ["parametros", "Parámetros de la finca"],
+  ["publicar", "Publicar la app para el equipo"],
+  ["instalar", "Instalar en el celular"],
+  ["cupos", "Límites por dueño"],
+  ["configavan", "Quién ve la configuración avanzada"],
+  ["porpersona", "Secciones por persona"],
+  ["limpieza", "Borrar datos antiguos"],
+  ["equipo", "Datos de este equipo"],
+];
+
+/**
+ * ¿Puede este rol eliminar registros? Sale de los interruptores de
+ * Configuración; si no se ha tocado nada, manda la tabla de siempre.
+ */
+function borradoPermitido(rol) {
+  const r = rol || rolActual();
+  if (r === "superadmin") return true;
+  const c = D.config?.borrar || {};
+  return c[r] === undefined ? !!PERMISOS[r]?.borra : !!c[r];
+}
+
+/** ¿Este rol ve esta sección? Es aparte del cierre por persona. */
+function rolVeSeccion(vistaId, rol) {
+  const r = rol || rolActual();
+  if (r === "superadmin") return true;
+  return (D.config?.vistasRol || {})[r]?.[vistaId] !== false;
+}
+
+/** ¿Este rol ve este bloque de Configuración? */
+function rolVePanel(panelId, rol) {
+  const r = rol || rolActual();
+  if (r === "superadmin") return true;
+  return (D.config?.panelesRol || {})[r]?.[panelId] !== false;
+}
+
 const QUE_SE_LIMITA = {
   fincas:          { et: "Fincas",          singular: "finca" },
   administradores: { et: "Administradores", singular: "administrador" },
@@ -3988,6 +4093,8 @@ function verConfigAvanzada() {
    ========================================================== */
 
 function seccionCerrada(vistaId) {
+  // Dos candados distintos: uno por puesto, otro para una persona concreta.
+  if (!rolVeSeccion(vistaId)) return true;
   const p = (D.config.permisos || {})[miCorreo()];
   return !!(p && p[vistaId] === false);
 }
@@ -5053,7 +5160,13 @@ function fichaAnimal(id) {
         <div class="ficha-id">
           <span class="chap ${a.estado !== "activo" ? "gris" : ""}">${esc(a.chapeta)}</span>
           <h2>${esc(a.nombre)}</h2>
-          <div class="meta">${esc(nombreFinca(a.fincaId))}${a.fechaNacimiento ? ` · nació el ${fmt(a.fechaNacimiento)}` : ""}${e.edadMeses !== null ? ` · ${e.edadMeses} meses` : ""}</div>
+          <div class="meta">${esc(nombreFinca(a.fincaId))}${
+            a.origen === "comprado"
+              ? ` · comprado${a.fechaIngreso ? " el " + fmt(a.fechaIngreso) : ""}`
+              : a.fechaNacimiento ? ` · nació el ${fmt(a.fechaNacimiento)}` : ""}${
+            e.edadMeses !== null ? ` · ${e.edadMeses} meses` : ""}</div>
+          ${a.detallesCompra ? `<div class="meta">${esc(a.detallesCompra)}</div>` : ""}
+          ${(a.madre || a.padre) ? `<div class="meta">madre ${esc(a.madre) || "—"} · padre ${esc(a.padre) || "—"}</div>` : ""}
           <div class="tags">
             <span class="p ${et.cl}">${et.et}</span>
             <span class="p">${CATEGORIAS[a.categoria]?.et || a.categoria}</span>
@@ -5254,7 +5367,8 @@ function formAnimal(id, estadoIni) {
   // el formulario abre mostrando la fecha y el motivo de salida.
   const inicial = ["vendido", "muerto"].includes(estadoIni) ? estadoIni : "activo";
   const a = id ? animal(id) : { nombre:"", chapeta:"", fincaId:D.fincas[0]?.id, categoria:"vaca",
-    estado:inicial, fechaNacimiento:"", raza:"", detalles:"", partosPrevios:0, ultimoPartoPrevio:"",
+    estado:inicial, origen:"nacido", fechaNacimiento:"", fechaIngreso:"", detallesCompra:"",
+    madre:"", padre:"", raza:"", detalles:"", partosPrevios:0, ultimoPartoPrevio:"",
     fechaSalida:"", motivoSalida:"", observaciones:"" };
   abrirHoja(`
     <div class="hoja-cab"><h2>${id ? "Editar animal"
@@ -5274,7 +5388,31 @@ function formAnimal(id, estadoIni) {
         <div class="campo"><label>Categoría</label><div data-cat-caja></div>
           <span class="ayuda" data-gest></span></div>
         <div class="campo"><label>Raza</label><div data-raza-caja></div></div>
-        <div class="campo"><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento" value="${a.fechaNacimiento||""}"></div>
+        <!-- No todos los animales nacen en la finca. Al comprado no se le
+             puede pedir fecha de nacimiento ni padres registrados aquí. -->
+        <div class="campo ancho"><label>¿De dónde salió?</label>
+          ${seg("origen", [["nacido","Nació en la finca"],["comprado","Comprado"]],
+                a.origen === "comprado" ? "comprado" : "nacido")}</div>
+
+        <div class="campo" data-solo-nacido><label>Fecha de nacimiento</label>
+          <input type="date" name="fechaNacimiento" value="${a.fechaNacimiento||""}"></div>
+
+        <div class="campo" data-solo-comprado hidden><label>Fecha de compra o entrada</label>
+          <input type="date" name="fechaIngreso" value="${a.fechaIngreso||""}">
+          <span class="ayuda">El día que llegó a la finca</span></div>
+        <div class="campo" data-solo-comprado hidden><label>Fecha de nacimiento</label>
+          <input type="date" name="fechaNacimiento" value="${a.fechaNacimiento||""}">
+          <span class="ayuda">Si la sabes. Sin ella no se puede calcular la edad</span></div>
+        <div class="campo ancho" data-solo-comprado hidden><label>Detalles de la compra</label>
+          <input name="detallesCompra" value="${esc(a.detallesCompra)}"
+            placeholder="A quién, en cuánto, de dónde vino…"></div>
+
+        <div class="campo"><label>Chapeta de la madre</label>
+          <input name="madre" value="${esc(a.madre)}" placeholder="opcional">
+          <span class="ayuda" data-solo-comprado hidden>Si viene en su chapeta</span></div>
+        <div class="campo"><label>Chapeta del padre</label>
+          <input name="padre" value="${esc(a.padre)}" placeholder="opcional">
+          <span class="ayuda" data-solo-comprado hidden>Si viene en su chapeta</span></div>
 
         <!-- Solo para hembras adultas. El total de partos y la fecha del
              último NO se escriben: salen de la tabla de Partos. -->
@@ -5365,6 +5503,14 @@ function formAnimal(id, estadoIni) {
   selEstado.onchange = verSalida;
   verSalida();
 
+  const verOrigen = () => {
+    const comprado = hojaAbierta.querySelector("[name=origen]:checked")?.value === "comprado";
+    hojaAbierta.querySelectorAll("[data-solo-nacido]").forEach(el => el.hidden = comprado);
+    hojaAbierta.querySelectorAll("[data-solo-comprado]").forEach(el => el.hidden = !comprado);
+  };
+  hojaAbierta.querySelectorAll("[name=origen]").forEach(r => r.onchange = verOrigen);
+  verOrigen();
+
   selEsp.onchange = () => poblar(false);
   poblar(true);
 }
@@ -5428,7 +5574,7 @@ function formPersona(id, rolPre) {
           const opciones = fijo
             ? [[p.rol, ROLES[p.rol]]]
             : Object.entries(ROLES).filter(([k]) =>
-                esSuper() || rolesQuePuedoCrear().includes(k) || k === p.rol);
+                rolesQuePuedoCrear().includes(k) || k === p.rol);
           return `<div class="campo"><label>Rol</label>
             <select name="rol" ${bloqueado ? "disabled" : ""}>
               ${opciones.map(([k,v]) =>
@@ -8144,7 +8290,8 @@ const AJUSTES = {
   // Reglas de manejo. Las cambia quien manda en la finca.
   finca: ["params", "palpaSegun"],
   // Permisos y propiedad de la base. Solo dueño o superadministrador.
-  mando: ["permisos", "accesoConfig", "limites", "maestro"],
+  mando: ["permisos", "accesoConfig", "limites", "maestro",
+          "borrar", "vistasRol", "panelesRol"],
 };
 
 /** Lo que se queda en este equipo: firebase, sinFirebase, sesionDe,
@@ -9981,6 +10128,19 @@ service cloud.firestore {
       allow read, write: if soyRaiz();
     }
 
+    /** Los interruptores de «quién puede eliminar», guardados en /ajustes/mando.
+        Si no se ha tocado nada, manda lo de siempre: todos menos el empleado. */
+    function ajustesMando() {
+      return exists(/databases/$(database)/documents/ajustes/mando)
+        ? get(/databases/$(database)/documents/ajustes/mando).data
+        : {};
+    }
+    function puedeBorrar() {
+      return esSuper()
+        || (manda() && ajustesMando().get('borrar', {}).get(rol(), true))
+        || ajustesMando().get('borrar', {}).get(rol(), false);
+    }
+
     // ---- ajustes que son de la finca, no de cada equipo ----
     // «finca» lleva los parámetros de manejo; «mando» lleva permisos,
     // cupos y quién es el dueño principal, que es cosa aparte.
@@ -10101,56 +10261,56 @@ service cloud.firestore {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia() && (activo() || esDueno());
-      allow delete: if registrado() && manda() && mia() && (activo() || esDueno());
+      allow delete: if registrado() && puedeBorrar() && mia() && (activo() || esDueno());
     }
 
     match /inseminaciones/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /palpaciones/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /partos/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /secados/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /tratamientos/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /leche/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /anotaciones/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
       allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow delete: if registrado() && puedeBorrar() && mia();
     }
 
     match /{document=**} { allow read, write: if false; }
@@ -10248,8 +10408,69 @@ function vConfiguracion() {
     </div>
   </details>` }
 
-  <!-- ============ 0. VERSIÓN ============ -->
+  ${!(esSuper() || rolActual() === "dueno") ? "" : (() => {
+    const roles = ["dueno", "administrador", "empleado"];
+    const inter = (nombre, marcado) => `<label class="inter">
+      <input type="checkbox" data-inter="${nombre}" ${marcado ? "checked" : ""}>
+      <span></span></label>`;
+    return `
+  <!-- ============ QUIÉN PUEDE ELIMINAR ============ -->
   <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Quién puede eliminar</h2>
+      <span class="p gris">${roles.filter(r => borradoPermitido(r)).length} de 3</span>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Eliminar borra también en Firebase y no se puede deshacer. El
+      superadministrador siempre puede, y no sale en la lista. Lo que se apague aquí lo
+      aguantan también las reglas de Firestore, no solo la pantalla.</p>
+      <table class="tabla-inter"><tbody>
+        ${roles.map(r => `<tr>
+          <td>${ROLES[r].plural}</td>
+          <td class="num">${inter("borrar:" + r, borradoPermitido(r))}</td></tr>`).join("")}
+      </tbody></table>
+      <p class="expl" style="margin-top:12px">Si le quitas el permiso a un puesto, a esa gente
+      le desaparece el botón de eliminar de todos los formularios y de la barra de selección.</p>
+    </div>
+  </details>
+
+  <!-- ============ QUÉ VE CADA PUESTO ============ -->
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Qué ve cada puesto</h2>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Apaga secciones enteras para un puesto. Es distinto de cerrarle una
+      sección a una persona concreta, que se hace en su ficha: aquí vale para todos los que
+      tengan ese puesto. El superadministrador lo ve todo siempre.</p>
+
+      <h4 class="sub-titulo">Secciones del menú</h4>
+      <table class="tabla-inter">
+        <thead><tr><th></th>${roles.map(r =>
+          `<th class="num">${ROLES[r].et}</th>`).join("")}</tr></thead>
+        <tbody>${VISTAS.filter(v => v.id !== "configuracion").map(v => `<tr>
+          <td>${v.et}<span class="sub">${v.grupo}</span></td>
+          ${roles.map(r => `<td class="num">${
+            inter(`vista:${r}:${v.id}`, rolVeSeccion(v.id, r))}</td>`).join("")}
+        </tr>`).join("")}</tbody>
+      </table>
+
+      <h4 class="sub-titulo">Bloques de Configuración</h4>
+      <p class="expl">Entrar a Configuración ya depende del puesto; esto decide qué bloques
+      ve dentro quien sí entra.</p>
+      <table class="tabla-inter">
+        <thead><tr><th></th>${roles.map(r =>
+          `<th class="num">${ROLES[r].et}</th>`).join("")}</tr></thead>
+        <tbody>${PANELES_CONFIG.map(([pid, et]) => `<tr>
+          <td>${et}</td>
+          ${roles.map(r => `<td class="num">${
+            inter(`panel:${r}:${pid}`, rolVePanel(pid, r))}</td>`).join("")}
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </details>`;
+  })()}
+
+  <!-- ============ 0. VERSIÓN ============ -->
+  ${rolVePanel("version") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Versión ${VERSION}</h2>
       <span class="p gris">${FECHA_VERSION}</span><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
@@ -10265,7 +10486,7 @@ function vConfiguracion() {
         <ul class="cambios">${lista.map(x => `<li>${x}</li>`).join("")}</ul>
       `).join("")}
     </div>
-  </details>
+  </details>` : ""}
 
   ${verConfigAvanzada() ? "" : `<div class="nota">La conexión con la base de datos la administra
     ${D.config.maestro ? `<strong>${esc(D.config.maestro)}</strong>` : "el dueño principal"}.
@@ -10369,7 +10590,7 @@ function vConfiguracion() {
   </details>
 
   <!-- ============ 2. PASOS ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("arranque") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Cómo dejarlo funcionando</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       ${paso(1, "Crear el proyecto", `<p>Entra a <code>console.firebase.google.com</code> y crea un proyecto.
@@ -10426,12 +10647,12 @@ function vConfiguracion() {
         <strong>Subir datos de este equipo</strong>. En los demás computadores basta con pegar la
         misma configuración y entrar con su propio correo: cada quien verá únicamente sus fincas.</p>`)}
     </div>
-  </details>
+  </details>` : ""}
 
   `}
   ${!puede("personas") ? "" : `
   <!-- ============ 2b. INVITAR ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("acceso") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Cómo entra cada persona</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">No tienes que crear cuentas a mano ni repartir contraseñas. Registras a
@@ -10469,12 +10690,12 @@ function vConfiguracion() {
       <strong>Olvidé mi contraseña</strong> y le llega un correo para cambiarla. No tienes que
       intervenir.</div>
     </div>
-  </details>
+  </details>` : ""}
 
   `}
   ${!puede("config") ? "" : `
   <!-- ============ APARIENCIA ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("apariencia") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Apariencia</h2>
       <span class="p gris">${TEMAS[D.config.tema || "auto"]}</span>
       <span class="flecha-acord">▾</span></summary>
@@ -10508,10 +10729,10 @@ function vConfiguracion() {
           </label>`).join("")}
       </div>
     </div>
-  </details>
+  </details>` : ""}
 
   <!-- ============ DIAGNÓSTICO ============ -->
-  <details class="panel" ${abierto(ACORD++)} ${Object.keys(FB.fallos || {}).length ? "open" : ""}>
+  ${rolVePanel("diagnostico") ? `<details class="panel" ${abierto(ACORD++)} ${Object.keys(FB.fallos || {}).length ? "open" : ""}>
     <summary class="panel-cab"><h2>¿Por qué no cargan los datos?</h2>
       ${Object.keys(FB.fallos || {}).length
         ? `<span class="p roja">${Object.keys(FB.fallos).length} con fallo</span>` : ""}
@@ -10610,10 +10831,10 @@ function vConfiguracion() {
       </div>
       <div data-diagnostico></div>
     </div>
-  </details>
+  </details>` : ""}
 
   <!-- ============ SINCRONIZACIÓN ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("historial") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Cuánto historial se baja</h2>
       <span class="p ${(D.config.ventanaMeses ?? 24) ? "gris" : "ambar"}">${
         (D.config.ventanaMeses ?? 24) ? (D.config.ventanaMeses ?? 24) + " meses" : "Todo"}</span>
@@ -10650,10 +10871,10 @@ function vConfiguracion() {
           : "Está así guardado en este equipo. Con «Volver al recorte» queda en 24 meses."}
       </div>` : ""}
     </div>
-  </details>
+  </details>` : ""}
 
   <!-- ============ 3. PARÁMETROS ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("parametros") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Parámetros de la finca</h2>
       <span class="p gris">Palpar: ${D.config.palpaSegun === "monta"
         ? "solo montas" : "todas las servidas"}</span>
@@ -10727,12 +10948,12 @@ function vConfiguracion() {
         </div>
       </form>
     </div>
-  </details>
+  </details>` : ""}
 
   `}
   ${!verConfigAvanzada() ? "" : `
   <!-- ============ 4. PUBLICAR ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("publicar") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Publicar la app para el equipo</h2>
       ${incluida ? '<span class="p verde">Configuración incluida</span>' : '<span class="p gris">Solo en este equipo</span>'}
     <span class="flecha-acord">▾</span></summary>
@@ -10775,11 +10996,11 @@ function vConfiguracion() {
         después de haber hecho los pasos 4 y 5 de la sección anterior.</div>
       `}
     </div>
-  </details>
+  </details>` : ""}
 
   `}
   <!-- ============ 5. INSTALAR ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("instalar") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Instalar en el celular</h2>
       ${instalada() ? '<span class="p verde">Instalada</span>'
         : SW_ACTIVO ? '<span class="p verde">Lista para instalar</span>'
@@ -10815,11 +11036,11 @@ function vConfiguracion() {
       por su cuenta. Lo que el <code>sw.js</code> resuelve es que el propio archivo de la app
       cargue estando sin señal.</div>
     </div>
-  </details>
+  </details>` : ""}
 
   ${!esSuper() ? "" : `
   <!-- ============ LÍMITES ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("cupos") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Límites por dueño</h2>
       <span class="p gris">${D.personas.filter(p => p.rol === "dueno").length} dueños</span>
       <span class="flecha-acord">▾</span></summary>
@@ -10854,11 +11075,11 @@ function vConfiguracion() {
         <div class="fila-btn"><button class="btn btn-firme">Guardar límites</button></div>
       </form>
     </div>
-  </details>
+  </details>` : ""}
 
   <!-- ============ ACCESO A CONFIGURACIÓN ============ -->
   ${!esMaestro() ? "" : `
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("configavan") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Quién ve la configuración avanzada</h2>
       <span class="p gris">${(D.config.accesoConfig || []).length + 1}</span>
       <span class="flecha-acord">▾</span></summary>
@@ -10888,10 +11109,10 @@ function vConfiguracion() {
       </div>
       <div class="fila-btn"><button class="btn" data-acc="dar-acceso">Dar acceso</button></div>
     </div>
-  </details>`}
+  </details>` : ""}`}
 
   <!-- ============ INTERRUPTORES POR CORREO ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("porpersona") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Secciones por persona</h2>
       <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
@@ -10925,12 +11146,12 @@ function vConfiguracion() {
           <button class="btn" data-acc="permisos-nada">Cerrar todas</button>
         </div>`}
     </div>
-  </details>
+  </details>` : ""}
   `}
 
   ${!esMaestro() ? "" : `
   <!-- ============ LIMPIEZA ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("limpieza") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Borrar datos antiguos</h2>
       <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
@@ -10969,10 +11190,10 @@ function vConfiguracion() {
       </form>
       <div data-conteo-antiguos></div>
     </div>
-  </details>`}
+  </details>` : ""}`}
 
   <!-- ============ 6. DATOS ============ -->
-  <details class="panel" ${abierto(ACORD++)}>
+  ${rolVePanel("equipo") ? `<details class="panel" ${abierto(ACORD++)}>
     <summary class="panel-cab"><h2>Datos de este equipo</h2><span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <ul class="datos" style="margin-bottom:14px">
@@ -11003,7 +11224,7 @@ function vConfiguracion() {
       ${verConfigAvanzada() ? "" : `<p class="expl" style="margin:10px 0 0">Importar y borrar están
       reservados al dueño principal, porque reemplazan los datos de todos.</p>`}
     </div>
-  </details>`;
+  </details>` : ""}`;
 }
 
 /* ==========================================================
@@ -11082,6 +11303,22 @@ function conectar() {
 
   const se = $("[data-f=especie]");
   if (se) se.onchange = (e) => { V.especie = e.target.value; pintar(); };
+
+  /* Un solo manejador para todos los interruptores de permisos. La clave dice
+     qué se está tocando: "borrar:empleado", "vista:dueno:leche", "panel:…". */
+  document.querySelectorAll("[data-inter]").forEach(el => {
+    el.onchange = () => {
+      const [que, a, b] = el.dataset.inter.split(":");
+      if (que === "borrar") {
+        (D.config.borrar ||= {})[a] = el.checked;
+      } else if (que === "vista") {
+        ((D.config.vistasRol ||= {})[a] ||= {})[b] = el.checked;
+      } else if (que === "panel") {
+        ((D.config.panelesRol ||= {})[a] ||= {})[b] = el.checked;
+      }
+      guardar(); pintar();
+    };
+  });
 
   const srp = $("[data-f=rangoPartos]");
   if (srp) srp.onchange = (e) => { V.rangoPartos = Number(e.target.value); pintar(); };
@@ -11578,6 +11815,11 @@ function enviar(f) {
   const nuevo = (o) => ({ id: uid(), creadoPor: S.persona?.id || null, ...o });
 
   if (tipo === "animal") {
+    v.origen = v.origen === "comprado" ? "comprado" : "nacido";
+    if (v.origen === "nacido") { v.fechaIngreso = null; v.detallesCompra = ""; }
+    if (v.origen === "comprado" && !v.fechaIngreso && !id
+        && !confirm("No pusiste la fecha de compra o entrada.\n\n¿Guardar así?")) return;
+
     // Estos dos ya no se escriben a mano: salen de los partos registrados.
     // Lo que traiga de antes (importado o de una versión anterior) se respeta.
     const previo = id ? animal(id) : null;
