@@ -1,0 +1,32 @@
+{
+  "id": "./",
+  "name": "Control Ganadero",
+  "short_name": "Ganadero",
+  "description": "Registro de ganado, reproducción y sanidad de la finca.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#16241c",
+  "theme_color": "#16241c",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "categories": [
+    "productivity",
+    "business"
+  ],
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
