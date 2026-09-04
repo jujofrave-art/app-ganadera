@@ -821,11 +821,36 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.67.0";
+const VERSION = "1.70.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.70.0", "3 sep 2026", [
+    "La ficha de un animal al que se le bajó el historial completo ya trae botón para " +
+      "<strong>volver al rango normal</strong>. Antes no había forma de deshacerlo sin " +
+      "recargar la app. No borra nada: los registros siguen en Firebase.",
+    "ARREGLO: al bajar el historial de un animal, la app rehacía la tabla solo con lo que " +
+      "había venido del servidor. Un registro hecho sin señal y aún sin subir desaparecía " +
+      "de la pantalla hasta que Firestore lo devolviera. Ahora se conserva.",
+  ]],
+  ["1.69.0", "3 sep 2026", [
+    "«Inseminaciones en total» decía «de toda su vida» aunque solo estuvieran bajados los " +
+      "últimos meses. Por eso una vaca pasaba de 5 a 16 al pedir su historial. Ahora, " +
+      "mientras el recorte esté puesto, el número dice de cuántos meses es.",
+    "Al bajar el historial de un animal, la ficha lo dice y deja de ofrecer el mismo botón. " +
+      "Antes seguía igual y no había forma de saber si los totales ya estaban completos.",
+    "Ojo: ese botón baja el historial de ESE animal, no el de la finca. Por eso no aparece " +
+      "un botón para volver: no hay nada global que deshacer.",
+  ]],
+  ["1.68.0", "3 sep 2026", [
+    "ARREGLO SIN SEÑAL: al abrir la app sin señal en un equipo nuevo, Firestore contesta " +
+      "que los ajustes compartidos «no existen» porque su caché está vacía. La app se lo " +
+      "creía y, al volver la señal, le pisaba a la finca sus parámetros con los de " +
+      "fábrica. Ahora solo se fía de una respuesta del servidor.",
+    "Sin señal, cada guardado encolaba otra copia del mismo ajuste. Ahora espera a que " +
+      "salga la anterior.",
+  ]],
   ["1.67.0", "3 sep 2026", [
     "La casilla «a esta no se le palpa» sale de la ficha del animal. Estaba en el sitio " +
       "equivocado: quien la sirve confirma la preñez de ESE servicio, no de la vaca para " +
@@ -4702,7 +4727,9 @@ function fichaAnimal(id) {
             return `servicio${e.totalInsemCiclo === 1 ? "" : "s"} ${desde}`;
           })()}</span></li>
         <li><dt>Inseminaciones en total</dt><dd class="g">${e.totalInsemHistorico}</dd>
-          <span class="sub">de toda su vida, sin reiniciar</span></li>
+          <span class="sub">${historialRecortado() && !FB.historial?.has(id)
+            ? `solo las de los últimos ${D.config.ventanaMeses || 24} meses`
+            : "de toda su vida, sin reiniciar"}</span></li>
         <li class="${e.ultPartoReal && !e.ultPartoReal.previo ? "liga" : ""}" ${e.ultPartoReal && !e.ultPartoReal.previo ? `data-ev="parto:${e.ultPartoReal.id}"` : ""}>
           <dt>Fecha parto</dt><dd>${e.ultPartoReal ? fmt(e.ultPartoReal.fecha) : "—"}</dd></li>
         <li class="${e.ultInsem ? "liga" : ""}" ${e.ultInsem ? `data-ev="insem:${e.ultInsem.id}"` : ""}>
@@ -4732,10 +4759,22 @@ function fichaAnimal(id) {
         align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
         <span>Estás viendo <strong>todo su historial</strong>, sin recorte de fechas.</span>
         <button class="btn btn-sm" data-acc="volver-recorte">Volver al rango normal</button>
-      </div>` : historialRecortado() ? `<div class="nota" data-pedir-historial="${id}"
+      </div>` : historialRecortado() ? (FB.historial?.has(id)
+        /* Se bajó el historial de este animal, no el de toda la finca. Antes
+           seguía diciendo «últimos N meses» y ofreciendo el mismo botón, así
+           que no había forma de saber si los números de arriba ya estaban
+           completos o todavía faltaba historia. */
+        ? `<div class="nota" data-soltar-historial="${id}"
+           style="display:flex;align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
+           <span>De este animal ya está <strong>todo su historial</strong>: los totales de
+           arriba son de toda su vida. En las demás tablas se siguen mostrando los últimos
+           ${D.config.ventanaMeses || 24} meses.</span>
+           <button class="btn btn-sm">Volver al rango normal</button></div>`
+        : `<div class="nota" data-pedir-historial="${id}"
         style="display:flex;align-items:center;gap:11px;justify-content:space-between;flex-wrap:wrap">
-        <span>Se están mostrando los últimos ${D.config.ventanaMeses || 24} meses.</span>
-        <button class="btn btn-sm">Ver todo su historial</button></div>` : ""}
+        <span>Se están mostrando los últimos ${D.config.ventanaMeses || 24} meses,
+        así que los totales de arriba pueden quedarse cortos.</span>
+        <button class="btn btn-sm">Ver todo su historial</button></div>`) : ""}
 
       ${a.detalles ? `<div class="seccion"><h3>Detalles</h3><p class="mini" style="font-style:normal;color:var(--tinta2)">${esc(a.detalles)}</p></div>` : ""}
 
@@ -7928,7 +7967,12 @@ function escucharAjustes() {
   for (const [cual, claves] of Object.entries(AJUSTES)) {
     const u = fs.onSnapshot(fs.doc(FB.db, "ajustes", cual),
       (snap) => {
-        FB.ajustesLeidos[cual] = true;
+        /* Solo se da por leído si el documento existe (aunque venga de la
+           caché, su contenido se conoce) o si la respuesta viene del servidor.
+           Sin señal y con la caché vacía, Firestore dice «no existe»: darlo
+           por bueno haría que este equipo subiera lo suyo al volver la señal
+           y le pisara a la finca sus ajustes. */
+        FB.ajustesLeidos[cual] = snap.exists() || !snap.metadata?.fromCache;
         if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
         if (!snap.exists()) { pintarPronto(); return; }
         const d = snap.data() || {};
@@ -7970,8 +8014,11 @@ function empujarAjustes() {
       cambios[k] = JSON.parse(json);
     }
     if (!Object.keys(cambios).length) continue;
+    if ((FB.ajustesEnVuelo ||= {})[cual]) continue;   // ya hay uno esperando
+    FB.ajustesEnVuelo[cual] = true;
     fs.setDoc(fs.doc(FB.db, "ajustes", cual), limpiarParaFirestore(cambios), { merge: true })
       .then(() => {
+        FB.ajustesEnVuelo[cual] = false;
         // El espejo se apunta DESPUÉS de que la escritura sale bien. Antes se
         // apuntaba primero, así que un fallo dejaba el ajuste sin reintentar.
         for (const k of Object.keys(cambios)) {
@@ -7980,6 +8027,7 @@ function empujarAjustes() {
         if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
       })
       .catch((e) => {
+        FB.ajustesEnVuelo[cual] = false;
         (FB.ajustesError ||= {})[cual] = e?.code || String(e);
         pintarPronto();
       });
@@ -8778,6 +8826,42 @@ function soltarFincasAjenas(mias) {
    ========================================================== */
 
 /** Trae todo lo de un animal, incluso lo anterior a la ventana. */
+/**
+ * Rehace D[col] con lo que hay en los cajones, conservando lo que se creó en
+ * este equipo y todavía no ha llegado a Firestore. recombinar() a secas solo
+ * mira los cajones, así que un registro hecho sin señal desaparecía de la
+ * pantalla hasta que volviera del servidor.
+ */
+function rehacerColeccion(col) {
+  const docs = recombinar(col);
+  const vistos = new Set(docs.map(d => d.id));
+  const propios = FB.sinConfirmar?.[col] || new Set();
+  for (const local of (D[col] || [])) {
+    if (!vistos.has(local.id) && propios.has(local.id)) docs.push(local);
+  }
+  return docs;
+}
+
+/**
+ * Suelta el historial que se había bajado de un animal y deja su ficha con el
+ * mismo recorte que el resto de la app. No borra nada: los registros siguen
+ * en Firebase y se vuelven a traer con el botón.
+ */
+function soltarHistorialAnimal(animalId) {
+  let n = 0;
+  for (const col of Object.keys(CON_VENTANA)) {
+    const cajon = FB.cajones?.[col];
+    const clave = "hist:" + animalId;
+    if (!cajon || !cajon[clave]) continue;
+    n += cajon[clave].length;
+    delete cajon[clave];
+    D[col] = rehacerColeccion(col);
+  }
+  FB.historial?.delete(animalId);
+  guardarLocal();
+  return n;
+}
+
 async function cargarHistorialAnimal(animalId) {
   const a = animal(animalId);
   if (!a || !FB.db || !FB.user) return false;
@@ -8797,7 +8881,7 @@ async function cargarHistorialAnimal(animalId) {
         fs.where("animalId", "==", animalId)));
       const docs = s.docs.map(d => ({ id: d.id, ...d.data() }));
       ((FB.cajones[col] ||= {}))["hist:" + animalId] = docs;
-      D[col] = recombinar(col);
+      D[col] = rehacerColeccion(col);
       trajo += docs.length;
     } catch (e) {
       const m = String(e?.message || e);
@@ -10567,6 +10651,14 @@ function conectarHoja(d) {
   d.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = cerrarHoja);
 
   d.querySelectorAll("[data-foto]").forEach(b => b.onclick = () => pedirFoto(b.dataset.foto));
+
+  const bs = d.querySelector("[data-soltar-historial]");
+  if (bs) bs.querySelector("button").onclick = () => {
+    const idA = bs.dataset.soltarHistorial;
+    const n = soltarHistorialAnimal(idA);
+    fichaAnimal(idA);
+    avisar(n ? `Se soltó el historial viejo de este animal` : "No había historial suelto");
+  };
 
   const bh = d.querySelector("[data-pedir-historial]");
   if (bh) bh.querySelector("button").onclick = async () => {
