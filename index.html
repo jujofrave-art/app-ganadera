@@ -824,11 +824,17 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.77.0";
+const VERSION = "1.78.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.78.0", "3 sep 2026", [
+    "El aviso del recorte decía «solo se muestran los registros desde el 3 sep 2025» mientras " +
+      "en la tabla salían servicios de 2023. No era un fallo del filtro: eran los de un " +
+      "animal al que se le había pedido el historial completo desde su ficha. El aviso " +
+      "ahora lo dice y trae botón para devolverlos todos al rango de una vez.",
+  ]],
   ["1.77.0", "3 sep 2026", [
     "Fuera la columna «estatus servicio» de la tabla de Inseminaciones. Adivinaba el " +
       "resultado de cada servicio y en pajilla no aporta nada: la fecha, el número de " +
@@ -4137,9 +4143,14 @@ function avisoRecorte(coleccion) {
   </div>`;
 
   if (!historialRecortado()) return "";
+  const sueltos = FB.historial?.size || 0;
   return `<div class="nota recorte">
     Solo se muestran los registros desde el <strong>${fmt(FB.corte)}</strong>.
     Lo anterior sigue guardado en Firebase.
+    ${sueltos ? `Menos el de <strong>${sueltos} animal${sueltos === 1 ? "" : "es"}</strong>,
+      del que pediste el historial completo desde su ficha: por eso ves registros más viejos.
+      <button class="btn btn-sm" data-acc="soltar-historiales">Volver al rango en ${
+        sueltos === 1 ? "ese" : "esos"} también</button>` : ""}
     <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
   </div>`;
 }
@@ -11755,6 +11766,13 @@ async function acciones(a) {
     return;
   }
   if (a === "volver-recorte") { volverAlRecorte(); pintar(); return; }
+  if (a === "soltar-historiales") {
+    let n = 0;
+    for (const idA of [...(FB.historial || [])]) n += soltarHistorialAnimal(idA);
+    pintar();
+    avisar(n ? "Vuelven a verse solo los últimos meses" : "No había historial suelto");
+    return;
+  }
   if (a === "palpar-grupo") { abrirPalpacionGrupo(); return; }
   if (a === "todo-historial") {
     if (!confirm("Se va a bajar todo el historial de tus fincas, sin recorte de fechas.\n\n" +
