@@ -135,6 +135,14 @@ input,select,textarea{font:inherit;color:inherit}
 .busca{flex:1 1 240px;position:relative;min-width:180px}
 .busca input{width:100%;padding:9px 12px 9px 32px;border:1px solid var(--linea);border-radius:7px;background:var(--alto)}
 .busca svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tenue)}
+/* En el celular, borrar la búsqueda con la tecla de retroceso era letra por
+   letra. Con esto se vacía de un toque. Es grande a propósito: se pulsa con
+   el dedo, y a veces con guante. */
+.busca-x{position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;border:0;background:none;color:var(--tenue);
+  font-size:21px;line-height:1;cursor:pointer;border-radius:7px;padding:0}
+.busca-x:hover{color:var(--tinta);background:rgba(var(--tinta-rgb),.06)}
+.busca input{padding-right:38px}
 .barra select{padding:9px 11px;border:1px solid var(--linea);border-radius:7px;background:var(--alto)}
 .fichas{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
 .ficha{border:1px solid var(--linea);background:var(--alto);padding:6px 12px;border-radius:20px;font-size:12.5px;display:flex;gap:6px;align-items:center}
@@ -841,11 +849,84 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.95.0";
+const VERSION = "2.3.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.3.0", "4 sep 2026", [
+    "El buscador trae una <strong>equis para vaciarlo de un toque</strong>. En el celular no " +
+      "hay tecla de suprimir y borrar con el retroceso era letra por letra.",
+    "Sale solo cuando hay algo escrito, y es grande a propósito: se pulsa con el dedo, y a " +
+      "veces con guante.",
+    "Al vaciarlo se deja el teclado abierto y el foco puesto, que casi siempre se borra para " +
+      "escribir otra cosa.",
+  ]],
+  ["2.2.0", "4 sep 2026", [
+    "EL BUSCADOR EN EL CELULAR: ya no rehace la pantalla en cada tecla. Esperaba a que la " +
+      "persona terminara de escribir era lo que hacía falta; el arreglo de la 1.93 " +
+      "intentaba conservar el campo, pero mover un campo con el foco puesto no es fiable " +
+      "en todos los navegadores.",
+    "Ahora se escribe seguido y la lista se filtra sola un cuarto de segundo después de la " +
+      "última letra. Con Intro filtra en el acto y cierra el teclado.",
+    "Se quitó el truco de esconder el campo mientras tanto, que en algunos navegadores era " +
+      "justo lo que cerraba el teclado.",
+  ]],
+  ["2.1.0", "4 sep 2026", [
+    "Una entrega del carrotanque cubre varios días, y en esos días el hato cambia. La app " +
+      "contaba las vacas del día en que se anotó la entrega y nada más: una vaca secada el " +
+      "2 desaparecía entera de una entrega del 3 que llevaba también la leche del 2.",
+    "Ahora se promedian las vacas de cada uno de los días que cubre la entrega. Con una " +
+      "secada a mitad de período la cuenta da media vaca, que es lo que de verdad aportó.",
+  ]],
+  ["2.0.0", "4 sep 2026", [
+    "Leche avisa cuando hay registros anteriores al recorte. La app sí reconstruye día a día " +
+      "quién estaba dando leche en el pasado —mirando partos, secados, preñez y fecha de " +
+      "salida—, pero para eso necesita los secados y servicios de esa época, y esos dos sí " +
+      "se recortan al bajarlos. Sin ellos, una vaca que estaba seca cuenta como si se " +
+      "estuviera ordeñando y el promedio por vaca sale bajo.",
+    "El aviso trae el botón para traer todo el historial y que las cuentas cuadren.",
+  ]],
+  ["1.99.0", "4 sep 2026", [
+    "Nuevo <strong>«Pegar del cuaderno»</strong> en Leche: se elige finca, mes y año, y se " +
+      "pega tal cual lo que se apunta cuando pasa el carrotanque — 3)639 5)445 7)635 8)989 — " +
+      "y salen los registros hechos.",
+    "Los días que cubre cada entrega se calculan solos contando desde la anterior, que es " +
+      "lo que hacía falta para que los promedios salgan bien.",
+    "Antes de guardar enseña la tabla completa con litros, días y litros al día, avisa de lo " +
+      "que no entendió y de los días en que ya hay un registro de tanque.",
+    "Si los registros son de hace más de un año, avisa de que con el recorte de historial " +
+      "puesto se guardan pero no se verán hasta quitarlo.",
+  ]],
+  ["1.98.0", "4 sep 2026", [
+    "La lista de pajillas se filtra por la especie del animal. A una vaca se le ofrecían " +
+      "Alpina Francesa o Anglo-Nubian, que son razas de cabra: salían juntas las razas de " +
+      "las siete especies.",
+    "También se filtran las pajillas ya usadas: solo salen las que se le han puesto a " +
+      "animales de esa misma especie.",
+    "Al cambiar de animal en el formulario, la lista se rehace sola. Lo que ya estuviera " +
+      "escrito en cada fila se respeta.",
+    "Se sigue pudiendo escribir libre, para una pajilla que no esté en la lista.",
+  ]],
+  ["1.97.0", "4 sep 2026", [
+    "El secado se puede contar por <strong>meses de calendario</strong>, no solo por días. En " +
+      "la finca se dice «a los siete meses menos dos días», y siete meses no son siempre los " +
+      "mismos días: de febrero a septiembre son 212 y de marzo a octubre 214. Contando en " +
+      "días fijos la fecha se corría uno o dos días según cuándo la sirvieran.",
+    "Se elige en Configuración → Parámetros, por especie: «por días antes del parto» (como " +
+      "estaba) o «a los N meses de gestación menos M días».",
+    "La ventana se recalcula para cada servicio, no es un número fijo para todas.",
+  ]],
+  ["1.96.0", "4 sep 2026", [
+    "La madre y el padre se eligen ahora <strong>por nombre</strong>, con el mismo buscador " +
+      "que las demás listas. Pedían la chapeta a secas, y en la finca a los animales se les " +
+      "conoce por el nombre.",
+    "En la lista de madres solo salen hembras y en la de padres solo machos, con su categoría " +
+      "y su finca, y avisando si ya no están en el hato.",
+    "Se puede escribir libre igual que antes, para los toros de pajilla que no están en la " +
+      "base o para animales que ya se fueron.",
+    "En la ficha se lee «madre Ana · 120» en vez de un número suelto.",
+  ]],
   ["1.95.0", "4 sep 2026", [
     "ARREGLO: la app se devolvía sola a la versión anterior. Al servir la copia guardada, el " +
       "service worker se bajaba la nueva por detrás pero no esperaba a que quedara escrita, " +
@@ -2483,6 +2564,11 @@ function migrar(d) {
       g.secarDesde = Math.max(1, g.gestacion - 60);
       g.secarHasta = g.secarDesde + 7;
     }
+    if (g.lechero) {
+      g.secadoModo ??= "dias";
+      g.secarMeses ??= Math.max(1, Math.round(g.secarDesde / 30.44));
+      g.secarMenosDias ??= 0;
+    }
     d.config.params[esp] = g;
   }
   delete d.config.params.celo;
@@ -2722,7 +2808,11 @@ function estado(a) {
   }
 
   const fechaProbableParto = prenada ? sumarDias(servicioValido.fecha, P.gestacion) : null;
-  const fechaSecado = (prenada && P.lechero) ? sumarDias(servicioValido.fecha, P.secarDesde) : null;
+  /* La ventana de secado se calcula para ESTE servicio: si la finca cuenta
+     por meses de calendario, los días cambian según en qué mes la sirvieran. */
+  const vent = diasSecado(P, prenada ? servicioValido.fecha : null);
+  const secarDesdeD = vent.desde, secarHastaD = vent.hasta;
+  const fechaSecado = (prenada && P.lechero) ? sumarDias(servicioValido.fecha, secarDesdeD) : null;
   // Toca palpar si hay un servicio vigente que nadie ha confirmado todavia.
   const yaPalpada = ultInsem && palps.some(p => p.fecha > ultInsem.fecha);
   // Antes se dejaba de avisar a los 85 días y la vaca se perdía en silencio.
@@ -2781,7 +2871,7 @@ function estado(a) {
   else if (!ultParto && !prenada) etapa = "levante";
   else if (P.lechero) {
     if (secadoActual) etapa = "seca";
-    else if (prenada && diasGest > P.secarHasta) etapa = "seca";
+    else if (prenada && diasGest > secarHastaD) etapa = "seca";
     else if (ultParto) etapa = "produccion";
     else etapa = "gestante";
   } else {
@@ -2801,6 +2891,7 @@ function estado(a) {
     totalPartos: partosReales.length + (Number(a.partosPrevios) || 0),
     totalAbortos: partos.length - partosReales.length,
     diasAbiertos, intervaloPartos, fechaProbableParto, fechaSecado, fechaPalpacion,
+    secarDesdeD, secarHastaD,
     etapa, edadMeses: mesesEntre(a.fechaNacimiento),
   };
 }
@@ -2883,18 +2974,18 @@ function alertas(incluirHechas) {
        Sale antes de que se abra la ventana y se calla en cuanto entra. */
     const avisoDias = Math.max(0, Number(D.config.avisoSecadoDias ?? 7));
     if (avisoDias && P.lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
-        e.diasGest >= P.secarDesde - avisoDias && e.diasGest < P.secarDesde) {
-      const faltan = P.secarDesde - e.diasGest;
+        e.diasGest >= e.secarDesdeD - avisoDias && e.diasGest < e.secarDesdeD) {
+      const faltan = e.secarDesdeD - e.diasGest;
       push("media", `Se seca en ${faltan} día${faltan === 1 ? "" : "s"}`,
-        `${e.gestacion} de gestación. Toca secarla el ${fmt(sumarDias(srv, P.secarDesde))}. ` +
+        `${e.gestacion} de gestación. Toca secarla el ${fmt(e.fechaSecado)}. ` +
         `Ve consiguiendo la droga de secado. Parto probable ${fmt(e.fechaProbableParto)}.`,
         790 + e.diasGest, `presecar:${srv}`);
     }
 
     // 4. Secar: solo dentro de la ventana y si no la han secado
     if (P.lechero && !e.secadoActual && e.prenada &&
-        e.diasGest >= P.secarDesde && e.diasGest <= P.secarHasta) {
-      const quedan = P.secarHasta - e.diasGest;
+        e.diasGest >= e.secarDesdeD && e.diasGest <= e.secarHastaD) {
+      const quedan = e.secarHastaD - e.diasGest;
       push("alta", `Secar la ${P.et.toLowerCase()}`,
         `${e.diasGest} días de gestación. Parto probable ${fmt(e.fechaProbableParto)}. ` +
         `${quedan === 0 ? "Último día de la ventana." :
@@ -2913,8 +3004,8 @@ function alertas(incluirHechas) {
        Configuración → Parámetros. */
     if (D.config.avisarSecadoSinRegistrar &&
         P.lechero && !e.secadoActual && e.prenada && e.totalPartos > 0 &&
-        e.diasGest > P.secarHasta) {
-      const tarde = e.diasGest - P.secarHasta;
+        e.diasGest > e.secarHastaD) {
+      const tarde = e.diasGest - e.secarHastaD;
       push("media", "Falta apuntar el secado",
         `La app ya la cuenta como seca (${e.gestacion} de gestación), pero no hay secado ` +
         `registrado. Van ${tarde} día${tarde === 1 ? "" : "s"} desde el fin de la ventana. ` +
@@ -3231,7 +3322,7 @@ function enProduccionEn(a, fecha) {
 
   // O el calendario: si ese día ya venía muy avanzada de otra preñez.
   const srv = insemDe(a.id).find(i => i.fecha > parto.fecha && i.fecha <= fecha);
-  if (srv && dias(srv.fecha, aFecha(fecha)) > P.secarHasta) return false;
+  if (srv && dias(srv.fecha, aFecha(fecha)) > diasSecado(P, srv.fecha).hasta) return false;
 
   return true;
 }
@@ -3262,7 +3353,7 @@ function motivoNoProduce(a, fecha) {
   if (sec) return `la secaron el ${fmtCorto(sec.fecha)}`;
 
   const srv = insemDe(a.id).find(i => i.fecha > parto.fecha && i.fecha <= fecha);
-  if (srv && dias(srv.fecha, aFecha(fecha)) > P.secarHasta)
+  if (srv && dias(srv.fecha, aFecha(fecha)) > diasSecado(P, srv.fecha).hasta)
     return "ya venía muy avanzada de preñez";
   return "no estaba en producción";
 }
@@ -3321,8 +3412,22 @@ function vacasEnProduccion(fincaId, fecha) {
 }
 
 /** Cuántas vacas cubre un registro: una si es de un animal, las de la finca si es del tanque. */
+/**
+ * Cuántas vacas hay detrás de un registro de tanque.
+ *
+ * Una entrega del carrotanque cubre varios días, y en esos días el hato
+ * cambia: una vaca secada el 2 sí echó leche el 2 pero no el 3. Se promedian
+ * las vacas de cada uno de los días que cubre, no las del día en que se
+ * anotó. Con una vaca secada a mitad de período, la cuenta da media vaca,
+ * que es exactamente lo que aportó.
+ */
 function vacasDeRegistro(r) {
-  return r.animalId ? 1 : vacasEnProduccion(r.fincaId, r.fecha);
+  if (r.animalId) return 1;
+  const n = Math.max(1, Number(r.dias) || 1);
+  if (n === 1) return vacasEnProduccion(r.fincaId, r.fecha);
+  let suma = 0;
+  for (let i = 0; i < n; i++) suma += vacasEnProduccion(r.fincaId, sumarDias(r.fecha, -i));
+  return suma / n;
 }
 
 /* ==========================================================
@@ -4375,10 +4480,12 @@ function pintar() {
   let _sel = null;
   if (_esBusca) {
     try { _sel = [_foco.selectionStart, _foco.selectionEnd]; } catch {}
-    document.body.appendChild(_foco);        // sale del árbol sin perder el foco
-    _foco.style.position = "fixed";
-    _foco.style.opacity = "0";
-    _foco.style.pointerEvents = "none";
+    // Se aparta a un lado, sin ocultarlo: un campo con foco que se vuelve
+    // invisible también hace que algunos navegadores cierren el teclado.
+    document.body.appendChild(_foco);
+    _foco.style.position = "absolute";
+    _foco.style.left = "-9999px";
+    _foco.style.top = "0";
   }
   let v = VISTAS.find(x => x.id === V.vista);
   if (v && !vistaPermitida(v.id)) { V.vista = "activos"; v = VISTAS.find(x => x.id === "activos"); }
@@ -4454,7 +4561,7 @@ function pintar() {
   if (_esBusca) {
     const nuevo = document.querySelector("[data-f=busca]");
     if (nuevo) {
-      _foco.style.position = ""; _foco.style.opacity = ""; _foco.style.pointerEvents = "";
+      _foco.style.position = ""; _foco.style.left = ""; _foco.style.top = "";
       _foco.placeholder = nuevo.placeholder;
       _foco.oninput = nuevo.oninput;         // el manejador recién conectado
       nuevo.replaceWith(_foco);
@@ -4510,6 +4617,8 @@ function buscador(ph) {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
       <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <input data-f="busca" value="${esc(V.busca)}" placeholder="${ph}" aria-label="Buscar">
+    <button type="button" class="busca-x" data-busca-limpiar aria-label="Borrar la búsqueda"
+      ${V.busca ? "" : "hidden"}>×</button>
   </div>`;
 }
 function fichas(lista) {
@@ -5053,7 +5162,10 @@ function vLeche() {
   return `
   <header class="cab"><div><h1>Leche</h1>
     <p>${L.length} registros · el promedio diario se saca sobre los días que cubre cada entrega</p></div>
-    ${puede("eventos") ? '<button class="btn btn-firme" data-nuevo="leche">Registrar leche</button>' : ""}</header>
+    <div class="fila-btn">
+      ${puede("eventos") ? '<button class="btn" data-acc="leche-cuaderno">Pegar del cuaderno</button>' : ""}
+      ${puede("eventos") ? '<button class="btn btn-firme" data-nuevo="leche">Registrar leche</button>' : ""}
+    </div></header>
 
   <dl class="conteos">
     <div class="conteo"><dt>Últimos 30 días</dt><dd>${litros(litros30)}</dd>
@@ -5163,6 +5275,7 @@ function vLeche() {
           <td class="flecha">›</td></tr>`).join(""))}
       ${L.length > 120 ? `<p class="mini">Se muestran los 120 más recientes de ${L.length}.</p>` : ""}
     </div>`}
+  ${avisoLecheVieja(L)}
   ${V.sub === "animal" ? rankingVacas(L) : ""}`;
 }
 
@@ -5174,6 +5287,28 @@ function vLeche() {
  * final, para que se vea que hay algo que corregir en vez de que ensucie
  * el promedio en silencio.
  */
+/**
+ * ¿Se puede confiar en las cuentas por vaca de estos registros?
+ *
+ * Para saber cuántas vacas estaban dando leche un día de 2023 hacen falta los
+ * secados y los servicios de esa época, y esos dos SÍ se recortan al bajarlos.
+ * Sin ellos, una vaca que estaba seca cuenta como si estuviera ordeñándose y
+ * el promedio por vaca sale bajo. Los partos nunca se recortan, así que el
+ * problema es solo con lo de antes del corte.
+ */
+function avisoLecheVieja(L) {
+  if (!FB.corte || FB.todoElHistorial) return "";
+  const viejos = L.filter(r => r.fecha < FB.corte).length;
+  if (!viejos) return "";
+  return `<div class="nota recorte">
+    <span><strong>${viejos}</strong> de estos registros son anteriores al
+    ${fmt(FB.corte)}. Los <strong>secados y servicios</strong> de esa época no están
+    bajados, y sin ellos la app no sabe cuáles vacas estaban secas cada día: cuenta de
+    más y el promedio por vaca sale bajo. Trae todo el historial para que cuadre.</span>
+    <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
+  </div>`;
+}
+
 function rankingVacas(L) {
   const por = new Map();
   let apartados = 0;
@@ -5348,7 +5483,9 @@ function fichaAnimal(id) {
               : a.fechaNacimiento ? ` · nació el ${fmt(a.fechaNacimiento)}` : ""}${
             e.edadMeses !== null ? ` · ${e.edadMeses} meses` : ""}</div>
           ${a.detallesCompra ? `<div class="meta">${esc(a.detallesCompra)}</div>` : ""}
-          ${(a.madre || a.padre) ? `<div class="meta">madre ${esc(a.madre) || "—"} · padre ${esc(a.padre) || "—"}</div>` : ""}
+          ${(a.madre || a.padre) ? `<div class="meta">madre ${
+            a.madre ? nombrePadre(a.madre) : "—"} · padre ${
+            a.padre ? nombrePadre(a.padre) : "—"}</div>` : ""}
           <div class="tags">
             <span class="p ${et.cl}">${et.et}</span>
             <span class="p">${CATEGORIAS[a.categoria]?.et || a.categoria}</span>
@@ -5402,7 +5539,8 @@ function fichaAnimal(id) {
         ${e.prenada ? `<div><dt>Parto probable</dt><dd>${fmt(e.fechaProbableParto)}</dd></div>` : ""}
       </dl>` : e.prenada ? `<dl class="plan">
         <div><dt>Parto probable</dt><dd>${fmt(e.fechaProbableParto)}</dd></div>
-        ${P.lechero ? `<div><dt>Secar entre</dt><dd>${fmt(e.fechaSecado)} y ${fmt(sumarDias(e.servicioValido.fecha, P.secarHasta))}</dd></div>` : ""}
+        ${P.lechero ? `<div><dt>Secar entre</dt><dd>${fmt(e.fechaSecado)} y ${
+          fmt(sumarDias(e.servicioValido.fecha, e.secarHastaD))}</dd></div>` : ""}
         <div><dt>Faltan</dt><dd>${Math.max(0, P.gestacion - e.diasGest)} días</dd></div>
         ${P.lechero ? `<div style="flex:none"><button class="btn btn-sm" data-nuevo="secado" data-an="${id}">Secar</button></div>` : ""}
       </dl>` : e.fechaPalpacion ? `<dl class="plan">
@@ -5537,6 +5675,39 @@ function subTabla(titulo, n, boton, cols, filas) {
 }
 
 /* ---------- FORMULARIOS ---------- */
+/** El animal que lleva esa chapeta, si sigue en la base. */
+const porChapeta = (ch) => {
+  const c = String(ch || "").trim();
+  return c ? (D.animales || []).find(x => String(x.chapeta).trim() === c) || null : null;
+};
+
+/** Cómo se ve un padre o una madre: el nombre por delante, que es como se
+    busca en la finca, y la chapeta detrás. Si ya no está, solo la chapeta. */
+function nombrePadre(ch) {
+  const a = porChapeta(ch);
+  if (!a) return esc(ch || "");
+  return `${esc(a.nombre)} · ${esc(a.chapeta)}`;
+}
+
+/**
+ * Lista para elegir madre o padre. Va por nombre porque es como se conoce a
+ * los animales en la finca; por dentro se sigue guardando la chapeta, que es
+ * lo que enlaza a las crías. Se deja escribir libre para los toros de pajilla
+ * y para los animales que ya no están en la base.
+ */
+function opcionesPadres(sexo, excluirId) {
+  return (typeof misAnimales === "function" ? misAnimales() : D.animales)
+    .filter(x => x.id !== excluirId && String(x.chapeta || "").trim()
+                 && (par(x).sexo === "M") === (sexo === "M"))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+    .map(x => ({
+      v: String(x.chapeta).trim(),
+      et: `${x.nombre} · ${x.chapeta}`,
+      sub: `${CATEGORIAS[x.categoria]?.et || ""} · ${nombreFinca(x.fincaId)}` +
+           (x.estado !== "activo" ? ` · ${x.estado}` : ""),
+    }));
+}
+
 function formAnimal(id, estadoIni) {
   if (misFincasObj().length === 0) {
     return abrirHoja(`
@@ -5591,12 +5762,16 @@ function formAnimal(id, estadoIni) {
           <input name="detallesCompra" value="${esc(a.detallesCompra)}"
             placeholder="A quién, en cuánto, de dónde vino…"></div>
 
-        <div class="campo"><label>Chapeta de la madre</label>
-          <input name="madre" value="${esc(a.madre)}" placeholder="opcional">
-          <span class="ayuda" data-solo-comprado hidden>Si viene en su chapeta</span></div>
-        <div class="campo"><label>Chapeta del padre</label>
-          <input name="padre" value="${esc(a.padre)}" placeholder="opcional">
-          <span class="ayuda" data-solo-comprado hidden>Si viene en su chapeta</span></div>
+        <div class="campo"><label>Madre</label>
+          ${combo("madre", opcionesPadres("H", id), a.madre,
+                  { libre: 1, ph: "Busca por nombre o chapeta…", vacio: "Sin madre registrada" })}
+          <span class="ayuda">Se busca por nombre. Se guarda la chapeta, que es lo que enlaza
+          a las crías. Si no está en la lista, escríbela igual.</span></div>
+        <div class="campo"><label>Padre</label>
+          ${combo("padre", opcionesPadres("M", id), a.padre,
+                  { libre: 1, ph: "Busca por nombre o chapeta…", vacio: "Sin padre registrado" })}
+          <span class="ayuda">Si fue de pajilla y el toro no está en la base, escribe su
+          nombre o su código.</span></div>
 
         <!-- Solo para hembras adultas. El total de partos y la fecha del
              último NO se escriben: salen de la tabla de Partos. -->
@@ -5839,16 +6014,35 @@ function filaPajilla(ap, sugerencias) {
   </div>`;
 }
 
+/**
+ * Pajillas que tiene sentido ofrecer para esta especie.
+ *
+ * Antes salían todas las razas de todas las especies juntas: a una vaca se le
+ * ofrecía Alpina Francesa o Anglo-Nubian, que son razas de cabra. Se juntan
+ * las razas de la especie con las pajillas que ya se han usado en animales de
+ * esa misma especie.
+ */
+/** El combo emite «change» en su caja, no en el input escondido. */
+const cambioEn = (ev, nombre) => ev.target?.name === nombre
+  || !!(ev.target?.querySelector && ev.target.querySelector(`[name="${nombre}"]`));
+
+function sugerenciasPajilla(esp) {
+  const usadas = D.inseminaciones.flatMap(x => {
+    if (esp) { const an = animal(x.animalId); if (!an || especieDe(an) !== esp) return []; }
+    return (x.aplicaciones || []).map(p => p.pajilla);
+  }).filter(Boolean);
+  const razas = esp ? (RAZAS[esp] || []) : Object.values(RAZAS).flat();
+  return [...new Set([...usadas, ...razas])].sort((x, y) => x.localeCompare(y, "es"));
+}
+
 function formInsem(id, anId) {
   const i = id ? D.inseminaciones.find(x => x.id === id)
               : { animalId: anId || "", fecha: hoyISO(), detalles: "", tipo: "inseminacion",
                   aplicaciones: [{ fecha: hoyISO(), hora: "", pajilla: "", detalles: "" }] };
   const c = id ? servicioCalc(i) : null;
 
-  const sugerencias = [...new Set([
-    ...D.inseminaciones.flatMap(x => (x.aplicaciones || []).map(a => a.pajilla)).filter(Boolean),
-    ...Object.values(RAZAS).flat(),
-  ])].sort((x, y) => x.localeCompare(y, "es"));
+  const _an0 = animal(i.animalId);
+  let sugerencias = sugerenciasPajilla(_an0 ? especieDe(_an0) : null);
 
   const aps = (i.aplicaciones && i.aplicaciones.length)
     ? i.aplicaciones : [{ fecha: hoyISO(), hora: "", pajilla: "", detalles: "" }];
@@ -5907,6 +6101,20 @@ function formInsem(id, anId) {
       b.onclick = () => { f2.remove(); refrescarQuitar(); };
     });
   };
+  /* Al cambiar de animal se rehace la lista de pajillas: lo que ya estuviera
+     escrito en cada fila se respeta, solo cambian las opciones que se ofrecen. */
+  const refrescarPajillas = () => {
+    const idA = hojaAbierta.querySelector("[name=animalId]")?.value;
+    const an = idA ? animal(idA) : null;
+    sugerencias = sugerenciasPajilla(an ? especieDe(an) : null);
+    const ops = sugerencias.map(p => ({ v: p, et: p }));
+    hojaAbierta.querySelectorAll(".pajilla-fila .combo-lista")
+      .forEach(ul => { ul.innerHTML = filasCombo(ops); });
+  };
+  hojaAbierta.addEventListener("change", (ev) => {
+    if (cambioEn(ev, "animalId")) refrescarPajillas();
+  });
+
   hojaAbierta.querySelector("[data-mas-pajilla]").onclick = () => {
     // La nueva hereda la fecha de la última, que suele ser la misma o la del día siguiente.
     const ultima = [...caja.querySelectorAll("[name=ap_fecha]")].pop();
@@ -6170,6 +6378,134 @@ function fichaFinca(id) {
 }
 
 /* ---------- LECHE ---------- */
+/**
+ * Lee lo que se apunta en el cuaderno cuando pasa el carrotanque:
+ *   3)639  5)445  7)635  8)989
+ * Día y litros, separados por paréntesis, guión, dos puntos o solo espacio.
+ * Devuelve una fila por cada anotación, con los días que cubre cada una
+ * contados desde la anterior.
+ */
+function leerCuadernoLeche(texto, anio, mes, diasPrimero) {
+  const filas = [];
+  const rx = /(\d{1,2})\s*[)\-:.=\]]\s*([\d]+(?:[.,]\d+)?)|(\d{1,2})\s+(\d{3,}(?:[.,]\d+)?)/g;
+  const ult = new Date(anio, mes, 0).getDate();
+  let m;
+  while ((m = rx.exec(String(texto || ""))) !== null) {
+    const dia = Number(m[1] ?? m[3]);
+    const lt = Number(String(m[2] ?? m[4]).replace(",", "."));
+    if (!dia || dia < 1 || dia > ult) { filas.push({ error: m[0].trim() }); continue; }
+    if (!(lt > 0)) { filas.push({ error: m[0].trim() }); continue; }
+    filas.push({ dia, litros: lt,
+      fecha: `${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}` });
+  }
+  const buenas = filas.filter(f => !f.error).sort((a, b) => a.dia - b.dia);
+  buenas.forEach((f, i) => {
+    f.dias = i === 0 ? Math.max(1, Number(diasPrimero) || 1) : f.dia - buenas[i - 1].dia;
+  });
+  return { filas: buenas, malas: filas.filter(f => f.error).map(f => f.error) };
+}
+
+/** Un registro nuevo, con su id y quién lo creó. */
+const nuevoRegistro = (o) => ({ id: uid(), creadoPor: S.persona?.id || null, ...o });
+
+function formLecheRapida(fincaPre) {
+  const hoy = new Date();
+  const V0 = { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1,
+               fincaId: fincaPre || misFincas()[0] || "", dias1: 2, texto: "" };
+
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Pegar la leche del cuaderno</h2>
+      <div class="sub">Un mes de una finca, tal como se apunta cuando pasa el carrotanque</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <form data-leche-rapida>
+      <div class="rej">
+        <div class="campo"><label>Finca *</label>
+          ${combo("fincaId", misFincas().map(f => ({ v: f, et: nombreFinca(f) })), V0.fincaId,
+                  { ph: "Elige la finca…" })}</div>
+        <div class="campo"><label>Mes</label>
+          <select name="mes">${MESES.map((m, i) =>
+            `<option value="${i + 1}" ${i + 1 === V0.mes ? "selected" : ""}>${m}</option>`).join("")}</select></div>
+        <div class="campo"><label>Año</label>
+          <input type="number" name="anio" min="2000" max="2100" value="${V0.anio}"></div>
+        <div class="campo"><label>Días que cubre el primero</label>
+          <input type="number" name="dias1" min="1" max="31" value="${V0.dias1}">
+          <span class="ayuda">Los demás se calculan solos, contando desde el anterior</span></div>
+        <div class="campo ancho"><label>Lo que dice el cuaderno</label>
+          <textarea name="texto" rows="4" data-cuaderno
+            placeholder="3)639  5)445  7)635  8)989"></textarea>
+          <span class="ayuda">Día y litros. Sirve con paréntesis, guión, dos puntos o un
+          espacio: 3)639, 3-639, 3:639, 3 639. Se puede pegar todo seguido o por líneas.</span></div>
+      </div>
+      <div data-vista-cuaderno></div>
+      <div class="hoja-pie">
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button class="btn btn-firme" data-guardar-cuaderno disabled>Guardar</button>
+      </div>
+    </form>`);
+
+  const f = hojaAbierta.querySelector("[data-leche-rapida]");
+  const caja = hojaAbierta.querySelector("[data-vista-cuaderno]");
+  const btn = hojaAbierta.querySelector("[data-guardar-cuaderno]");
+  let ultimo = { filas: [], malas: [] };
+
+  const repasar = () => {
+    const v = datos(f);
+    const r = leerCuadernoLeche(v.texto, Number(v.anio), Number(v.mes), v.dias1);
+    ultimo = { ...r, fincaId: v.fincaId };
+    const total = r.filas.reduce((t, x) => t + x.litros, 0);
+    const dd = r.filas.reduce((t, x) => t + x.dias, 0);
+
+    // Avisar de lo que chocaría con algo que ya hay ese día.
+    const chocan = r.filas.filter(x => D.leche.some(y =>
+      y.fecha === x.fecha && y.fincaId === v.fincaId && !y.animalId));
+
+    btn.disabled = !r.filas.length || !v.fincaId;
+    caja.innerHTML = !r.filas.length ? (v.texto ? `<div class="aviso">No se entendió nada.
+        Escribe día y litros, por ejemplo <strong>3)639</strong>.</div>` : "")
+      : `
+      <dl class="conteos">
+        <div class="conteo"><dt>Registros</dt><dd>${r.filas.length}</dd></div>
+        <div class="conteo"><dt>Litros</dt><dd>${litros(total)}</dd></div>
+        <div class="conteo"><dt>Días cubiertos</dt><dd>${dd}</dd></div>
+        <div class="conteo"><dt>Al día</dt><dd>${litros(dd ? total / dd : 0)}</dd></div>
+      </dl>
+      ${r.malas.length ? `<div class="aviso">No se entendieron:
+        ${r.malas.map(x => esc(x)).join(", ")}</div>` : ""}
+      ${chocan.length ? `<div class="aviso">Ya hay registro de tanque en
+        ${chocan.length} de esos días (${chocan.map(x => x.dia).join(", ")}).
+        Si guardas, quedan los dos.</div>` : ""}
+      <div class="sub-tabla"><table>
+        <thead><tr><th>Fecha</th><th>Litros</th><th>Días</th><th>Al día</th></tr></thead>
+        <tbody>${r.filas.map(x => `<tr>
+          <td>${fmtCorto(x.fecha)}</td><td class="num">${litros(x.litros)}</td>
+          <td class="num">${x.dias}</td>
+          <td class="num">${litros(x.litros / x.dias)}</td></tr>`).join("")}</tbody>
+      </table></div>`;
+  };
+
+  f.addEventListener("input", repasar);
+  f.addEventListener("change", repasar);
+  repasar();
+
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const { filas, fincaId } = ultimo;
+    if (!filas.length || !fincaId) return;
+    const viejas = filas.filter(x => dias(x.fecha) > 400).length;
+    if (viejas && !confirm(`${viejas} de esos registros tienen más de un año.\n\n` +
+        `Se guardan y suben igual, pero si tienes puesto el recorte de historial ` +
+        `no se van a ver en la app hasta que lo quites.\n\n¿Guardar?`)) return;
+    for (const x of filas) {
+      D.leche.push(nuevoRegistro({
+        fecha: x.fecha, litros: x.litros, dias: x.dias, fincaId,
+        animalId: null, momento: "", precio: 0, detalles: "Del cuaderno",
+      }));
+    }
+    guardar(); cerrarHoja(); pintar();
+    avisar(`${filas.length} registros de leche guardados`);
+  };
+}
+
 function formLeche(id, anId) {
   const r = id ? D.leche.find(x => x.id === id)
               : { fincaId: misFincasObj()[0]?.id || "", fecha: hoyISO(), litros: "",
@@ -6256,7 +6592,7 @@ function formLeche(id, anId) {
   };
   hojaAbierta.querySelector("[name=fecha]")?.addEventListener("change", revisarProd);
   hojaAbierta.addEventListener("change", (ev) => {
-    if (ev.target?.name === "animalId") revisarProd();
+    if (cambioEn(ev, "animalId")) revisarProd();
   });
   revisarProd();
   calc();
@@ -8469,6 +8805,35 @@ function podarAlRecorte() {
   return n;
 }
 
+/** Suma meses de calendario, respetando que los meses no miden igual. */
+function sumarMeses(iso, n) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  const t = new Date(y, m - 1 + n, 1);
+  const ult = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  return aISO(new Date(t.getFullYear(), t.getMonth(), Math.min(d, ult)));
+}
+
+/**
+ * Día de gestación en que toca secar, para ESTE servicio.
+ *
+ * En la finca no se cuenta «al día 211», se cuenta «a los siete meses menos
+ * dos días». Y siete meses no son siempre los mismos días: de febrero a
+ * septiembre son 212 y de marzo a octubre 214. Contando en días fijos la
+ * fecha se corre uno o dos días según cuándo la sirvieran.
+ */
+function diasSecado(P, inicio) {
+  if (!P.lechero) return { desde: P.secarDesde, hasta: P.secarHasta };
+  if (P.secadoModo !== "meses" || !inicio) {
+    return { desde: P.secarDesde, hasta: P.secarHasta };
+  }
+  const meses = Number(P.secarMeses) || 7;
+  const menos = Number(P.secarMenosDias) || 0;
+  const f = sumarDias(sumarMeses(inicio, meses), -menos);
+  const desde = dias(inicio, aFecha(f));
+  const ancho = Math.max(1, (P.secarHasta - P.secarDesde) || 7);
+  return { desde, hasta: desde + ancho };
+}
+
 function corteVentana() {
   const m = Number(D.config?.ventanaMeses ?? 24);
   if (!m) return null;                       // 0 = traer todo
@@ -9375,6 +9740,7 @@ async function instalarApp() {
 }
 
 /** El service worker es opcional: si no está, la app funciona igual. */
+let _tBusca = null;   // espera del buscador, para no repintar en cada tecla
 let SW_ACTIVO = false;
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   window.addEventListener("load", () => {
@@ -11186,13 +11552,33 @@ function vConfiguracion() {
                 leche. Enciéndelo si en tu finca sí se ordeña.</em></span>
               </label></div>
             ${!g.lechero ? "" : `
-              <div class="campo"><label>Descanso: se seca hasta ${
+              <div class="campo ancho"><label>Cómo se cuenta el secado</label>
+                ${seg(k + "_secadoModo", [["dias","Por días antes del parto"],
+                                          ["meses","Por meses de gestación"]],
+                      g.secadoModo === "meses" ? "meses" : "dias")}
+                <span class="ayuda">En la finca se dice «a los siete meses menos dos días», y
+                siete meses no son siempre los mismos días: de febrero a septiembre son 212 y
+                de marzo a octubre 214. Contando en días fijos la fecha se corre uno o dos días
+                según cuándo la sirvieran.</span></div>
+
+              <div class="campo" ${g.secadoModo === "meses" ? "" : "hidden"}
+                data-secado-meses="${k}"><label>A los … meses de gestación</label>
+                <input type="number" name="${k}_secarMeses" min="1" max="14"
+                  value="${g.secarMeses ?? Math.round((g.secarDesde || 1) / 30.44)}"></div>
+              <div class="campo" ${g.secadoModo === "meses" ? "" : "hidden"}
+                data-secado-meses="${k}"><label>… menos … días</label>
+                <input type="number" name="${k}_secarMenosDias" min="0" max="60"
+                  value="${g.secarMenosDias ?? 0}"></div>
+
+              <div class="campo" ${g.secadoModo === "meses" ? "hidden" : ""}
+                data-secado-dias="${k}"><label>Descanso: se seca hasta ${
                 g.gestacion - g.secarDesde} días antes</label>
                 <input type="number" name="${k}_descMax" min="1" max="${g.gestacion - 1}"
                   value="${g.gestacion - g.secarDesde}">
                 <span class="ayuda">El descanso más largo. Empieza a avisar el día
                 ${g.secarDesde} de gestación</span></div>
-              <div class="campo"><label>… y como mínimo ${
+              <div class="campo" ${g.secadoModo === "meses" ? "hidden" : ""}
+                data-secado-dias="${k}"><label>… y como mínimo ${
                 g.gestacion - g.secarHasta} días antes</label>
                 <input type="number" name="${k}_descMin" min="1" max="${g.gestacion - 1}"
                   value="${g.gestacion - g.secarHasta}">
@@ -11553,17 +11939,49 @@ function conectar() {
   document.querySelectorAll("[data-sub]").forEach(b =>
     b.onclick = () => { V.sub = b.dataset.sub; pintar(); });
 
+  /* El buscador NO repinta en cada tecla. Rehacer la pantalla destruye el
+     campo donde se está escribiendo, y en el celular eso cierra el teclado:
+     había que volver a abrirlo letra por letra. Se espera a que la persona
+     pare de escribir; mientras tanto no se toca nada de la pantalla. */
   const bi = $("[data-f=busca]");
-  if (bi) bi.oninput = (e) => {
-    V.busca = e.target.value;
-    const pos = e.target.selectionStart;
-    pintar();
-    /* pintar() conserva el mismo campo si tenía el foco, así que no hay que
-       reponerlo. Solo se coloca el cursor por si el navegador lo movió. */
-    const n = $("[data-f=busca]");
-    if (n && n !== e.target) { n.focus(); }
-    try { $("[data-f=busca]")?.setSelectionRange(pos, pos); } catch {}
-  };
+  if (bi) {
+    bi.oninput = (e) => {
+      V.busca = e.target.value;
+      clearTimeout(_tBusca);
+      _tBusca = setTimeout(() => {
+        const activo = document.activeElement === bi;
+        const pos = activo ? bi.selectionStart : null;
+        pintar();
+        const n = $("[data-f=busca]");
+        if (activo && n) {
+          if (n !== bi) n.focus({ preventScroll: true });
+          try { n.setSelectionRange(pos, pos); } catch {}
+        }
+      }, 260);
+    };
+    const equis = bi.parentNode.querySelector("[data-busca-limpiar]");
+    const verEquis = () => { if (equis) equis.hidden = !bi.value; };
+    bi.addEventListener("input", verEquis);
+    if (equis) equis.onclick = () => {
+      clearTimeout(_tBusca);
+      bi.value = ""; V.busca = "";
+      verEquis();
+      pintar();
+      // Se deja el foco puesto: casi siempre se borra para escribir otra cosa.
+      const n = $("[data-f=busca]");
+      if (n) { n.focus({ preventScroll: true }); }
+    };
+
+    // Con Intro se busca en el acto, sin esperar.
+    bi.onkeydown = (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      clearTimeout(_tBusca);
+      V.busca = bi.value;
+      bi.blur();
+      pintar();
+    };
+  }
 
   const sf = $("[data-f=finca]");
   if (sf) sf.onchange = (e) => { V.finca = e.target.value; pintar(); };
@@ -11593,6 +12011,15 @@ function conectar() {
         ((D.config.panelesRol ||= {})[a] ||= {})[b] = el.checked;
       }
       guardar(); pintar();
+    };
+  });
+
+  document.querySelectorAll("[name$=_secadoModo]").forEach(r => {
+    r.onchange = () => {
+      const k = r.name.replace("_secadoModo", "");
+      const meses = r.value === "meses";
+      document.querySelectorAll(`[data-secado-meses="${k}"]`).forEach(el => el.hidden = !meses);
+      document.querySelectorAll(`[data-secado-dias="${k}"]`).forEach(el => el.hidden = meses);
     };
   });
 
@@ -11787,6 +12214,9 @@ function conectar() {
                   celo:{ uno:n(v[k+"_celo1"]), dos:n(v[k+"_celo2"]), tres:n(v[k+"_celo3"]) } };
       g.lechero = v[k+"_lechero"] === "on";
       if (g.lechero) {
+        g.secadoModo = v[k+"_secadoModo"] === "meses" ? "meses" : "dias";
+        g.secarMeses = Math.max(1, Math.min(14, Number(v[k+"_secarMeses"]) || 7));
+        g.secarMenosDias = Math.max(0, Math.min(60, Number(v[k+"_secarMenosDias"]) || 0));
         // Se escriben días de descanso antes del parto; por dentro se guardan
         // como días de gestación, que es con lo que se compara.
         const anterior = D.config.params?.[k] || {};
@@ -12105,7 +12535,7 @@ function enviar(f) {
     return error(f, permiso + " Puede que te hayan cambiado los permisos mientras tenías " +
                     "esto abierto.");
   }
-  const nuevo = (o) => ({ id: uid(), creadoPor: S.persona?.id || null, ...o });
+  const nuevo = (o) => nuevoRegistro(o);
 
   if (tipo === "animal") {
     v.origen = v.origen === "comprado" ? "comprado" : "nacido";
@@ -12601,6 +13031,10 @@ async function acciones(a) {
     return;
   }
   if (a === "partos-todo") { V.rangoPartos = 0; pintar(); return; }
+  if (a === "leche-cuaderno") {
+    formLecheRapida(V.finca !== "todas" ? V.finca : null);
+    return;
+  }
   if (a === "palpar-grupo") { abrirPalpacionGrupo(); return; }
   if (a === "todo-historial") {
     if (!confirm("Se va a bajar todo el historial de tus fincas, sin recorte de fechas.\n\n" +
