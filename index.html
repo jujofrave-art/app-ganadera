@@ -821,11 +821,28 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.65.0";
+const VERSION = "1.67.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.67.0", "3 sep 2026", [
+    "La casilla «a esta no se le palpa» sale de la ficha del animal. Estaba en el sitio " +
+      "equivocado: quien la sirve confirma la preñez de ESE servicio, no de la vaca para " +
+      "siempre, y dejarla marcada callaba la palpación de todos los servicios futuros.",
+    "En el formulario del servicio hay ahora tres opciones: «lo que diga la finca», «sí, " +
+      "quedó dudoso» y «no hace falta». Antes solo se podía pedir la palpación, no quitarla.",
+    "Las vacas que tenían la casilla marcada pasan solas: la marca se muda a su último " +
+      "servicio como «no hace falta», y de ahí en adelante cada servicio decide el suyo.",
+  ]],
+  ["1.66.0", "3 sep 2026", [
+    "El estatus «sin confirmar» salía en todos los servicios, también en los de pajilla, " +
+      "donde no tiene sentido: la inseminación se da por buena mientras la vaca no repita " +
+      "calor. Ahora esos aparecen como <strong>No repitió</strong>, en verde.",
+    "«Sin confirmar» queda para donde la palpación sí hace falta: montas naturales y " +
+      "servicios marcados como dudosos. Sigue la misma regla de Configuración → Parámetros.",
+    "Las pestañas de arriba y el buscador reconocen el estatus nuevo.",
+  ]],
   ["1.65.0", "3 sep 2026", [
     "Cuando los ajustes compartidos no logran viajar a los demás equipos, Configuración lo " +
       "dice, con el motivo. Antes fallaba callado: se cambiaba algo en el computador y en " +
@@ -2236,7 +2253,16 @@ function migrar(d) {
     a.raza ??= "";
     a.foto ??= null;
     a.tieneFoto ??= !!a.foto;
-    a.sinPalpar ??= false;   // hembras que no se palpan
+    /* Hasta la 1.66 esto era una casilla de la ficha del animal. Pero quien la
+       sirve confirma la preñez de ESE servicio, no de la vaca para siempre: la
+       marca se muda al último servicio y el campo del animal desaparece. */
+    if (a.sinPalpar) {
+      const suyos = (d.inseminaciones || [])
+        .filter(x => x.animalId === a.id)
+        .sort((x, y) => (y.fecha || "").localeCompare(x.fecha || ""));
+      if (suyos[0] && !suyos[0].palpar) suyos[0].palpar = "no";
+    }
+    delete a.sinPalpar;
     a.hechas ??= {};   // alertas que alguien ya marcó como cumplidas
   }
   (d.inseminaciones || []).forEach(i => {
@@ -2340,10 +2366,13 @@ function calcularAlertaCelo(totalInsemCiclo, ultPartoReal, a) {
  */
 function palpaPorServicio(insem) {
   if (!insem) return false;
-  // Marcado a mano en el servicio: manda siempre, venga de pajilla o de toro.
-  // Es para la vaca dudosa, que hay que palpar aunque la finca no palpe las
-  // inseminadas. Muere con el servicio: al registrarle uno nuevo, se olvida.
-  if (insem.palpar) return true;
+  /* Lo marcado a mano en el servicio manda sobre la regla de la finca, y muere
+     con el servicio: al registrarle uno nuevo, se olvida. El «true» suelto es
+     de la 1.55, cuando esto era una casilla en vez de tres opciones. */
+  const mano = insem.palpar === true ? "si" : (insem.palpar || "");
+  if (mano === "si") return true;    // quedó dudoso: hay que palparla
+  if (mano === "no") return false;   // quien la sirvió ya confirmó la preñez
+
   if ((D.config?.palpaSegun || "todas") !== "monta") return true;
   return (insem.tipo || "inseminacion") === "monta";
 }
@@ -2424,7 +2453,7 @@ function estado(a) {
   // se calla, porque a esas alturas manda la alerta de parto próximo.
   const dentroVentana = ultInsem && dias(ultInsem.fecha) <= P.gestacion - 45;
   // A las que no se palpan no se les calcula fecha de palpación.
-  const fechaPalpacion = (!a.sinPalpar && ultInsem && !yaPalpada && dentroVentana &&
+  const fechaPalpacion = (ultInsem && !yaPalpada && dentroVentana &&
     palpaPorServicio(ultInsem) &&
     !(ultParto && ultParto.fecha > ultInsem.fecha))
     ? sumarDias(ultInsem.fecha, P.palpar) : null;
@@ -2540,9 +2569,10 @@ function alertas(incluirHechas) {
     const prt = e.ultPartoReal?.fecha || "";
 
     // 1. Palpación, solo en las que sí se palpan
-    if (e.fechaPalpacion && !a.sinPalpar) {
+    if (e.fechaPalpacion) {
       const d = dias(e.fechaPalpacion);
-      const porQue = e.ultInsem.palpar ? " Marcada a mano como dudosa."
+      const porQue = e.ultInsem.palpar && e.ultInsem.palpar !== "no"
+                   ? " Marcada a mano como dudosa."
                    : e.ultInsem.tipo === "monta" ? " Monta natural." : "";
       if (d >= 0) push("alta", "Palpación vencida",
         `Servicio del ${fmt(e.ultInsem.fecha)}.${porQue} ${d === 0 ? "Toca palparla hoy." :
@@ -2692,7 +2722,12 @@ function servicioCalc(i) {
   if (partoDespues) resultado = partoDespues.tipo === "parto" ? "pario" : "aborto";
   else if (posterior) resultado = "fallo";
   else if (palpDespues) resultado = palpDespues.resultado === "vacia" ? "vacia" : "prenada";
-  else if (dias(i.fecha) <= gest + 25) resultado = "sin_confirmar";
+  /* Con pajilla queda apuntada la fecha exacta y el servicio se da por bueno
+     mientras la vaca no repita calor: decir «sin confirmar» ahí es señalar un
+     problema que no existe. «Sin confirmar» se guarda para donde la palpación
+     sí hace falta: montas naturales y servicios marcados como dudosos. */
+  else if (dias(i.fecha) <= gest + 25)
+    resultado = palpaPorServicio(i) ? "sin_confirmar" : "no_repitio";
   else resultado = "sin_datos";
 
   return { intento, repitio, resultado };
@@ -2701,6 +2736,7 @@ function servicioCalc(i) {
 const RESULTADOS = {
   prenada:       { et:"Preñada",       cl:"verde" },
   pario:         { et:"Parió",         cl:"verde" },
+  no_repitio:    { et:"No repitió",    cl:"verde" },
   sin_confirmar: { et:"Sin confirmar", cl:"ambar" },
   fallo:         { et:"Repitió calor", cl:"roja"  },
   vacia:         { et:"Vacía",         cl:"roja"  },
@@ -2758,7 +2794,8 @@ function idxInsem(i) {
       ...(i.aplicaciones || []).flatMap(x => [x.pajilla, x.detalles, fechaBuscable(x.fecha)]),
       `intento ${c.intento}`, c.repitio ? "repitió" : "no aplica",
       RESULTADOS[c.resultado]?.et, i.tipo === "monta" ? "monta natural" : "inseminación",
-      i.palpar ? "hay que palparla dudosa" : ""
+      i.palpar === "no" ? "no hace falta palparla"
+        : i.palpar ? "hay que palparla dudosa" : ""
     ].filter(Boolean).join(" ");
   });
 }
@@ -4183,7 +4220,10 @@ function vInseminacion() {
   const todos = misEventos("inseminaciones").map(i => servicioCalc(i).resultado);
   return `
   <header class="cab"><div><h1>Inseminaciones</h1>
-    <p>${misEventos("inseminaciones").length} servicios registrados</p></div>
+    <p>${misEventos("inseminaciones").length} servicios registrados.
+    <strong>No repitió</strong> es un servicio que se da por bueno porque la vaca no
+    ha vuelto a calor; <strong>sin confirmar</strong> es uno que está esperando
+    palpación.</p></div>
     <button class="btn btn-firme" data-nuevo="inseminacion">Registrar servicio</button></header>
   <div class="barra">${buscador("Buscar en todo: pajilla, toro, intento, estatus…")}${selectorFinca()}</div>
   ${fichas([["todos","Todas",misEventos("inseminaciones").length],
@@ -4648,7 +4688,7 @@ function fichaAnimal(id) {
         <li><dt>Alerta celo</dt><dd>${e.alertaCelo
           ? `<span class="p ${e.alertaCelo.nivel === "alta" ? "roja" : "ambar"}">${e.alertaCelo.texto}</span>`
           : "—"}</dd></li>
-        ${a.sinPalpar ? '<li><dt>Palpación</dt><dd><span class="p gris">No se palpa</span></dd></li>' : ""}
+
         ${e.servicioValido?.dePalpacion ? `<li><dt>Gestación calculada desde</dt>
           <dd>la palpación</dd><span class="sub">manda sobre la fecha del servicio</span></li>` : ""}
         <li><dt>Número de intento</dt><dd class="g">${e.totalInsemCiclo}</dd>
@@ -4798,14 +4838,6 @@ function formAnimal(id, estadoIni) {
           <span class="ayuda" data-gest></span></div>
         <div class="campo"><label>Raza</label><div data-raza-caja></div></div>
         <div class="campo"><label>Fecha de nacimiento</label><input type="date" name="fechaNacimiento" value="${a.fechaNacimiento||""}"></div>
-        <div class="campo ancho" data-solo-hembra hidden>
-          <label class="recordar" style="margin:0">
-            <input type="checkbox" name="sinPalpar" ${a.sinPalpar ? "checked" : ""}>
-            <span>A esta no se le palpa
-            <em>Márcalo cuando quien la sirve ya confirma la preñez y no hace falta
-            palparla. No saldrá en las alertas ni en la lista de palpar en grupo.
-            Sirve para cualquier especie.</em></span>
-          </label></div>
 
         <!-- Solo para hembras adultas. El total de partos y la fecha del
              último NO se escriben: salen de la tabla de Partos. -->
@@ -5082,14 +5114,14 @@ function formInsem(id, anId) {
           <div class="campo ancho"><label>Tipo registro</label>
             ${seg("tipo", [["inseminacion","Inseminación"],["monta","Monta natural"]],
                   i.tipo || "inseminacion")}</div>
-          <div class="campo ancho">
-            <label class="recordar" style="margin:0">
-              <input type="checkbox" name="palpar" ${i.palpar ? "checked" : ""}>
-              <span>Hay que palparla
-              <em>Márcalo cuando el servicio queda dudoso. Pide la palpación de esta vaca
-              aunque la finca no palpe las inseminadas. Vale solo para este servicio: si se
-              le registra uno nuevo, se olvida.</em></span>
-            </label></div>
+          <div class="campo ancho"><label>¿Hay que palparla por este servicio?</label>
+            ${seg("palpar", [["","Lo que diga la finca"],["si","Sí, quedó dudoso"],
+                             ["no","No hace falta"]],
+                  i.palpar === true ? "si" : (i.palpar || ""))}
+            <span class="ayuda">Se decide aquí, en el servicio, y no en la ficha del animal:
+            quien la sirve confirma o duda de <em>esta</em> monta, no de la vaca para siempre.
+            Con «lo que diga la finca» se sigue el ajuste de Configuración → Parámetros. Al
+            registrarle un servicio nuevo, la marca se olvida sola.</span></div>
         </div>
       </div>
       <div class="hoja-pie">
@@ -6338,7 +6370,7 @@ function unificarPersonas() {
 /** Hembras que se pueden palpar, según el modo elegido. */
 function candidatasPalpacion(modo, fincaId) {
   return misAnimales()
-    .filter(a => a.estado === "activo" && par(a).sirve && !a.sinPalpar)
+    .filter(a => a.estado === "activo" && par(a).sirve)
     .filter(a => fincaId === "todas" || a.fincaId === fincaId)
     .filter(a => {
       const e = estado(a);
@@ -10904,7 +10936,7 @@ function enviar(f) {
     }
 
     delete v.ap_fecha; delete v.ap_hora; delete v.ap_pajilla; delete v.ap_detalles;
-    v.palpar = v.palpar === "on" || v.palpar === true;
+    v.palpar = ["si", "no"].includes(v.palpar) ? v.palpar : null;
     v.aplicaciones = aplicaciones;
     v.fecha = aplicaciones[0].fecha;   // la gestación cuenta desde la primera
 
