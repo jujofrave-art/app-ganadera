@@ -821,11 +821,17 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.71.0";
+const VERSION = "1.72.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.72.0", "3 sep 2026", [
+    "ARREGLO: la pantalla de palpar en grupo existía desde la 1.10 y su manejador también, " +
+      "pero ningún botón la abría. Llevaba versiones siendo una función inalcanzable.",
+    "El botón está ahora en Palpación, junto a «registrar palpación», y en Alertas cuando " +
+      "hay alguna palpación pendiente.",
+  ]],
   ["1.71.0", "3 sep 2026", [
     "LECHE: la ficha de cada vaca trae ahora su propia sección. Dice cuántos litros da al " +
       "día, sobre cuántos días está medida, cuánto da el promedio de la finca y en qué " +
@@ -4132,7 +4138,9 @@ function vAlertas() {
 
   return `
   <header class="cab"><div><h1>Alertas</h1>
-    <p>Se calculan solas a partir de los eventos. Marca «Listo» cuando la resuelvas.</p></div></header>
+    <p>Se calculan solas a partir de los eventos. Marca «Listo» cuando la resuelvas.</p></div>
+    ${puede("eventos") && pend.some(x => String(x.clave || "").startsWith("palpar:"))
+      ? '<button class="btn" data-acc="palpar-grupo">Palpar en grupo</button>' : ""}</header>
   <div class="barra">${buscador("Buscar en las alertas")}${selectorFinca()}</div>
   ${fichas([["todos","Pendientes",pend.length],
             ["alta","Urgente",pend.filter(x=>x.nivel==="alta").length],
@@ -4289,7 +4297,10 @@ function vPalpacion() {
       ? "<strong>solo en montas naturales</strong> y en los servicios marcados como dudosos"
       : "<strong>a toda hembra servida</strong>, con pajilla o con toro"}.
     Se cambia en Configuración → Parámetros.</p></div>
-    <button class="btn btn-firme" data-nuevo="palpacion">Registrar palpación</button></header>
+    <div class="fila-btn">
+      ${puede("eventos") ? '<button class="btn" data-acc="palpar-grupo">Palpar en grupo</button>' : ""}
+      <button class="btn btn-firme" data-nuevo="palpacion">Registrar palpación</button>
+    </div></header>
   <div class="barra">${buscador("Buscar en todo: nombre, chapeta, raza, pajilla, detalles…")}${selectorFinca()}</div>
   ${fichas([["todos","Todas"],["pendiente","Pendientes",base.filter(e=>e.fechaPalpacion).length],
             ["vencida","Vencidas",base.filter(e=>e.fechaPalpacion&&dias(e.fechaPalpacion)>=0).length]])}
