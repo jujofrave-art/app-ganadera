@@ -104,7 +104,7 @@ input,select,textarea{font:inherit;color:inherit}
 .nav{display:flex;flex-direction:column;gap:1px}
 .nav .grupo{font-family:var(--dato);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:rgba(var(--papel-rgb),.35);padding:12px 10px 5px}
 .nav button{background:none;border:0;color:rgba(var(--papel-rgb),.62);text-align:left;padding:8px 10px;border-radius:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%}
-.nav button:hover{background:rgba(var(--papel-rgb),.07);color:var(--papel)}
+.nav button:hover{background:rgba(var(--papel-rgb),.07);color:var(--rail-fg)}
 .nav button.on{background:rgba(var(--chapeta-rgb),.14);color:var(--chapeta);font-weight:500}
 .nav .cnt{font-family:var(--dato);font-size:10.5px;opacity:.65}
 .nav button.alerta .cnt{background:var(--hierro);color:#fff;border-radius:9px;padding:1px 6px;opacity:1;font-weight:500}
@@ -117,7 +117,7 @@ input,select,textarea{font:inherit;color:inherit}
   color:var(--chapeta)}
 .interruptor.on{border-color:var(--pasto);background:rgba(var(--pasto-rgb),.09)}
 .pie button{background:none;border:1px solid rgba(var(--papel-rgb),.18);color:rgba(var(--papel-rgb),.72);padding:6px 9px;border-radius:6px;font-size:11.5px;text-align:center;display:block}
-.pie button:hover{border-color:rgba(var(--papel-rgb),.45);color:var(--papel)}
+.pie button:hover{border-color:rgba(var(--papel-rgb),.45);color:var(--rail-fg)}
 
 /* ---------- lienzo ---------- */
 .lienzo{overflow-y:auto;padding:22px 26px 60px}
@@ -511,7 +511,7 @@ details.panel:not([open])>summary{border-bottom:0}
 .palpa-conteo.hay{color:var(--pasto)}
 .palpa-conteo strong{font-size:14px}
 .palpa-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
-.palpa-fila{display:grid;grid-template-columns:1.5fr 1.1fr 1.1fr 1fr;gap:11px;align-items:center;
+.palpa-fila{display:grid;grid-template-columns:1.4fr .9fr 1.5fr .9fr;gap:11px;align-items:center;
   border:1px solid var(--linea);border-radius:9px;padding:9px 11px;background:var(--alto)}
 .palpa-fila.marcada{border-color:var(--pasto);background:rgba(var(--pasto-rgb),.07)}
 .palpa-fila.dudosa{border-color:var(--hierro);background:rgba(var(--hierro-rgb),.08)}
@@ -529,6 +529,7 @@ details.panel:not([open])>summary{border-bottom:0}
   text-transform:uppercase;letter-spacing:.06em;color:var(--tenue);font-family:var(--dato)}
 .palpa-nums input{width:58px;padding:6px 7px;border:1px solid var(--linea);border-radius:6px;
   background:var(--alto);color:var(--tinta);font-size:14px}
+.palpa-nums .palpa-desde input{width:132px}
 .palpa-calc{font-size:12px;color:var(--tinta2);text-align:right}
 .palpa-calc em{font-style:normal;display:block;font-size:10.5px;color:var(--tenue);
   font-family:var(--dato)}
@@ -649,7 +650,9 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
   box-shadow:0 12px 34px -8px rgba(0,0,0,.5);font-size:13.5px;max-width:calc(100vw - 24px)}
 .barra-sel strong{font-family:var(--dato);font-size:15px}
 .barra-sel-btns{display:flex;gap:7px;flex-wrap:wrap}
-.barra-sel .btn{background:rgba(var(--papel-rgb),.1);border-color:rgba(var(--papel-rgb),.22);color:var(--papel)}
+.barra-sel .btn{background:rgba(var(--papel-rgb),.1);border-color:rgba(var(--papel-rgb),.22);
+  color:var(--rail-fg)}
+.barra-sel .btn:disabled{opacity:.42}
 .barra-sel .btn:hover{background:rgba(var(--papel-rgb),.2)}
 .barra-sel .btn-baja{color:#f0a08c;border-color:rgba(var(--hierro-rgb),.4);background:transparent}
 @media(max-width:860px){
@@ -681,7 +684,7 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
   .topbar{display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:45;
     background:var(--rail-bg);color:var(--rail-fg);padding:10px 12px;
     padding-top:calc(10px + env(safe-area-inset-top));box-shadow:0 1px 0 rgba(0,0,0,.2)}
-  .menu-btn{background:none;border:1px solid rgba(var(--papel-rgb),.22);color:var(--papel);
+  .menu-btn{background:none;border:1px solid rgba(var(--papel-rgb),.22);color:var(--rail-fg);
     width:38px;height:38px;border-radius:9px;display:grid;place-items:center;flex:none;padding:0}
   .menu-btn:active{background:rgba(var(--papel-rgb),.12)}
   .topbar-tit{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:-.02em;
@@ -818,11 +821,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.61.0";
+const VERSION = "1.62.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.62.0", "3 sep 2026", [
+    "ARREGLO DE COLOR: en el tema oscuro, los botones de la barra de selección («editar en " +
+      "grupo», «cancelar») salían en letra casi negra sobre fondo negro. El mismo fallo " +
+      "estaba en el botón del menú del celular y al pasar por encima de las opciones del " +
+      "menú lateral.",
+    "En palpar en grupo, cada fila trae ahora la fecha de <strong>preñada desde</strong> y se " +
+      "puede escribir. Si el veterinario dice «un mes y cinco días», se escriben los números " +
+      "y sale la fecha; si dice «la preñó el toro tal día», se escribe la fecha y salen los " +
+      "números. Se llena por donde sea más cómodo.",
+  ]],
   ["1.61.0", "3 sep 2026", [
     "ARREGLO IMPORTANTE PARA EL CAMPO: con la app instalada en el celular, la sesión ya no " +
       "se cierra al salir de la app. Antes se guardaba solo mientras durara la pestaña, y " +
@@ -2814,6 +2827,21 @@ function concepcionDePalpacion(p) {
   const t = restarMeses(p.fecha, p.mesesGest || 0);
   t.setDate(t.getDate() - (Number(p.diasGest) || 0));
   return t.toISOString().slice(0, 10);
+}
+
+/**
+ * Al revés de concepcionDePalpacion: de una fecha de preñez saca los meses y
+ * días de calendario que hay hasta la palpación. Sirve para que el veterinario
+ * pueda decirlo de las dos formas: «tiene un mes y cinco días», o «la preñó
+ * el toro tal día», y la app rellene lo otro.
+ */
+function gestacionDesdeFecha(fechaPalp, concepcion) {
+  if (!fechaPalp || !concepcion || concepcion > fechaPalp) return null;
+  let m = 0;
+  while (m < 24 && aISO(restarMeses(fechaPalp, m + 1)) >= concepcion) m++;
+  const base = restarMeses(fechaPalp, m);
+  const d = Math.round((base - aFecha(concepcion)) / 86400000);
+  return { mesesGest: m, diasGest: Math.max(0, d) };
 }
 
 /** Parto probable a partir de una palpación. */
@@ -6355,6 +6383,8 @@ function abrirPalpacionGrupo(modo, fincaId) {
                     placeholder="0" inputmode="numeric"></label>
                   <label>Días<input type="number" name="d_${a.id}" min="0" max="60"
                     placeholder="0" inputmode="numeric"></label>
+                  <label class="palpa-desde">Preñada desde<input type="date"
+                    name="c_${a.id}"></label>
                 </div>
                 <div class="palpa-calc" data-calc>—</div>
               </div>`;
@@ -6384,17 +6414,33 @@ function abrirPalpacionGrupo(modo, fincaId) {
       hojaAbierta.querySelector(`[name=palpaModo][value="${V.palpaModo}"]`).checked = true; } });
 
   const fechaInp = hojaAbierta.querySelector("[name=fecha]");
+
+  /* De los meses y días sale la fecha de preñez, y de la fecha salen los meses
+     y días. Se puede escribir por donde sea más cómodo y lo otro se rellena. */
+  const desdeFecha = (fila) => {
+    const idA = fila.dataset.animal;
+    const c = fila.querySelector(`[name=c_${idA}]`).value;
+    const g = gestacionDesdeFecha(fechaInp.value, c);
+    if (!g) return;
+    fila.querySelector(`[name=m_${idA}]`).value = g.mesesGest;
+    fila.querySelector(`[name=d_${idA}]`).value = g.diasGest;
+  };
+
   const refrescar = (fila) => {
     const idA = fila.dataset.animal;
     const a = animal(idA);
     const res = fila.querySelector(`[name=r_${idA}]:checked`)?.value;
     const caja = fila.querySelector("[data-calc]");
+    const cInp = fila.querySelector(`[name=c_${idA}]`);
     fila.classList.toggle("marcada", !!res);
     if (res === "vacia") { caja.innerHTML = '<span class="p roja">Vacía</span>'; return; }
     if (res !== "prenada") { caja.textContent = "—"; return; }
     const v = { fecha: fechaInp.value,
                 mesesGest: fila.querySelector(`[name=m_${idA}]`).value,
                 diasGest: fila.querySelector(`[name=d_${idA}]`).value };
+    // La fecha de preñez se mantiene al día con lo que digan los números.
+    const conc = concepcionDePalpacion(v);
+    if (conc && cInp.value !== conc) cInp.value = conc;
     const reparo = reparoPalpacion(a, { ...v, resultado: "prenada" });
     if (reparo) {
       fila.classList.add("dudosa");
