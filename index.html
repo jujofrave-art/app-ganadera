@@ -824,11 +824,47 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.80.0";
+const VERSION = "1.84.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.84.0", "3 sep 2026", [
+    "Nuevo panel <strong>Control raíz</strong> en Configuración: ahí se decide qué correos " +
+      "pueden ser superadministradores. Solo lo ve jujofrave@gmail.com.",
+    "La lista vive en /ajustes/raiz y NADIE más puede leerla, ni los propios " +
+      "superadministradores. Las reglas la consultan por dentro sin enseñársela a nadie.",
+    "Nadie puede nombrarse ni nombrar a otro superadministrador si ese correo no está en " +
+      "la lista, ni desde la app ni desde la consola del navegador. Antes cualquier " +
+      "superadministrador podía crear otro.",
+    "El correo raíz está escrito en el archivo y repetido en las reglas: cambiarlo obliga " +
+      "a tocar los dos y a volver a publicar.",
+    "HAY QUE VOLVER A PUBLICAR LAS REGLAS, si no el panel no podrá ni leer la lista.",
+  ]],
+  ["1.83.0", "3 sep 2026", [
+    "ARREGLO: el botón Eliminar salía en partos, tratamientos y anotaciones sin comprobar el " +
+      "permiso. Un empleado lo pulsaba, el registro desaparecía de su pantalla y Firestore " +
+      "lo rechazaba: borrado aquí y vivo allá, que es la peor de las dos.",
+    "SEGURIDAD: un animal vendido o muerto solo lo puede editar o borrar un dueño. La app " +
+      "ya lo impedía, pero las reglas no, así que desde la consola del navegador cualquiera " +
+      "podía reabrirlo. HAY QUE VOLVER A PUBLICAR LAS REGLAS.",
+  ]],
+  ["1.82.0", "3 sep 2026", [
+    "Botón Eliminar dentro de la ficha del animal y de la ficha de la finca. Antes había que " +
+      "entrar a «editar» para poder borrar.",
+    "ARREGLO: si el barrido en Firebase fallaba —por señal o por permisos— se borraba aquí " +
+      "igual y quedaban registros colgando en la base sin que nadie se enterara. Ahora se " +
+      "avisa con el motivo.",
+    "El borrado en grupo ahora espera al barrido remoto y dice cuántos registros viejos " +
+      "limpó. Antes lo lanzaba y nadie recogía ni el resultado ni los fallos.",
+  ]],
+  ["1.81.0", "3 sep 2026", [
+    "ARREGLO DE MAQUETACIÓN: en los avisos amarillos del recorte, el número se iba al otro " +
+      "extremo del renglón y partía la frase en dos: «Se están ocultando … 93 … registro(s) " +
+      "anteriores al…». Esa caja reparte a los lados todo lo que cuelgue directo de ella.",
+    "El aviso de Partos-Abortos trae botón para ver el historial completo, en vez de tener " +
+      "que buscar el selector de fechas.",
+  ]],
   ["1.80.0", "3 sep 2026", [
     "Partos-Abortos ya tiene selector de fechas. No lo tenía porque los partos, a diferencia " +
       "de los servicios y las palpaciones, NUNCA se recortan al bajarlos: de ellos salen el " +
@@ -3882,6 +3918,62 @@ function mensajeCupo(que) {
 
 const miCorreo = () => (S.persona?.correo || "").toLowerCase();
 
+/* ==========================================================
+   CONTROL RAÍZ
+
+   Un solo correo, escrito aquí y repetido en las reglas de
+   Firestore, decide quién puede ser superadministrador. No es
+   un ajuste: cambiarlo obliga a tocar el archivo Y a volver a
+   publicar las reglas, que es justo lo que se busca.
+
+   La lista vive en /ajustes/raiz. Nadie más puede ni leerla:
+   las reglas la consultan por dentro sin enseñársela a nadie.
+   ========================================================== */
+const CORREO_RAIZ = "jujofrave@gmail.com";
+
+/** ¿Es esta la cuenta raíz? Se mira el correo con que se entró a Firebase,
+    no la ficha de persona, que cualquier administrador podría editar. */
+const soyRaiz = () =>
+  (FB.user?.email || "").toLowerCase() === CORREO_RAIZ;
+
+/** Lee la lista de autorizados. Solo funciona siendo la raíz. */
+async function cargarRaiz() {
+  if (!FB.db || !soyRaiz()) return null;
+  try {
+    const { fs } = FB.mods;
+    const d = await fs.getDoc(fs.doc(FB.db, "ajustes", "raiz"));
+    FB.raiz = d.exists() ? (d.data().superadmins || []) : [];
+  } catch (e) { FB.raizError = errorFB(e); }
+  return FB.raiz;
+}
+
+/** Guarda la lista y pone al día el rol de cada quien. */
+async function guardarRaiz(lista) {
+  if (!FB.db || !soyRaiz()) return alert("Solo la cuenta raíz puede tocar esto.");
+  const { fs } = FB.mods;
+  const antes = FB.raiz || [];
+  try {
+    await fs.setDoc(fs.doc(FB.db, "ajustes", "raiz"),
+      { superadmins: lista, tocado: new Date().toISOString(), por: CORREO_RAIZ });
+  } catch (e) { return alert("No se pudo guardar: " + errorFB(e)); }
+  FB.raiz = lista;
+
+  /* Que el cambio surta efecto sin tener que ir a buscar cada ficha. Quien
+     entra, sube a superadministrador; quien sale, baja a dueño. */
+  let tocados = 0;
+  for (const c of lista) {
+    const p = D.personas.find(x => (x.correo || "").toLowerCase() === c);
+    if (p && p.rol !== "superadmin") { p.rol = "superadmin"; tocados++; }
+  }
+  for (const c of antes.filter(x => !lista.includes(x))) {
+    const p = D.personas.find(x => (x.correo || "").toLowerCase() === c);
+    if (p && p.rol === "superadmin") { p.rol = "dueno"; tocados++; }
+  }
+  if (tocados) { recalcularAccesos(); guardar(); }
+  pintar();
+  avisar(`Control raíz guardado${tocados ? ` · ${tocados} ficha(s) al día` : ""}`);
+}
+
 /** Ve la conexión con Firebase, las reglas y la publicación. */
 function verConfigAvanzada() {
   if (esMaestro()) return true;
@@ -4163,13 +4255,15 @@ function avisoRecorte(coleccion) {
   if (!historialRecortado()) return "";
   const sueltos = FB.historial?.size || 0;
   return `<div class="nota recorte">
-    Solo se muestran los registros desde el <strong>${fmt(FB.corte)}</strong>.
-    Lo anterior sigue guardado en Firebase.
-    ${sueltos ? `Menos el de <strong>${sueltos} animal${sueltos === 1 ? "" : "es"}</strong>,
-      del que pediste el historial completo desde su ficha: por eso ves registros más viejos.
-      <button class="btn btn-sm" data-acc="soltar-historiales">Volver al rango en ${
-        sueltos === 1 ? "ese" : "esos"} también</button>` : ""}
-    <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
+    <span>Solo se muestran los registros desde el <strong>${fmt(FB.corte)}</strong>.
+    Lo anterior sigue guardado en Firebase.${sueltos
+      ? ` Menos el de <strong>${sueltos} animal${sueltos === 1 ? "" : "es"}</strong>, del que
+        pediste el historial completo desde su ficha: por eso ves registros más viejos.` : ""}</span>
+    <span class="fila-btn">
+      ${sueltos ? `<button class="btn btn-sm" data-acc="soltar-historiales">Volver al rango en ${
+        sueltos === 1 ? "ese" : "esos"}</button>` : ""}
+      <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
+    </span>
   </div>`;
 }
 
@@ -4482,10 +4576,13 @@ function vPartos() {
         `<option value="${v}" ${meses === v ? "selected" : ""}>${et}</option>`).join("")}
     </select>
   </div>
-  ${escondidos ? `<div class="nota recorte">Se están ocultando <strong>${escondidos}</strong>
-    registro(s) anteriores al ${fmt(desde)}. Los partos nunca se borran del equipo: de ellos
-    salen el total de partos, el intervalo y el arranque de cada lactancia, así que este
-    filtro solo cambia lo que se ve.</div>` : ""}
+  ${escondidos ? `<div class="nota recorte">
+    <span>Se están ocultando <strong>${escondidos}</strong> registro(s) anteriores al
+    ${fmt(desde)}. Los partos nunca se borran del equipo: de ellos salen el total de partos,
+    el intervalo y el arranque de cada lactancia, así que este filtro solo cambia lo que
+    se ve.</span>
+    <button class="btn btn-sm" data-acc="partos-todo">Ver todo el historial</button>
+  </div>` : ""}
   ${fichas([["todos","Todo",misEventos("partos").length],["parto","Parto",misEventos("partos").filter(p=>p.tipo==="parto").length],
             ["aborto","Aborto",misEventos("partos").filter(p=>p.tipo==="aborto").length]])}
   ${tabla(cols, agrupado(L, ({p, a}) => `<tr class="fila" data-ev="parto:${p.id}">
@@ -5124,6 +5221,8 @@ function fichaAnimal(id) {
             <td>${esc(t.tipo)}</td><td><span class="sub">${esc(t.detalles) || "—"}</span></td></tr>`).join(""))}
     </div>
     <div class="hoja-pie">
+      ${puedoEditarAnimal(a) && puede("borra")
+        ? `<button class="btn btn-baja" data-borrar="animal:${id}">Eliminar</button>` : ""}
       <button class="btn" data-cerrar>Cerrar</button>
       ${puedoEditarAnimal(a)
         ? `<button class="btn btn-firme" data-editar="animal:${id}">Editar animal</button>`
@@ -5603,7 +5702,7 @@ function formParto(id, anId) {
           ${seg("tipo", [["parto","Parto"],["aborto","Aborto"]], p.tipo || "parto")}</div>
       </div></div>
       <div class="hoja-pie">
-        ${id ? '<button type="button" class="btn btn-baja" data-borrar="parto:'+id+'">Eliminar</button>' : ""}
+        ${id && puede("borra") ? '<button type="button" class="btn btn-baja" data-borrar="parto:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
@@ -5675,7 +5774,7 @@ function formTratamiento(id, anId) {
         <div class="campo ancho"><label>Detalles</label><textarea name="detalles">${esc(t.detalles)}</textarea></div>
       </div></div>
       <div class="hoja-pie">
-        ${id ? '<button type="button" class="btn btn-baja" data-borrar="trat:'+id+'">Eliminar</button>' : ""}
+        ${id && puede("borra") ? '<button type="button" class="btn btn-baja" data-borrar="trat:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
@@ -5694,7 +5793,7 @@ function formAnotacion(id) {
         <div class="campo ancho"><label>Anotación</label><textarea name="texto" rows="5">${esc(n.texto)}</textarea></div>
       </div></div>
       <div class="hoja-pie">
-        ${id ? '<button type="button" class="btn btn-baja" data-borrar="nota:'+id+'">Eliminar</button>' : ""}
+        ${id && puede("borra") ? '<button type="button" class="btn btn-baja" data-borrar="nota:'+id+'">Eliminar</button>' : ""}
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme">Guardar</button>
       </div></form>`);
@@ -5733,6 +5832,8 @@ function fichaFinca(id) {
       </div>
     </div>
     <div class="hoja-pie">
+      ${puedoBorrarFinca(finca(id))
+        ? `<button class="btn btn-baja" data-borrar="finca:${id}">Eliminar</button>` : ""}
       <button class="btn" data-cerrar>Cerrar</button>
       ${puedoEditarFinca(finca(id)) ? `<button class="btn btn-firme" data-editar="finca:${id}">Editar finca</button>` : ""}
     </div>`);
@@ -6211,20 +6312,27 @@ function borrarSeleccion(cfg) {
   if ((arrastre > 20 || animalesFinca) &&
       !confirm("Última confirmación. Es un borrado grande y no hay vuelta atrás.")) return;
 
-  let n = 0;
+  let n = 0, barrido = 0;
+  const tareas = [];
   for (const id of permitidos) {
-    // Barrer también lo anterior al recorte, si lo hay.
+    // Barrer también lo anterior al recorte, si lo hay. Se espera al final:
+    // antes se lanzaba y nadie recogía el resultado ni los fallos.
     if (cfg.tipo === "animal") {
       const a = animal(id);
-      if (a) barrerAnimalRemoto(id, a.fincaId);
+      if (a) tareas.push(barrerAnimalRemoto(id, a.fincaId));
     } else if (cfg.tipo === "finca") {
-      barrerFincaRemota(id);
+      tareas.push(barrerFincaRemota(id));
     }
     if (borrarEnCascada(cfg.tipo, id, { arrastrarAnimales: true }) !== null) n++;
   }
   V.sel = null;
   recalcularAccesos(); guardar(); pintar();
   avisar(`${n} ${cfg.et} eliminados`);
+  if (tareas.length) Promise.all(tareas).then(rs => {
+    barrido = rs.reduce((t, x) => t + (x || 0), 0);
+    if (barrido) avisar(`Se limpiaron ${barrido} registros viejos en Firebase`);
+    avisarBarrido();
+  });
 }
 
 /* ---------- editar en grupo ---------- */
@@ -8404,6 +8512,7 @@ function escucharColecciones(mias) {
   }
 
   escucharAjustes();
+  if (soyRaiz() && FB.raiz === undefined) cargarRaiz().then(() => pintarPronto());
 
   FB.estado = "listo";
   pintar();
@@ -9430,7 +9539,12 @@ async function barrerAnimalRemoto(animalId, fincaId) {
         fs.where("fincaId", "==", fincaId), fs.where("animalId", "==", animalId)));
       if (!s.empty) { await borrarEnLotes(s.docs.map(d => d.ref)); n += s.size; }
       s.docs.forEach(d => { delete (FB.espejo[col] || {})[d.id]; });
-    } catch (e) { console.warn("barrer:", errorFB(e)); }
+    } catch (e) {
+      // Antes solo iba a la consola: si el barrido fallaba, quedaban registros
+      // colgando en Firebase y nadie se enteraba.
+      (FB.falloBarrido ||= []).push(`${col}: ${errorFB(e)}`);
+      console.warn("barrer:", errorFB(e));
+    }
   }
   try { await fs.deleteDoc(fs.doc(FB.db, "fotos", animalId)); } catch {}
   fotoBorrar(CLAVE_FOTO(animalId));       // y la copia de este equipo
@@ -9456,9 +9570,23 @@ async function barrerFincaRemota(fincaId) {
           try { await fs.deleteDoc(fs.doc(FB.db, "fotos", doc.id)); } catch {}
         }
       }
-    } catch (e) { console.warn("barrer:", errorFB(e)); }
+    } catch (e) {
+      (FB.falloBarrido ||= []).push(`${col}: ${errorFB(e)}`);
+      console.warn("barrer:", errorFB(e));
+    }
   }
   return n;
+}
+
+/** Si algo del barrido remoto falló, decirlo en vez de dejar basura callada. */
+function avisarBarrido() {
+  const f = FB.falloBarrido;
+  if (!f?.length) return;
+  FB.falloBarrido = [];
+  alert("Se borró aquí, pero no se pudo limpiar todo en Firebase:\n\n• " +
+    f.slice(0, 5).join("\n• ") +
+    "\n\nQuedaron registros sueltos en la base. Revisa Configuración → " +
+    "«¿Por qué no cargan los datos?» y vuelve a intentarlo con señal.");
 }
 
 /* ==========================================================
@@ -9830,12 +9958,37 @@ service cloud.firestore {
       return r == 'superadmin' ? 4 : r == 'dueno' ? 3 : r == 'administrador' ? 2 : 1;
     }
 
+    // ---- CONTROL RAÍZ ----
+    // Un solo correo, escrito aquí, decide quién puede ser superadministrador.
+    // La lista vive en /ajustes/raiz y NADIE más puede leerla: estas funciones
+    // la consultan por dentro sin enseñársela a nadie. Cambiar este correo
+    // obliga a editar el archivo y a volver a publicar estas reglas.
+    function correoRaiz() { return 'jujofrave@gmail.com'; }
+    function soyRaiz() {
+      return request.auth != null && request.auth.token.email == correoRaiz();
+    }
+    function listaRaiz() {
+      return exists(/databases/$(database)/documents/ajustes/raiz)
+        ? get(/databases/$(database)/documents/ajustes/raiz).data.get('superadmins', [])
+        : [];
+    }
+    /** ¿Este correo tiene permitido ostentar el rango de superadministrador? */
+    function autorizadoSuper(correo) {
+      return correo == correoRaiz() || correo in listaRaiz();
+    }
+
+    match /ajustes/raiz {
+      allow read, write: if soyRaiz();
+    }
+
     // ---- ajustes que son de la finca, no de cada equipo ----
     // «finca» lleva los parámetros de manejo; «mando» lleva permisos,
     // cupos y quién es el dueño principal, que es cosa aparte.
+    // OJO con el orden: en Firestore basta con que UNA regla deje pasar. Sin
+    // excluir aquí a «raiz», esta línea se la abriría a cualquiera.
     match /ajustes/{cual} {
-      allow read:  if registrado();
-      allow write: if registrado() && (cual == 'finca'
+      allow read:  if registrado() && cual != 'raiz';
+      allow write: if registrado() && cual != 'raiz' && (cual == 'finca'
                      ? manda()
                      : esDueno());
     }
@@ -9868,14 +10021,20 @@ service cloud.firestore {
         ));
       }
 
+      // El rango de superadministrador solo lo puede llevar quien esté en la
+      // lista raíz. Ni el propio superadministrador puede repartirlo.
+      function superPermitido() {
+        return request.resource.data.rol != 'superadmin' || autorizadoSuper(correo);
+      }
+
       allow read:   if request.auth != null
                     && (esMio() || (registrado() && manda()));
-      allow create: if registrado() && otorgoAOtro();
-      allow update: if registrado() && (arregloMio() ||
+      allow create: if soyRaiz() || (registrado() && otorgoAOtro() && superPermitido());
+      allow update: if soyRaiz() || (registrado() && superPermitido() && (arregloMio() ||
                     (otorgoAOtro()
-                     && (esSuper() || rango(resource.data.get('rol', 'empleado')) < rango(rol()))));
-      allow delete: if registrado() && !esMio() && (esSuper()
-                    || (manda() && rango(resource.data.get('rol', 'empleado')) < rango(rol())));
+                     && (esSuper() || rango(resource.data.get('rol', 'empleado')) < rango(rol())))));
+      allow delete: if soyRaiz() || (registrado() && !esMio() && (esSuper()
+                    || (manda() && rango(resource.data.get('rol', 'empleado')) < rango(rol()))));
     }
 
     // ---- fincas: solo las asignadas ----
@@ -9911,11 +10070,17 @@ service cloud.firestore {
         return resource.data.get('correo', '') == request.auth.token.email
                && request.resource.data.rol == resource.data.rol;
       }
-      allow create: if registrado() && manda()
-                    && (esSuper() || rango(request.resource.data.rol) < rango(rol()));
-      allow update: if registrado() && (miFicha() || (alcanzo()
-                    && (esSuper() || rango(request.resource.data.rol) < rango(rol()))));
-      allow delete: if registrado() && alcanzo();
+      // Igual que en /usuarios: la ficha tampoco puede decir «superadmin» si
+      // ese correo no está autorizado en la lista raíz.
+      function superFichaOk() {
+        return request.resource.data.rol != 'superadmin'
+               || autorizadoSuper(request.resource.data.get('correo', ''));
+      }
+      allow create: if soyRaiz() || (registrado() && manda() && superFichaOk()
+                    && (esSuper() || rango(request.resource.data.rol) < rango(rol())));
+      allow update: if soyRaiz() || (registrado() && superFichaOk() && (miFicha() || (alcanzo()
+                    && (esSuper() || rango(request.resource.data.rol) < rango(rol())))));
+      allow delete: if soyRaiz() || (registrado() && alcanzo());
     }
 
     // ---- ganado y sus eventos: filtrados por finca ----
@@ -9927,11 +10092,16 @@ service cloud.firestore {
       allow delete: if registrado() && mia();
     }
 
+    // Un animal vendido o muerto es un cierre contable: solo el dueño o el
+    // superadministrador lo tocan. La app ya lo impedía, pero las reglas no,
+    // así que desde la consola cualquiera podía reabrirlo.
+    function activo() { return resource.data.get('estado', 'activo') == 'activo'; }
+
     match /animales/{id} {
       allow read:   if registrado() && mia();
       allow create: if registrado() && seraMia();
-      allow update: if registrado() && mia() && seraMia();
-      allow delete: if registrado() && manda() && mia();
+      allow update: if registrado() && mia() && seraMia() && (activo() || esDueno());
+      allow delete: if registrado() && manda() && mia() && (activo() || esDueno());
     }
 
     match /inseminaciones/{id} {
@@ -10047,6 +10217,36 @@ function vConfiguracion() {
        : puede("config") ? "Parámetros de la finca, invitaciones e instalación"
        : "Versión de la app e instalación en el celular"}</p></div>
     <span class="p gris">v${VERSION} · ${FECHA_VERSION}</span></header>
+
+  ${!soyRaiz() ? "" : `
+  <!-- ============ CONTROL RAÍZ ============ -->
+  <details class="panel" ${abierto(ACORD++)}>
+    <summary class="panel-cab"><h2>Control raíz</h2>
+      <span class="p roja">solo tú</span><span class="flecha-acord">▾</span></summary>
+    <div class="panel-cuerpo">
+      <p class="expl">Aquí se decide quién puede ser <strong>superadministrador</strong>, que es
+      quien ve y reasigna todas las fincas por encima de cualquier permiso. Este panel solo
+      lo ve <strong>${esc(CORREO_RAIZ)}</strong>, y las reglas de Firestore no dejan que nadie
+      más lea ni escriba esta lista: ni siquiera aparece para los demás superadministradores.</p>
+      <p class="expl">Tu propio correo manda siempre y no hace falta ponerlo. Al añadir a
+      alguien, su ficha sube a superadministrador sola; al quitarlo, baja a dueño.</p>
+
+      ${FB.raizError ? `<div class="aviso">No se pudo leer la lista: ${esc(FB.raizError)}.
+        Comprueba que las reglas estén publicadas.</div>` : ""}
+
+      <div class="rej">
+        <div class="campo ancho"><label>Correos autorizados</label>
+          <textarea data-raiz-lista rows="4" placeholder="uno por línea">${
+            esc((FB.raiz || []).join("\n"))}</textarea>
+          <span class="ayuda">Uno por línea, en minúscula. Deja vacío para que no haya
+          ningún superadministrador aparte de ti.</span></div>
+      </div>
+      <div class="fila-btn" style="margin-top:12px">
+        <button class="btn" data-acc="raiz-leer">Volver a leer</button>
+        <button class="btn btn-firme" data-acc="raiz-guardar">Guardar la lista</button>
+      </div>
+    </div>
+  </details>` }
 
   <!-- ============ 0. VERSIÓN ============ -->
   <details class="panel" ${abierto(ACORD++)}>
@@ -11612,6 +11812,7 @@ async function borrar(tipo, id) {
     if (borrarEnCascada("finca", id, { arrastrarAnimales: true }) === null) return;
     persistir("Finca eliminada");
     if (barrido) avisar(`Se limpiaron ${barrido} registros, incluidos los más viejos`);
+    avisarBarrido();
     return;
   }
 
@@ -11631,7 +11832,13 @@ async function borrar(tipo, id) {
     if (!confirm(msg)) return;
   }
 
-  else if (!confirm("¿Eliminar este registro?")) return;
+  else {
+    /* Los eventos no comprobaban el permiso: un empleado podía borrar un parto
+       y desaparecía de su pantalla, pero Firestore lo rechazaba. Quedaba
+       borrado aquí y vivo allá, que es la peor de las dos. */
+    if (!puede("borra")) return alert("No tienes permiso para eliminar registros.");
+    if (!confirm("¿Eliminar este registro?")) return;
+  }
 
   // Lo que quedó fuera de la ventana también hay que barrerlo.
   if (tipo === "animal") {
@@ -11640,6 +11847,7 @@ async function borrar(tipo, id) {
     if (borrarEnCascada(tipo, id) === null) return;
     persistir("Animal eliminado");
     if (barrido) avisar(`Se limpiaron ${barrido} registros suyos, incluidos los más viejos`);
+    avisarBarrido();
     return;
   }
   if (borrarEnCascada(tipo, id) === null) return;
@@ -11846,6 +12054,18 @@ async function acciones(a) {
     avisar(n ? "Vuelven a verse solo los últimos meses" : "No había historial suelto");
     return;
   }
+  if (a === "raiz-leer") { FB.raizError = ""; await cargarRaiz(); pintar(); return; }
+  if (a === "raiz-guardar") {
+    const t = document.querySelector("[data-raiz-lista]")?.value || "";
+    const lista = [...new Set(t.split(/[\n,;]+/).map(x => x.trim().toLowerCase())
+      .filter(x => x.includes("@") && x !== CORREO_RAIZ))];
+    if (!confirm(`Van a poder mandar en TODA la app:\n\n• ${CORREO_RAIZ} (tú)\n` +
+        (lista.length ? "• " + lista.join("\n• ") : "(nadie más)") +
+        `\n\n¿Guardar?`)) return;
+    await guardarRaiz(lista);
+    return;
+  }
+  if (a === "partos-todo") { V.rangoPartos = 0; pintar(); return; }
   if (a === "palpar-grupo") { abrirPalpacionGrupo(); return; }
   if (a === "todo-historial") {
     if (!confirm("Se va a bajar todo el historial de tus fincas, sin recorte de fechas.\n\n" +
