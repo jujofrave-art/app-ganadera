@@ -821,11 +821,19 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.64.0";
+const VERSION = "1.65.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.65.0", "3 sep 2026", [
+    "Cuando los ajustes compartidos no logran viajar a los demás equipos, Configuración lo " +
+      "dice, con el motivo. Antes fallaba callado: se cambiaba algo en el computador y en " +
+      "el celular seguía como estaba, sin ninguna señal de que algo iba mal.",
+    "ARREGLO: si la subida de un ajuste fallaba, la app se lo apuntaba igual como enviado y " +
+      "no lo volvía a intentar nunca. Ahora solo se apunta cuando de verdad sale bien.",
+    "Casi siempre el motivo es que faltan por publicar las reglas que trajo la 1.59.0.",
+  ]],
   ["1.64.0", "3 sep 2026", [
     "La app se instala ahora como aplicación de verdad. El manifiesto iba incrustado dentro " +
       "del index.html, y de uno incrustado Chrome no puede crear una aplicación: solo un " +
@@ -7889,6 +7897,7 @@ function escucharAjustes() {
     const u = fs.onSnapshot(fs.doc(FB.db, "ajustes", cual),
       (snap) => {
         FB.ajustesLeidos[cual] = true;
+        if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
         if (!snap.exists()) { pintarPronto(); return; }
         const d = snap.data() || {};
         let cambio = false;
@@ -7903,7 +7912,13 @@ function escucharAjustes() {
         }
         if (cambio) { guardarPronto(); pintarPronto(); }
       },
-      () => { FB.ajustesLeidos[cual] = true; });   // sin permiso: se sigue local
+      (e) => {
+        /* Casi siempre es que faltan por publicar las reglas de /ajustes.
+           Callarlo dejaba al usuario cambiando cosas que no viajaban. */
+        FB.ajustesLeidos[cual] = true;
+        (FB.ajustesError ||= {})[cual] = e?.code || String(e);
+        pintarPronto();
+      });
     FB.escuchas.push(u);
   }
 }
@@ -7921,11 +7936,21 @@ function empujarAjustes() {
       const json = JSON.stringify(D.config[k]);
       if (FB.espejoAjustes?.[k] === json) continue;
       cambios[k] = JSON.parse(json);
-      (FB.espejoAjustes ||= {})[k] = json;
     }
     if (!Object.keys(cambios).length) continue;
     fs.setDoc(fs.doc(FB.db, "ajustes", cual), limpiarParaFirestore(cambios), { merge: true })
-      .catch(() => {});
+      .then(() => {
+        // El espejo se apunta DESPUÉS de que la escritura sale bien. Antes se
+        // apuntaba primero, así que un fallo dejaba el ajuste sin reintentar.
+        for (const k of Object.keys(cambios)) {
+          (FB.espejoAjustes ||= {})[k] = JSON.stringify(D.config[k]);
+        }
+        if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
+      })
+      .catch((e) => {
+        (FB.ajustesError ||= {})[cual] = e?.code || String(e);
+        pintarPronto();
+      });
   }
 }
 
@@ -9861,6 +9886,14 @@ function vConfiguracion() {
       <p class="expl">Esto sí viaja: los parámetros y a quién se le palpa son de la finca, así
       que al guardarlos quedan iguales en todos los equipos. Lo que se queda en este aparato es
       el tema, cuánto historial se baja, el bloqueo de giro y la conexión con Firebase.</p>
+      ${FB.user && FB.ajustesError && Object.keys(FB.ajustesError).length ? `
+        <div class="aviso">Estos ajustes <strong>no están viajando a los demás equipos</strong>.
+        ${String(Object.values(FB.ajustesError)[0]).includes("permission")
+          ? "Firestore está negando el permiso: faltan por publicar las reglas nuevas. " +
+            "Cópialas del paso de abajo y pégalas en la consola de Firebase."
+          : "Motivo: " + esc(String(Object.values(FB.ajustesError)[0])) + "."}
+        Mientras tanto valen solo en este equipo.</div>` : ""}
+
       <h4 class="sub-titulo">A quién se le palpa</h4>
       <div class="rej" data-palpa-segun>
         <div class="campo ancho"><label>Pedir palpación</label>
