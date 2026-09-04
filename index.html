@@ -824,11 +824,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.74.0";
+const VERSION = "1.75.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.75.0", "3 sep 2026", [
+    "Palpar en grupo decía «22 hembras servidas» mientras el menú decía «Palpación 19», sin " +
+      "explicar la diferencia. No era un error de cuentas: la lista de grupo es a propósito " +
+      "más amplia, para que si el veterinario ya está en el corral se pueda revisar también " +
+      "a las que ya se palparon o se pasaron de plazo.",
+    "Ahora el título desglosa: cuántas hay, cuántas están pendientes y cuántas van de más. " +
+      "Y cada fila de más lleva una etiqueta con el motivo: «ya palpada», «servicio muy " +
+      "viejo», «no se le pide palpación».",
+  ]],
   ["1.74.0", "3 sep 2026", [
     "En palpar en grupo, cuando varias palpaciones no cuadran con el servicio apuntado sale " +
       "una barra que dice cuántas son y las resuelve todas de un golpe: «que manden las " +
@@ -6665,6 +6674,23 @@ function unificarPersonas() {
    los meses y los días, y la fecha de parto sale sola.
    ========================================================== */
 
+/**
+ * La lista de palpar en grupo es más amplia que la de Palpación: si el
+ * veterinario ya está en el corral, conviene poder revisar también a las que
+ * ya se palparon o a las que se pasaron de plazo. Esto explica, para cada una,
+ * por qué no está en la lista de pendientes.
+ */
+function porQueNoPendiente(a, e) {
+  if (e.fechaPalpacion) return "";
+  if (!e.ultInsem) return "sin servicio apuntado";
+  if (e.ultParto && e.ultParto.fecha > e.ultInsem.fecha) return "ya parió";
+  if (palpDe(a.id).some(p => p.fecha > e.ultInsem.fecha)) return "ya palpada";
+  if (!palpaPorServicio(e.ultInsem)) return "no se le pide palpación";
+  const P = par(a);
+  if (dias(e.ultInsem.fecha) > P.gestacion - 45) return "servicio muy viejo";
+  return "";
+}
+
 /** Hembras que se pueden palpar, según el modo elegido. */
 function candidatasPalpacion(modo, fincaId) {
   return misAnimales()
@@ -6704,7 +6730,12 @@ function abrirPalpacionGrupo(modo, fincaId) {
 
   abrirHoja(`
     <div class="hoja-cab"><div><h2>Palpar en grupo</h2>
-      <div class="sub">${candidatas.length} hembras servidas</div></div>
+      <div class="sub">${(() => {
+        const pend = candidatas.filter(a => estado(a).fechaPalpacion).length;
+        const otras = candidatas.length - pend;
+        return `${candidatas.length} hembras · ${pend} pendiente${pend === 1 ? "" : "s"} de palpar` +
+               (otras ? ` · ${otras} de más, por si aprovechas al veterinario` : "");
+      })()}</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-palpar-grupo>
       <div class="hoja-cuerpo">
@@ -6764,7 +6795,9 @@ function abrirPalpacionGrupo(modo, fincaId) {
                   <em>${CATEGORIAS[a.categoria]?.et || ""}${
                     e.ultInsem ? " · servicio " + fmtCorto(e.ultInsem.fecha)
                                : " · monta con " + macho}${
-                    e.fechaPalpacion ? " · palpar " + fmtCorto(e.fechaPalpacion) : ""}</em></div>
+                    e.fechaPalpacion ? " · palpar " + fmtCorto(e.fechaPalpacion) : ""}</em>
+                  ${(() => { const q = porQueNoPendiente(a, e);
+                    return q ? `<span class="p gris">${q}</span>` : ""; })()}</div>
                 </div>
                 <div class="palpa-res">
                   ${[["", "—"], ["prenada", "Preñada"], ["vacia", "Vacía"]].map(([v, t]) => `
