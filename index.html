@@ -533,6 +533,9 @@ details.panel:not([open])>summary{border-bottom:0}
 .palpa-calc{font-size:12px;color:var(--tinta2);text-align:right}
 .palpa-calc em{font-style:normal;display:block;font-size:10.5px;color:var(--tenue);
   font-family:var(--dato)}
+.palpa-manda{display:flex;align-items:center;gap:5px;justify-content:flex-end;
+  font-size:11px;margin-top:5px;cursor:pointer;color:var(--hierro)}
+.palpa-manda input{width:13px;height:13px;accent-color:var(--hierro);margin:0}
 @media(max-width:860px){
   .palpa-fila{grid-template-columns:1fr;gap:8px}
   .palpa-calc{text-align:left}
@@ -821,11 +824,28 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.72.0";
+const VERSION = "1.74.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.74.0", "3 sep 2026", [
+    "En palpar en grupo, cuando varias palpaciones no cuadran con el servicio apuntado sale " +
+      "una barra que dice cuántas son y las resuelve todas de un golpe: «que manden las " +
+      "palpaciones» o «que mande la inseminación». Antes tocaba fila por fila.",
+    "La barra va diciendo cuántas llevas resueltas, y cada fila se puede seguir cambiando " +
+      "a mano después.",
+  ]],
+  ["1.73.0", "3 sep 2026", [
+    "Cuando el veterinario da una fecha que no cuadra con la inseminación apuntada, la app " +
+      "lo dice: cuántos días de diferencia hay y con qué servicio. Antes calculaba en " +
+      "silencio y había que darse cuenta solo.",
+    "En palpar en grupo aparece la casilla «que mande esta» en las filas que no cuadran. " +
+      "Antes solo se podía decidir en el formulario de una en una, y desde el grupo " +
+      "siempre mandaba la inseminación.",
+    "El aviso salta a partir de 12 días de diferencia, que es más de lo que puede fallar " +
+      "una palpación bien hecha.",
+  ]],
   ["1.72.0", "3 sep 2026", [
     "ARREGLO: la pantalla de palpar en grupo existía desde la 1.10 y su manejador también, " +
       "pero ningún botón la abría. Llevaba versiones siendo una función inalcanzable.",
@@ -3061,6 +3081,23 @@ function partoDePalpacion(p, a) {
 function diasDesdePalpacion(p) {
   const c = concepcionDePalpacion(p);
   return c ? dias(c) : null;
+}
+
+/**
+ * Diferencia, en días, entre lo que dice el veterinario y el servicio que hay
+ * apuntado en el ciclo. Positivo: la palpación la da más vieja de lo que
+ * cuadraría con el servicio; negativo, más nueva. Devuelve null si no hay con
+ * qué comparar.
+ */
+function desfaseConServicio(a, v) {
+  if (!a || !v?.fecha) return null;
+  const c = concepcionDePalpacion(v);
+  if (!c) return null;
+  const e = estado(a);
+  const srv = e.ultInsem;
+  if (!srv || srv.fecha > v.fecha) return null;
+  if (e.ultParto && e.ultParto.fecha > srv.fecha) return null;   // otro ciclo
+  return { servicio: srv, concepcion: c, dif: dias(c, aFecha(srv.fecha)) };
 }
 
 /** ¿Hay una palpación que la persona marcó como la que manda? */
@@ -5453,9 +5490,15 @@ function formPalpacion(id, anId) {
     }
     caja.className = "nota";
     const parto = partoDePalpacion(v, a);
+    const d = desfaseConServicio(a, v);
+    const lejos = d && Math.abs(d.dif) > 12;
     caja.innerHTML = `Quedó preñada alrededor del <strong>${fmt(c)}</strong>.
       Parto probable: <strong>${fmt(parto)}</strong>
-      (gestación de ${par(a).gestacion} días).`;
+      (gestación de ${par(a).gestacion} días).` +
+      (lejos ? `<br><br>No cuadra con el servicio apuntado del
+        <strong>${fmt(d.servicio.fecha)}</strong>: hay
+        <strong>${Math.abs(d.dif)} días</strong> de diferencia. Si confías más en el
+        veterinario, marca abajo que esta palpación mande.` : "");
   };
   const prenada = () => {
     const r = hojaAbierta.querySelector("[name=resultado]:checked")?.value === "prenada";
@@ -6697,6 +6740,17 @@ function abrirPalpacionGrupo(modo, fincaId) {
         </div>
         <div class="palpa-conteo" data-palpa-conteo></div>
 
+        <!-- Cuando varias no cuadran con el servicio apuntado, decidir una por
+             una es un suplicio. Aquí se resuelven todas de un golpe. -->
+        <div class="aviso" data-palpa-desfase hidden style="display:flex;align-items:center;
+          gap:11px;justify-content:space-between;flex-wrap:wrap">
+          <span data-palpa-desfase-txt></span>
+          <span class="fila-btn">
+            <button type="button" class="btn btn-sm" data-palpa-mandan>Que manden las palpaciones</button>
+            <button type="button" class="btn btn-sm" data-palpa-servicio>Que mande la inseminación</button>
+          </span>
+        </div>
+
         ${Object.entries(porFinca).map(([fid, lista]) => `
           <h4 class="sub-titulo">${esc(nombreFinca(fid))} · ${lista.length}</h4>
           <div class="palpa-lista">
@@ -6725,7 +6779,11 @@ function abrirPalpacionGrupo(modo, fincaId) {
                   <label class="palpa-desde">Preñada desde<input type="date"
                     name="c_${a.id}"></label>
                 </div>
-                <div class="palpa-calc" data-calc>—</div>
+                <div class="palpa-calc">
+                  <div data-calc>—</div>
+                  <label class="palpa-manda" hidden>
+                    <input type="checkbox" name="md_${a.id}"><span>Que mande esta</span></label>
+                </div>
               </div>`;
             }).join("")}
           </div>`).join("")}
@@ -6788,11 +6846,21 @@ function abrirPalpacionGrupo(modo, fincaId) {
     }
     fila.classList.remove("dudosa");
     const parto = partoDePalpacion(v, a);
+    /* Si lo que dice el veterinario se aparta mucho del servicio apuntado, hay
+       que elegir cuál manda: de esa fecha salen el parto y el secado. */
+    const des = desfaseConServicio(a, v);
+    const lejos = des && Math.abs(des.dif) > 12;
+    const md = fila.querySelector(".palpa-manda");
+    if (md) md.hidden = !lejos;
     caja.innerHTML = parto
-      ? `Parto <strong>${fmtCorto(parto)}</strong><em>preñada desde ${fmtCorto(concepcionDePalpacion(v))}</em>`
+      ? `Parto <strong>${fmtCorto(parto)}</strong><em>preñada desde ${fmtCorto(concepcionDePalpacion(v))}</em>${
+          lejos ? `<em style="color:var(--hierro)">no cuadra con el servicio del ${
+            fmtCorto(des.servicio.fecha)}: ${Math.abs(des.dif)} días</em>` : ""}`
       : "—";
   };
   const conteo = hojaAbierta.querySelector("[data-palpa-conteo]");
+  const cajaDesfase = hojaAbierta.querySelector("[data-palpa-desfase]");
+  const txtDesfase = hojaAbierta.querySelector("[data-palpa-desfase-txt]");
   const busca = hojaAbierta.querySelector("[data-palpa-busca]");
   const btnSolo = hojaAbierta.querySelector("[data-palpa-solo]");
   const btnGuardar = hojaAbierta.querySelector(".hoja-pie .btn-firme");
@@ -6830,6 +6898,18 @@ function abrirPalpacionGrupo(modo, fincaId) {
         (vistas !== total ? ` · viendo ${vistas}` : "")
       : `${vistas === total ? total : vistas + " de " + total} sin marcar todavía`;
     conteo.classList.toggle("hay", !!marcadas);
+
+    // Cuántas se apartan del servicio apuntado, y cuántas ya están resueltas.
+    const flojas = [...hojaAbierta.querySelectorAll(".palpa-manda:not([hidden]) input")];
+    const puestas = flojas.filter(x => x.checked).length;
+    if (cajaDesfase) {
+      cajaDesfase.hidden = !flojas.length;
+      if (flojas.length) txtDesfase.innerHTML =
+        `<strong>${flojas.length}</strong> palpación${flojas.length === 1 ? "" : "es"} no
+         cuadra${flojas.length === 1 ? "" : "n"} con la fecha del servicio apuntado.
+         ${puestas ? `Ya elegiste que mande${puestas === 1 ? "" : "n"} la palpación en
+           <strong>${puestas}</strong>.` : "Elige cuál manda: de esa fecha salen el parto y el secado."}`;
+    }
     if (btnGuardar) {
       btnGuardar.textContent = marcadas
         ? `Guardar ${marcadas} ${marcadas === 1 ? "palpación" : "palpaciones"}`
@@ -6837,6 +6917,19 @@ function abrirPalpacionGrupo(modo, fincaId) {
       btnGuardar.disabled = !marcadas;
     }
   };
+
+  const decidirTodas = (valor) => {
+    hojaAbierta.querySelectorAll(".palpa-manda:not([hidden]) input")
+      .forEach(x => { x.checked = valor; });
+    actualizarConteo();
+    avisar(valor
+      ? "En las que no cuadraban manda ahora la palpación"
+      : "En las que no cuadraban manda la fecha de la inseminación");
+  };
+  hojaAbierta.querySelector("[data-palpa-mandan]")
+    ?.addEventListener("click", () => decidirTodas(true));
+  hojaAbierta.querySelector("[data-palpa-servicio]")
+    ?.addEventListener("click", () => decidirTodas(false));
 
   busca.oninput = () => { filtrar(); actualizarConteo(); };
   btnSolo.onclick = () => {
@@ -6900,9 +6993,12 @@ function guardarPalpacionGrupo(f) {
     if (!a) continue;
     const mesesGest = res === "prenada" ? Number(fila.querySelector(`[name=m_${idA}]`).value) || 0 : 0;
     const diasGest  = res === "prenada" ? Number(fila.querySelector(`[name=d_${idA}]`).value) || 0 : 0;
+    // Que esta palpación mande sobre la fecha del servicio apuntado.
+    const manda = res === "prenada"
+      && !!fila.querySelector(`[name=md_${idA}]`)?.checked;
     D.palpaciones.push({
       id: uid(), animalId: idA, fincaId: a.fincaId, fecha,
-      resultado: res, mesesGest, diasGest, manda: false,
+      resultado: res, mesesGest, diasGest, manda,
       observaciones: "", creadoPor: S.persona?.id || null,
     });
     n++;
