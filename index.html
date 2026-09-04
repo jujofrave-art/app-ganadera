@@ -824,11 +824,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.78.0";
+const VERSION = "1.79.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.79.0", "3 sep 2026", [
+    "ARREGLO: el historial completo que se baja de un animal se quedaba guardado en el " +
+      "equipo para siempre. Al reabrir la app seguían saliendo servicios de 2023 debajo del " +
+      "cartel que decía «solo desde 2025», y sin botón para deshacerlo, porque la app ya no " +
+      "recordaba habérselos bajado.",
+    "Ahora, al arrancar, se poda lo que queda fuera del recorte. Nada se pierde: está todo " +
+      "en Firebase y se vuelve a pedir cuando haga falta.",
+    "Lo que se creó en este equipo y aún no ha subido nunca se poda, aunque sea viejo.",
+  ]],
   ["1.78.0", "3 sep 2026", [
     "El aviso del recorte decía «solo se muestran los registros desde el 3 sep 2025» mientras " +
       "en la tabla salían servicios de 2023. No era un fallo del filtro: eran los de un " +
@@ -7934,6 +7943,29 @@ const CON_VENTANA = {
   tratamientos: "inicio", leche: "fecha",
 };
 
+/**
+ * Deja en el equipo solo lo que cae dentro del recorte.
+ *
+ * El historial completo que se baja de un animal desde su ficha se guarda en
+ * el equipo como todo lo demás. Al reabrir la app seguía ahí, así que salían
+ * servicios de 2023 debajo de un cartel que decía «solo desde 2025», y sin
+ * botón para deshacerlo porque la app ya no recordaba habérselos bajado.
+ * Nada se pierde: está todo en Firebase y se vuelve a pedir cuando haga falta.
+ */
+function podarAlRecorte() {
+  if (!FB.corte || FB.todoElHistorial) return 0;
+  let n = 0;
+  for (const [col, campo] of Object.entries(CON_VENTANA)) {
+    const propios = FB.sinConfirmar?.[col] || new Set();
+    const antes = (D[col] || []).length;
+    D[col] = (D[col] || []).filter(r =>
+      !r[campo] || r[campo] >= FB.corte || propios.has(r.id));
+    n += antes - (D[col] || []).length;
+  }
+  if (n) { FB.historial?.clear(); guardarPronto(); }
+  return n;
+}
+
 function corteVentana() {
   const m = Number(D.config?.ventanaMeses ?? 24);
   if (!m) return null;                       // 0 = traer todo
@@ -8329,6 +8361,7 @@ function escucharColecciones(mias) {
   }
   const corte = FB.todoElHistorial ? null : corteVentana();
   FB.corte = corte;
+  podarAlRecorte();
 
   for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
                    "secados", "tratamientos", "leche", "anotaciones"]) {
@@ -9242,13 +9275,19 @@ function rehacerColeccion(col) {
  */
 function soltarHistorialAnimal(animalId) {
   let n = 0;
-  for (const col of Object.keys(CON_VENTANA)) {
+  for (const [col, campo] of Object.entries(CON_VENTANA)) {
     const cajon = FB.cajones?.[col];
     const clave = "hist:" + animalId;
-    if (!cajon || !cajon[clave]) continue;
-    n += cajon[clave].length;
-    delete cajon[clave];
-    D[col] = rehacerColeccion(col);
+    if (cajon && cajon[clave]) { delete cajon[clave]; D[col] = rehacerColeccion(col); }
+
+    // Y lo que haya quedado guardado de sesiones anteriores, cuando ya no hay
+    // cajón del que quitarlo.
+    if (!FB.corte) continue;
+    const propios = FB.sinConfirmar?.[col] || new Set();
+    const antes = (D[col] || []).length;
+    D[col] = (D[col] || []).filter(r => r.animalId !== animalId
+      || !r[campo] || r[campo] >= FB.corte || propios.has(r.id));
+    n += antes - (D[col] || []).length;
   }
   FB.historial?.delete(animalId);
   guardarLocal();
