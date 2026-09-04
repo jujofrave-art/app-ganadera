@@ -821,11 +821,25 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.70.0";
+const VERSION = "1.71.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.71.0", "3 sep 2026", [
+    "LECHE: la ficha de cada vaca trae ahora su propia sección. Dice cuántos litros da al " +
+      "día, sobre cuántos días está medida, cuánto da el promedio de la finca y en qué " +
+      "porcentaje está por encima o por debajo.",
+    "En la pestaña «Por animal» sale el ranking de todas: litros, días y qué porcentaje " +
+      "del promedio de las vacas medidas da cada una.",
+    "Solo cuentan los días en que la vaca estaba de verdad en producción. Si la secas el " +
+      "martes, lo que se anote el miércoles no entra en ningún promedio: se aparta y se " +
+      "muestra con el motivo, en vez de ensuciar la cuenta en silencio.",
+    "El formulario de leche ya no ofrece machos, y avisa en el momento si la vaca elegida " +
+      "no estaba en producción ese día. Al guardar vuelve a preguntar.",
+    "ARREGLO: las pestañas de Leche contaban toda la leche del usuario aunque hubiera una " +
+      "finca seleccionada. Decían «Todo 300» encima de una lista de 40.",
+  ]],
   ["1.70.0", "3 sep 2026", [
     "La ficha de un animal al que se le bajó el historial completo ya trae botón para " +
       "<strong>volver al rango normal</strong>. Antes no había forma de deshacerlo sin " +
@@ -2908,6 +2922,76 @@ function enProduccionEn(a, fecha) {
   return true;
 }
 
+/**
+ * Lo mismo que enProduccionEn, pero explicado. Sirve para que la app pueda
+ * decir POR QUÉ una vaca no entra en el promedio, en vez de solo excluirla.
+ */
+function motivoNoProduce(a, fecha) {
+  if (!a) return "no existe";
+  const P = par(a);
+  if (!P.sirve)   return "es macho";
+  if (!P.lechero) return `los ${(P.plural || "de esta especie").toLowerCase()} no se ordeñan`;
+  if (a.estado !== "activo" && (!a.fechaSalida || a.fechaSalida <= fecha))
+    return "ya no estaba en el hato";
+  if (a.fechaNacimiento && a.fechaNacimiento > fecha) return "todavía no había nacido";
+
+  const partos = partosDe(a.id).filter(p => p.tipo === "parto" && p.fecha <= fecha);
+  const previo = a.ultimoPartoPrevio && a.ultimoPartoPrevio <= fecha
+    ? { fecha: a.ultimoPartoPrevio } : null;
+  const parto = partos[0] || previo;
+  if (!parto) return "no tiene ningún parto anterior a esa fecha";
+
+  const d = dias(parto.fecha, aFecha(fecha));
+  if (d > MAX_LACTANCIA) return `su último parto fue hace ${d} días`;
+
+  const sec = secadosDe(a.id).find(x => x.fecha > parto.fecha && x.fecha <= fecha);
+  if (sec) return `la secaron el ${fmtCorto(sec.fecha)}`;
+
+  const srv = insemDe(a.id).find(i => i.fecha > parto.fecha && i.fecha <= fecha);
+  if (srv && dias(srv.fecha, aFecha(fecha)) > P.secarHasta)
+    return "ya venía muy avanzada de preñez";
+  return "no estaba en producción";
+}
+
+/**
+ * Cuánto da una vaca al día y cómo se compara con su finca.
+ *
+ * Solo entran los días en que de verdad estaba en producción: si la secaron
+ * el martes, lo que alguien anote el miércoles no cuenta. Para comparar se usa
+ * el tanque, que es la leche que de verdad sale de la finca; si no hay tanque,
+ * se compara con el promedio de las demás vacas medidas.
+ */
+function promedioLecheAnimal(animalId, desdeISO) {
+  const a = animal(animalId);
+  if (!a) return null;
+
+  const suyos = (D.leche || []).filter(r => r.animalId === animalId
+    && (!desdeISO || r.fecha >= desdeISO) && enProduccionEn(a, r.fecha));
+  const lt = suyos.reduce((t, r) => t + (Number(r.litros) || 0), 0);
+  const dd = suyos.reduce((t, r) => t + Math.max(1, Number(r.dias) || 1), 0);
+  const descartados = (D.leche || []).filter(r => r.animalId === animalId
+    && (!desdeISO || r.fecha >= desdeISO) && !enProduccionEn(a, r.fecha)).length;
+  if (!dd) return { registros: 0, descartados };
+
+  const dela = (D.leche || []).filter(r => r.fincaId === a.fincaId
+    && (!desdeISO || r.fecha >= desdeISO));
+  const tanque = dela.filter(r => !r.animalId);
+  const base = tanque.length ? tanque : dela;
+
+  const ddF = base.reduce((t, r) => t + Math.max(1, Number(r.dias) || 1), 0);
+  const ltF = base.reduce((t, r) => t + (Number(r.litros) || 0), 0);
+  const vacasDia = base.reduce((t, r) => t + vacasDeRegistro(r) * Math.max(1, r.dias || 1), 0);
+  const vacasF = ddF ? vacasDia / ddF : 0;
+  const fincaPorVaca = (vacasF && ddF) ? (ltF / ddF) / vacasF : 0;
+
+  const suya = lt / dd;
+  return {
+    registros: suyos.length, descartados, litros: lt, dias: dd, suya,
+    fincaPorVaca, deTanque: !!tanque.length,
+    parte: fincaPorVaca ? suya / fincaPorVaca : 0,
+  };
+}
+
 /* Se consulta muchas veces por registro, así que se guarda el resultado. */
 let _prodVer = -1;
 const _prodCache = new Map();
@@ -4448,7 +4532,9 @@ function vLeche() {
   const litros30 = ult30.reduce((t, r) => t + (Number(r.litros) || 0), 0);
   const dias30 = ult30.reduce((t, r) => t + Math.max(1, Number(r.dias) || 1), 0);
   const hayPrecio = L.some(r => Number(r.precio) > 0);
-  const total = D.leche.filter(r => mias.includes(r.fincaId));
+  // Las pestañas contaban toda la leche del usuario aunque hubiera una finca
+  // seleccionada: decían «Todo 300» encima de una lista de 40.
+  const total = D.leche.filter(r => mias.includes(r.fincaId) && filtroFinca(r.fincaId));
 
   // Vacas en producción hoy, solo en las fincas que se estén viendo.
   const alcance = V.finca === "todas" ? mias : [V.finca];
@@ -4571,7 +4657,64 @@ function vLeche() {
           <td><span class="sub">${esc(r.observaciones) || "—"}</span></td>
           <td class="flecha">›</td></tr>`).join(""))}
       ${L.length > 120 ? `<p class="mini">Se muestran los 120 más recientes de ${L.length}.</p>` : ""}
-    </div>`}`;
+    </div>`}
+  ${V.sub === "animal" ? rankingVacas(L) : ""}`;
+}
+
+/**
+ * Cuánto da cada vaca y cómo se compara con las demás.
+ *
+ * Solo entran los días en que estaba en producción. Lo anotado a una vaca
+ * seca, a un macho o a una que ya salió del hato se aparta y se cuenta al
+ * final, para que se vea que hay algo que corregir en vez de que ensucie
+ * el promedio en silencio.
+ */
+function rankingVacas(L) {
+  const por = new Map();
+  let apartados = 0;
+  for (const r of L) {
+    if (!r.animalId) continue;
+    const a = animal(r.animalId);
+    if (!a) continue;
+    if (!enProduccionEn(a, r.fecha)) { apartados++; continue; }
+    const o = por.get(r.animalId) || { a, lt: 0, dd: 0, n: 0 };
+    o.lt += Number(r.litros) || 0;
+    o.dd += Math.max(1, Number(r.dias) || 1);
+    o.n++;
+    por.set(r.animalId, o);
+  }
+  const filas = [...por.values()].map(o => ({ ...o, prom: o.dd ? o.lt / o.dd : 0 }))
+    .sort((x, y) => y.prom - x.prom);
+  if (!filas.length) return apartados
+    ? `<div class="nota">Los ${apartados} registros por animal que hay aquí son de vacas que
+       no estaban en producción ese día, así que no se puede sacar promedio.</div>`
+    : "";
+
+  const ltT = filas.reduce((t, o) => t + o.lt, 0);
+  const ddT = filas.reduce((t, o) => t + o.dd, 0);
+  const media = ddT ? ltT / ddT / filas.length : 0;
+  const mediaVaca = filas.reduce((t, o) => t + o.prom, 0) / filas.length;
+
+  return `
+  <div class="seccion"><h3>Promedio por vaca <span class="p gris">${filas.length}</span></h3>
+    <p class="mini">Contra el promedio de las ${filas.length} vacas medidas:
+      <strong>${litros(mediaVaca)}</strong> litros al día cada una.
+      ${apartados ? `Se apartaron ${apartados} registro(s) de vacas que no estaban en
+        producción ese día.` : ""}</p>
+    <div class="sub-tabla"><table>
+      <thead><tr><th>Vaca</th><th>Registros</th><th>Litros</th><th>Días</th>
+        <th>Prom. al día</th><th>Contra el promedio</th></tr></thead>
+      <tbody>${filas.map(o => {
+        const p = mediaVaca ? o.prom / mediaVaca : 0;
+        const cl = p >= 1.1 ? "verde" : p <= 0.9 ? "roja" : "gris";
+        return `<tr class="fila" data-abrir="${o.a.id}">
+          <td><span class="chap">${esc(o.a.chapeta)}</span> ${esc(o.a.nombre)}</td>
+          <td class="num">${o.n}</td>
+          <td class="num">${litros(o.lt)}</td>
+          <td class="num">${o.dd}</td>
+          <td class="num"><strong>${litros(o.prom)}</strong></td>
+          <td><span class="p ${cl}">${Math.round(p * 100)}%</span></td></tr>`;
+      }).join("")}</tbody></table></div></div>`;
 }
 
 function idxLeche(r) {
@@ -4816,6 +4959,43 @@ function fichaAnimal(id) {
         secadosDe(id).map(x => `<tr class="fila" data-ev="secado:${x.id}">
             <td>${fmtCorto(x.fecha)}</td><td>${MOTIVOS_SECADO[x.motivo] || "—"}</td>
             <td><span class="sub">${esc(x.observaciones) || "—"}</span></td></tr>`).join(""))}
+
+      ${(() => {
+        if (!P.lechero || !P.sirve) return "";
+        const suya = (D.leche || []).filter(r => r.animalId === id)
+          .sort((x, y) => y.fecha.localeCompare(x.fecha));
+        const pr = promedioLecheAnimal(id, null);
+        if (!suya.length) return "";
+        return `
+        ${pr && pr.registros ? `<dl class="plan">
+          <div><dt>Da al día</dt><dd>${litros(pr.suya)} L</dd></div>
+          <div><dt>Medida en</dt><dd>${pr.dias} días</dd></div>
+          ${pr.fincaPorVaca ? `<div><dt>${pr.deTanque ? "Promedio del tanque" : "Promedio de las medidas"}</dt>
+            <dd>${litros(pr.fincaPorVaca)} L por vaca</dd></div>
+          <div><dt>Contra ese promedio</dt>
+            <dd><span class="p ${pr.parte >= 1.1 ? "verde" : pr.parte <= 0.9 ? "roja" : "gris"}">${
+              Math.round(pr.parte * 100)}%</span></dd></div>` : ""}
+          ${pr.descartados ? `<div><dt>Sin contar</dt><dd>${pr.descartados}</dd>
+            <span class="sub">días en que no estaba en producción</span></div>` : ""}
+        </dl>` : `<div class="nota">Tiene ${suya.length} registro(s) de leche, pero ninguno cae
+          en un día en que estuviera en producción, así que no se le puede sacar promedio.</div>`}
+
+        ${subTabla("Leche", suya.length,
+          (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="leche" data-an="${id}">Añadir</button>` : ""),
+          ["Fecha","Litros","Días","Al día","Cuenta"],
+          suya.slice(0, 40).map(r => {
+            const dd = Math.max(1, Number(r.dias) || 1);
+            const ok = enProduccionEn(a, r.fecha);
+            return `<tr class="fila" data-ev="leche:${r.id}">
+              <td>${fmtCorto(r.fecha)}</td>
+              <td class="num">${litros(r.litros)}</td>
+              <td class="num">${dd}</td>
+              <td class="num">${litros((Number(r.litros) || 0) / dd)}</td>
+              <td>${ok ? '<span class="p verde">Sí</span>'
+                       : `<span class="p roja">No</span>
+                          <div class="sub">${esc(motivoNoProduce(a, r.fecha))}</div>`}</td></tr>`;
+          }).join(""))}`;
+      })()}
 
       ${subTabla("Tratamientos", trats.length,
         (puedoEditarAnimal(a) ? `<button class="btn btn-sm" data-nuevo="tratamiento" data-an="${id}">Añadir</button>` : ""),
@@ -5467,11 +5647,16 @@ function formLeche(id, anId) {
           <div class="campo ancho"><label>Finca</label>${comboFincas("fincaId", r.fincaId)}</div>
 
           <div class="campo ancho"><label>¿De un animal en particular?</label>
-            ${combo("animalId", misAnimales().filter(a => a.estado === "activo" && par(a).lechero)
+            ${combo("animalId", misAnimales()
+              .filter(a => a.estado === "activo" && par(a).lechero && par(a).sirve)
               .sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"))
-              .map(a => ({ v:a.id, et:`${a.nombre} · ${a.chapeta}`, sub:nombreFinca(a.fincaId) })),
+              .map(a => ({ v:a.id, et:`${a.nombre} · ${a.chapeta}`,
+                           sub:nombreFinca(a.fincaId) + (enProduccionEn(a, r.fecha) ? ""
+                               : " · " + motivoNoProduce(a, r.fecha)) })),
               r.animalId, { ph:"No, es de toda la finca", vacio:"No, es de toda la finca" })}
-            <span class="ayuda">Déjalo vacío si estás anotando lo del tanque.</span></div>
+            <span class="ayuda">Déjalo vacío si estás anotando lo del tanque.
+            Los machos no salen en la lista.</span>
+            <span class="ayuda" data-aviso-prod style="color:var(--hierro)"></span></div>
 
           <div class="campo"><label>Precio por litro</label>
             <input type="number" name="precio" step="1" min="0" value="${r.precio || ""}"
@@ -5498,6 +5683,26 @@ function formLeche(id, anId) {
   };
   li.oninput = calc;
   hojaAbierta.querySelectorAll("[name=dias]").forEach(x => x.onchange = calc);
+
+  /* Avisar en el momento si esa vaca no estaba dando leche ese día. Es el
+     caso de secarla el martes y anotarle leche el miércoles: el registro
+     quedaría fuera del promedio de la finca sin que nadie se enterara. */
+  const cajaProd = hojaAbierta.querySelector("[data-aviso-prod]");
+  const revisarProd = () => {
+    const idA = hojaAbierta.querySelector("[name=animalId]")?.value;
+    const f = hojaAbierta.querySelector("[name=fecha]")?.value;
+    const a = idA ? animal(idA) : null;
+    if (!cajaProd) return;
+    if (!a || !f) { cajaProd.textContent = ""; return; }
+    cajaProd.textContent = enProduccionEn(a, f) ? ""
+      : `${a.nombre} no estaba en producción el ${fmtCorto(f)}: ${motivoNoProduce(a, f)}. ` +
+        `Ese registro no entrará en el promedio.`;
+  };
+  hojaAbierta.querySelector("[name=fecha]")?.addEventListener("change", revisarProd);
+  hojaAbierta.addEventListener("change", (ev) => {
+    if (ev.target?.name === "animalId") revisarProd();
+  });
+  revisarProd();
   calc();
 }
 
@@ -11085,6 +11290,14 @@ function enviar(f) {
     if (!v.fincaId) return error(f, "Elige la finca.");
     if (dias(v.fecha) < 0) return error(f, "Esa fecha todavía no ha llegado.");
     // Dos registros iguales el mismo día casi siempre es un doble guardado.
+    if (v.animalId) {
+      const av = animal(v.animalId);
+      if (av && !enProduccionEn(av, v.fecha) &&
+          !confirm(`${av.nombre} no estaba en producción el ${fmtCorto(v.fecha)}: ` +
+            `${motivoNoProduce(av, v.fecha)}.\n\n` +
+            `El registro se guarda, pero no entrará en el promedio de la finca ` +
+            `ni en el suyo.\n\n¿Guardar de todas formas?`)) return;
+    }
     const igual = D.leche.find(x => x.id !== id && x.fecha === v.fecha &&
       x.fincaId === v.fincaId && x.momento === v.momento &&
       (x.animalId || "") === (v.animalId || ""));
