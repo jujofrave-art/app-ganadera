@@ -4,7 +4,7 @@
    todo abra sin señal. Súbelo junto al index.html.
    ========================================================== */
 
-const CACHE = "ganadero-v4";
+const CACHE = "ganadero-v5";
 const BASE = new URL("./", self.location).pathname;
 
 self.addEventListener("install", (e) => {
@@ -54,16 +54,25 @@ self.addEventListener("fetch", (e) => {
       caches.match(BASE)
         .then((r) => r || caches.match(BASE + "index.html"))
         .then((guardada) => {
+          /* La copia se guarda ESPERANDO a que termine. Antes se lanzaba y se
+             seguia adelante: el navegador apaga el service worker en cuanto
+             cree que acabo, asi que muchas veces la copia nueva no llegaba a
+             escribirse y la app volvia a abrir con la version vieja. */
           const red = fetch(new Request(req.url, { cache: "reload", credentials: "same-origin" }))
-            .then((r) => {
+            .then(async (r) => {
               if (r && r.ok) {
                 const copia = r.clone();
-                caches.open(CACHE).then((c) => c.put(BASE, copia)).catch(() => {});
+                try {
+                  const c = await caches.open(CACHE);
+                  await c.put(BASE, copia);
+                  await c.put(BASE + "index.html", r.clone());
+                } catch {}
               }
               return r;
             });
 
-          if (guardada) { e.waitUntil(red.catch(() => {})); return guardada; }
+          e.waitUntil(red.catch(() => {}));
+          if (guardada) return guardada;
 
           // Primera vez en este teléfono: no hay copia, toca esperar la red.
           return red.catch(() => new Response(
@@ -119,8 +128,22 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-/** Permite que la app pida guardar el SDK apenas termina de cargar. */
+/** La app puede pedir que se rehaga la copia guardada al actualizar. */
 self.addEventListener("message", (e) => {
+  if (e.data && e.data.tipo === "refrescar-app") {
+    e.waitUntil((async () => {
+      try {
+        const r = await fetch(new Request(BASE, { cache: "reload", credentials: "same-origin" }));
+        if (r && r.ok) {
+          const c = await caches.open(CACHE);
+          await c.put(BASE, r.clone());
+          await c.put(BASE + "index.html", r.clone());
+        }
+      } catch {}
+      e.source && e.source.postMessage({ tipo: "app-refrescada" });
+    })());
+    return;
+  }
   if (e.data && e.data.tipo === "guardar-sdk" && Array.isArray(e.data.urls)) {
     e.waitUntil(
       caches.open(CACHE).then((c) =>
