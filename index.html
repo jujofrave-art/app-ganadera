@@ -824,11 +824,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.79.0";
+const VERSION = "1.80.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.80.0", "3 sep 2026", [
+    "Partos-Abortos ya tiene selector de fechas. No lo tenía porque los partos, a diferencia " +
+      "de los servicios y las palpaciones, NUNCA se recortan al bajarlos: de ellos salen el " +
+      "total de partos, el intervalo entre partos y el arranque de cada lactancia, y " +
+      "recortarlos descuadraría esas cuentas.",
+    "El selector nuevo solo cambia lo que se ve en la tabla, no lo que hay en el equipo. " +
+      "Arranca con los mismos meses que tengas puestos en Configuración, y dice cuántos " +
+      "registros está escondiendo.",
+  ]],
   ["1.79.0", "3 sep 2026", [
     "ARREGLO: el historial completo que se baja de un animal se quedaba guardado en el " +
       "equipo para siempre. Al reabrir la app seguían saliendo servicios de 2023 debajo del " +
@@ -4441,11 +4450,23 @@ function vInseminacion() {
 
 /* ---------- PARTOS / ABORTOS ---------- */
 function vPartos() {
+  /* Los partos NUNCA se recortan al bajarlos: de ellos salen el total de
+     partos, el intervalo entre partos y el arranque de cada lactancia, y
+     recortarlos descuadraría esas cuentas. Pero la lista se hace larga, así
+     que aquí sí se puede acotar lo que se ve, sin tocar ningún cálculo. */
+  const meses = V.rangoPartos !== undefined
+    ? Number(V.rangoPartos)
+    : Number(D.config.ventanaMeses || 0);
+  const desde = meses ? aISO(restarMeses(hoyISO(), meses)) : null;
+
   let L = misEventos("partos").map(p => {
     const a = animal(p.animalId);
     return a ? { p, a, _finca: nombreFinca(a.fincaId) } : null;
   }).filter(Boolean).filter(x => filtroFinca(x.a.fincaId))
     .filter(x => busca(idxParto(x.p)));
+  const antesDeAcotar = L.length;
+  if (desde) L = L.filter(x => x.p.fecha >= desde);
+  const escondidos = antesDeAcotar - L.length;
   if (V.sub !== "todos") L = L.filter(x => x.p.tipo === V.sub);
   L.sort((x, y) => y.p.fecha.localeCompare(x.p.fecha));
 
@@ -4454,7 +4475,17 @@ function vPartos() {
   <header class="cab"><div><h1>Partos-Abortos</h1>
     <p>${misEventos("partos").filter(p=>p.tipo==="parto").length} partos y ${misEventos("partos").filter(p=>p.tipo==="aborto").length} abortos</p></div>
     <button class="btn btn-firme" data-nuevo="parto">Registrar parto</button></header>
-  <div class="barra">${buscador("Buscar en todo: cría, detalles, fecha…")}${selectorFinca()}</div>
+  <div class="barra">${buscador("Buscar en todo: cría, detalles, fecha…")}${selectorFinca()}
+    <select data-f="rangoPartos">
+      ${[[0,"Todo el historial"],[12,"Últimos 12 meses"],[24,"Últimos 24 meses"],
+         [36,"Últimos 3 años"],[60,"Últimos 5 años"]].map(([v, et]) =>
+        `<option value="${v}" ${meses === v ? "selected" : ""}>${et}</option>`).join("")}
+    </select>
+  </div>
+  ${escondidos ? `<div class="nota recorte">Se están ocultando <strong>${escondidos}</strong>
+    registro(s) anteriores al ${fmt(desde)}. Los partos nunca se borran del equipo: de ellos
+    salen el total de partos, el intervalo y el arranque de cada lactancia, así que este
+    filtro solo cambia lo que se ve.</div>` : ""}
   ${fichas([["todos","Todo",misEventos("partos").length],["parto","Parto",misEventos("partos").filter(p=>p.tipo==="parto").length],
             ["aborto","Aborto",misEventos("partos").filter(p=>p.tipo==="aborto").length]])}
   ${tabla(cols, agrupado(L, ({p, a}) => `<tr class="fila" data-ev="parto:${p.id}">
@@ -10851,6 +10882,9 @@ function conectar() {
 
   const se = $("[data-f=especie]");
   if (se) se.onchange = (e) => { V.especie = e.target.value; pintar(); };
+
+  const srp = $("[data-f=rangoPartos]");
+  if (srp) srp.onchange = (e) => { V.rangoPartos = Number(e.target.value); pintar(); };
 
   document.querySelectorAll("[data-abrir]").forEach(el =>
     el.onclick = () => fichaAnimal(el.dataset.abrir));
