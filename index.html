@@ -824,11 +824,25 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "1.75.0";
+const VERSION = "1.77.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["1.77.0", "3 sep 2026", [
+    "Fuera la columna «estatus servicio» de la tabla de Inseminaciones. Adivinaba el " +
+      "resultado de cada servicio y en pajilla no aporta nada: la fecha, el número de " +
+      "intento y la pajilla ya cuentan la historia.",
+    "Las pestañas de arriba siguen sirviendo para filtrar por «parió» o «repitió calor», " +
+      "que sí son hechos y no suposiciones.",
+  ]],
+  ["1.76.0", "3 sep 2026", [
+    "Palpar en grupo también trae a las recién servidas, y eso no se veía: ahora las marca " +
+      "con «muy pronto · faltan N días» y el título las cuenta aparte.",
+    "Si se marca «vacía» a una vaca que lleva menos días de los que pide su especie, la app " +
+      "avisa de que aún no se nota. Marcarla vacía ahí es un falso negativo: la deja como " +
+      "fallada cuando puede estar preñada, y le reinicia el ciclo.",
+  ]],
   ["1.75.0", "3 sep 2026", [
     "Palpar en grupo decía «22 hembras servidas» mientras el menú decía «Palpación 19», sin " +
       "explicar la diferencia. No era un error de cuentas: la lista de grupo es a propósito " +
@@ -4382,14 +4396,12 @@ function vInseminacion() {
   if (V.sub !== "todos") L = L.filter(x => x.c.resultado === V.sub);
   L.sort((x, y) => y.i.fecha.localeCompare(x.i.fecha));
 
-  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Fecha"},{et:"N.º intento",num:1},{et:"Pajillas"},{et:"Detalles"},{et:"Estatus servicio"}];
+  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Fecha"},{et:"N.º intento",num:1},
+                {et:"Pajillas"},{et:"Detalles"}];
   const todos = misEventos("inseminaciones").map(i => servicioCalc(i).resultado);
   return `
   <header class="cab"><div><h1>Inseminaciones</h1>
-    <p>${misEventos("inseminaciones").length} servicios registrados.
-    <strong>No repitió</strong> es un servicio que se da por bueno porque la vaca no
-    ha vuelto a calor; <strong>sin confirmar</strong> es uno que está esperando
-    palpación.</p></div>
+    <p>${misEventos("inseminaciones").length} servicios registrados</p></div>
     <button class="btn btn-firme" data-nuevo="inseminacion">Registrar servicio</button></header>
   <div class="barra">${buscador("Buscar en todo: pajilla, toro, intento, estatus…")}${selectorFinca()}</div>
   ${fichas([["todos","Todas",misEventos("inseminaciones").length],
@@ -4404,7 +4416,6 @@ function vInseminacion() {
         ? `<div class="sub">${(i.aplicaciones || []).length} aplicaciones · ${esc(aplicacionesTexto(i))}</div>`
         : ((i.aplicaciones || [])[0]?.hora ? `<div class="sub">${horaBonita(i.aplicaciones[0].hora)}</div>` : "")}</td>
       <td><span class="sub">${esc(i.detalles)}</span></td>
-      <td><span class="p ${RESULTADOS[c.resultado].cl}">${RESULTADOS[c.resultado].et}</span></td>
       <td class="flecha">›</td></tr>`))}`;
 }
 
@@ -6691,6 +6702,17 @@ function porQueNoPendiente(a, e) {
   return "";
 }
 
+/**
+ * Días que faltan para que la palpación de esta hembra tenga sentido. Antes de
+ * los días de la especie (40 en bovino) la preñez no se detecta, y marcarla
+ * «vacía» ahí es un falso negativo que le reinicia el ciclo en la app.
+ */
+function faltaParaPalpar(a, e) {
+  if (!a || !e?.ultInsem) return 0;
+  const d = par(a).palpar - dias(e.ultInsem.fecha);
+  return d > 0 ? d : 0;
+}
+
 /** Hembras que se pueden palpar, según el modo elegido. */
 function candidatasPalpacion(modo, fincaId) {
   return misAnimales()
@@ -6731,9 +6753,12 @@ function abrirPalpacionGrupo(modo, fincaId) {
   abrirHoja(`
     <div class="hoja-cab"><div><h2>Palpar en grupo</h2>
       <div class="sub">${(() => {
-        const pend = candidatas.filter(a => estado(a).fechaPalpacion).length;
-        const otras = candidatas.length - pend;
-        return `${candidatas.length} hembras · ${pend} pendiente${pend === 1 ? "" : "s"} de palpar` +
+        const conFecha = candidatas.filter(a => estado(a).fechaPalpacion);
+        const pronto = conFecha.filter(a => faltaParaPalpar(a, estado(a)) > 0).length;
+        const pend = conFecha.length - pronto;
+        const otras = candidatas.length - conFecha.length;
+        return `${candidatas.length} hembras · ${pend} para palpar ya` +
+               (pronto ? ` · ${pronto} todavía muy pronto` : "") +
                (otras ? ` · ${otras} de más, por si aprovechas al veterinario` : "");
       })()}</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
@@ -6796,8 +6821,12 @@ function abrirPalpacionGrupo(modo, fincaId) {
                     e.ultInsem ? " · servicio " + fmtCorto(e.ultInsem.fecha)
                                : " · monta con " + macho}${
                     e.fechaPalpacion ? " · palpar " + fmtCorto(e.fechaPalpacion) : ""}</em>
-                  ${(() => { const q = porQueNoPendiente(a, e);
-                    return q ? `<span class="p gris">${q}</span>` : ""; })()}</div>
+                  ${(() => {
+                    const falta = faltaParaPalpar(a, e);
+                    if (falta) return `<span class="p ambar">muy pronto · faltan ${falta} días</span>`;
+                    const q = porQueNoPendiente(a, e);
+                    return q ? `<span class="p gris">${q}</span>` : "";
+                  })()}</div>
                 </div>
                 <div class="palpa-res">
                   ${[["", "—"], ["prenada", "Preñada"], ["vacia", "Vacía"]].map(([v, t]) => `
@@ -6863,7 +6892,15 @@ function abrirPalpacionGrupo(modo, fincaId) {
     const caja = fila.querySelector("[data-calc]");
     const cInp = fila.querySelector(`[name=c_${idA}]`);
     fila.classList.toggle("marcada", !!res);
-    if (res === "vacia") { caja.innerHTML = '<span class="p roja">Vacía</span>'; return; }
+    if (res === "vacia") {
+      /* Antes de los días de la especie la preñez no se detecta: marcarla vacía
+         ahí la deja como fallada cuando puede estar preñada. */
+      const falta = faltaParaPalpar(a, estado(a));
+      caja.innerHTML = '<span class="p roja">Vacía</span>' + (falta
+        ? `<em style="color:var(--hierro)">solo lleva ${dias(estado(a).ultInsem.fecha)} días
+           del servicio: aún no se nota</em>` : "");
+      return;
+    }
     if (res !== "prenada") { caja.textContent = "—"; return; }
     const v = { fecha: fechaInp.value,
                 mesesGest: fila.querySelector(`[name=m_${idA}]`).value,
