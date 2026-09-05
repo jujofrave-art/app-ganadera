@@ -476,6 +476,12 @@ details.panel:not([open])>summary{border-bottom:0}
   letter-spacing:-.02em;color:var(--tinta)}
 .cab-especie .dato{font-family:var(--dato);font-size:11px;color:var(--tenue)}
 .fila-btn{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.liga-pie{background:none;border:0;color:var(--rail-fg);opacity:.72;font-size:11.5px;
+  font-family:var(--dato);cursor:pointer;padding:6px 0;text-align:left;width:100%;
+  text-decoration:underline;text-underline-offset:2px}
+.liga-pie:hover{opacity:1}
+.quien-fijo{cursor:default}
+.quien-fijo:hover{background:none}
 
 /* ---------- ordenar tablas ---------- */
 th.ordenable{cursor:pointer;user-select:none;white-space:nowrap}
@@ -893,11 +899,41 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.22.0";
+const VERSION = "2.25.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.25.0", "5 sep 2026", [
+    "La contraseña se cambia ahora <strong>dentro de la app</strong>: se escribe la de ahora " +
+      "y la nueva, y listo. Sin correos ni enlaces. Es lo que hace falta cuando alguien " +
+      "sospecha que le vieron la clave y quiere cambiarla en el momento.",
+    "Se pide la contraseña de ahora a propósito: sin eso, cualquiera que agarrara el " +
+      "teléfono desbloqueado podría cambiársela y dejar al dueño fuera.",
+    "Los errores se explican: si la de ahora no es correcta, si las dos nuevas no coinciden, " +
+      "si la nueva es muy fácil o si hubo demasiados intentos.",
+    "Quien entra con Google o por enlace y aún no tiene contraseña puede ponerse una desde " +
+      "el mismo sitio, sin pedirle una anterior que no existe.",
+    "Y queda el botón «no me acuerdo de la de ahora» para la vía del correo de siempre.",
+  ]],
+  ["2.24.0", "5 sep 2026", [
+    "<strong>Cambiar mi contraseña</strong> está ahora en el menú, abajo, junto a cerrar " +
+      "sesión, y lo ve todo el mundo. Antes vivía dentro de un bloque de Configuración que " +
+      "solo alcanza el dueño principal: un empleado tenía que cerrar sesión y usar " +
+      "«olvidé mi contraseña» para algo que es suyo.",
+    "Manda el correo con el enlace y avisa de que la contraseña de ahora sigue sirviendo " +
+      "hasta que se cambie, y de que el enlace dura una hora.",
+  ]],
+  ["2.23.0", "5 sep 2026", [
+    "La ficha propia —la que se abre pulsando el nombre abajo en el menú— ya no la abre " +
+      "cualquiera. Desde ahí se ven y se cambian el rol, el correo y las fincas asignadas, " +
+      "que no es cosa de un empleado.",
+    "De fábrica la abren dueño y superadministrador. Administradores y empleados ven su " +
+      "nombre y sus fincas, pero sin poder entrar.",
+    "En Configuración → Qué ve cada puesto hay ahora un bloque <strong>Su propia ficha</strong> " +
+      "con un interruptor por puesto, por si en tu finca conviene de otra forma.",
+    "El candado está también en el formulario, no solo en el botón del menú.",
+  ]],
   ["2.22.0", "5 sep 2026", [
     "ARREGLO: en las pantallas con varias tablas —Leche tiene tres— el orden se aplicaba " +
       "siempre a la primera, sin importar en cuál se hubiera pulsado. Ahora cada tabla " +
@@ -2763,6 +2799,7 @@ function migrar(d) {
   d.config.avisarSecadoSinRegistrar ??= false;
   d.config.avisoSecadoDias ??= 7;    // días de antelación del aviso de secado
   d.config.borrar ??= {};            // quién puede eliminar, por puesto
+  d.config.fichaPropia ??= {};       // quién puede abrir su propia ficha
   d.config.vistasRol ??= {};         // qué secciones ve cada puesto
   d.config.panelesRol ??= {};        // qué bloques de Configuración ve cada puesto
   d.config.recordarSesion ??= false;
@@ -4502,6 +4539,20 @@ function rolVeSeccion(vistaId, rol) {
   return (D.config?.vistasRol || {})[r]?.[vistaId] !== false;
 }
 
+/**
+ * ¿Puede este puesto abrir y editar su propia ficha?
+ *
+ * Desde ahí se ven y se cambian el rol, el correo y las fincas asignadas.
+ * Un empleado no tiene por qué andar ahí. De fábrica: dueño y
+ * superadministrador sí; administrador y empleado no.
+ */
+function puedeFichaPropia(rol) {
+  const r = rol || rolActual();
+  if (r === "superadmin") return true;
+  const c = D.config?.fichaPropia || {};
+  return c[r] === undefined ? (r === "dueno") : !!c[r];
+}
+
 /** ¿Este rol ve este bloque de Configuración? */
 function rolVePanel(panelId, rol) {
   const r = rol || rolActual();
@@ -4799,16 +4850,23 @@ function pintar() {
       </nav>
       <div class="pie">
         <div class="sync ${estadoSync().clase}">${estadoSync().texto}</div>
+        ${puedeFichaPropia() ? `
         <button class="quien" data-perfil title="Editar mis datos">
           <span class="p ${ROLES[S.persona.rol].cl}">${ROLES[S.persona.rol].et}</span>
           <strong>${esc(S.persona.nombre)}</strong>
           <em>${misFincas().length} finca${misFincas().length === 1 ? "" : "s"} · editar</em>
-        </button>
+        </button>`
+        : `<div class="quien quien-fijo">
+          <span class="p ${ROLES[S.persona.rol].cl}">${ROLES[S.persona.rol].et}</span>
+          <strong>${esc(S.persona.nombre)}</strong>
+          <em>${misFincas().length} finca${misFincas().length === 1 ? "" : "s"}</em>
+        </div>`}
         <div class="temas">
           ${Object.entries(TEMAS).map(([k, et]) => `
             <button data-tema-btn="${k}" class="${(D.config.tema || "auto") === k ? "on" : ""}"
               title="${et}">${k === "auto" ? "Auto" : k === "claro" ? "☀" : "☾"}</button>`).join("")}
         </div>
+        ${FB.user ? '<button class="liga-pie" data-acc="mi-clave">Cambiar mi contraseña</button>' : ""}
         <button data-salir>Cerrar sesión</button>
       </div>
     </aside>
@@ -6307,6 +6365,12 @@ function formFinca(id) {
 }
 
 function formPersona(id, rolPre) {
+  // La ficha propia lleva el rol, el correo y las fincas asignadas: no es
+  // para cualquiera, ni siquiera siendo la de uno mismo.
+  if (id && id === S.persona?.id && !puedeFichaPropia()) {
+    return alert("Tu ficha la maneja un dueño o el superadministrador.\n\n" +
+      "Si hay algo que corregir —el teléfono, el nombre— pídeselo.");
+  }
   const p = id ? persona(id)
               : { nombre:"", rol: rolPre || "empleado", correo:"", telefono:"", documento:"", notas:"", activo:true };
   abrirHoja(`
@@ -9269,7 +9333,7 @@ const AJUSTES = {
   finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar", "avisoSecadoDias"],
   // Permisos y propiedad de la base. Solo dueño o superadministrador.
   mando: ["permisos", "accesoConfig", "limites", "maestro",
-          "borrar", "vistasRol", "panelesRol"],
+          "borrar", "vistasRol", "panelesRol", "fichaPropia"],
 };
 
 /** Lo que se queda en este equipo: firebase, sinFirebase, sesionDe,
@@ -10349,6 +10413,88 @@ async function entrarConGoogle() {
 async function enviarReinicio(correo) {
   const { auth } = await cargarSDK();
   await auth.sendPasswordResetEmail(FB.auth, correo.trim().toLowerCase());
+}
+
+/**
+ * Cambia la contraseña sabiendo la de ahora, sin pasar por el correo.
+ *
+ * Firebase exige comprobar que quien la cambia es de verdad el dueño de la
+ * cuenta: por eso primero se vuelve a entrar con la contraseña actual y solo
+ * después se pone la nueva. Es lo que hace falta cuando alguien sospecha que
+ * le vieron la clave y quiere cambiarla en el momento.
+ */
+async function cambiarClaveConActual(actual, nueva) {
+  const { auth } = FB.mods;
+  const u = FB.auth?.currentUser;
+  if (!u?.email) throw new Error("No hay sesión abierta.");
+  const cred = auth.EmailAuthProvider.credential(u.email, actual);
+  await auth.reauthenticateWithCredential(u, cred);
+  await auth.updatePassword(u, nueva);
+  marcarConClave(u.email);
+}
+
+function formCambiarClave() {
+  const conClave = proveedores().correo;
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Cambiar mi contraseña</h2>
+      <div class="sub">${esc(FB.user?.email || "")}</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <form data-clave-propia>
+      <div class="rej">
+        ${conClave ? `<div class="campo ancho"><label>Contraseña de ahora *</label>
+          <input type="password" name="actual" autocomplete="current-password" required autofocus>
+          <span class="ayuda">Se pide para comprobar que eres tú. Sin esto, cualquiera que
+          agarrara tu teléfono desbloqueado podría cambiártela.</span></div>`
+        : `<div class="campo ancho"><div class="nota" style="margin:0">Tu cuenta entra con
+          Google o por el enlace del correo, todavía no tiene contraseña. Pon una aquí y
+          desde ahora podrás entrar también con ella.</div></div>`}
+
+        <div class="campo"><label>Contraseña nueva *</label>
+          <input type="password" name="nueva" autocomplete="new-password" minlength="6" required
+            ${conClave ? "" : "autofocus"}>
+          <span class="ayuda">Mínimo 6 caracteres</span></div>
+        <div class="campo"><label>Repítela *</label>
+          <input type="password" name="repite" autocomplete="new-password" minlength="6" required></div>
+      </div>
+      <div class="aviso" data-clave-error hidden></div>
+      <div class="hoja-pie">
+        ${conClave ? '<button type="button" class="btn" data-acc="mi-clave-correo">No me acuerdo de la de ahora</button>' : ""}
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button class="btn btn-firme">Guardar la nueva</button>
+      </div>
+    </form>`);
+
+  const f = hojaAbierta.querySelector("[data-clave-propia]");
+  const err = hojaAbierta.querySelector("[data-clave-error]");
+  const fallar = (t) => { err.textContent = t; err.hidden = false; };
+
+  f.onsubmit = async (ev) => {
+    ev.preventDefault();
+    err.hidden = true;
+    const v = datos(f);
+    if (v.nueva.length < 6) return fallar("La contraseña nueva necesita al menos 6 caracteres.");
+    if (v.nueva !== v.repite) return fallar("Las dos contraseñas nuevas no son iguales.");
+    if (conClave && v.nueva === v.actual) return fallar("La nueva es igual a la de ahora.");
+
+    const btn = f.querySelector(".btn-firme");
+    btn.disabled = true; btn.textContent = "Guardando…";
+    try {
+      if (conClave) await cambiarClaveConActual(v.actual, v.nueva);
+      else { await definirClave(v.nueva); }
+      cerrarHoja(); pintar();
+      avisar("Contraseña cambiada");
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "Guardar la nueva";
+      const c = String(e?.code || "");
+      fallar(/wrong-password|invalid-credential/.test(c)
+        ? "La contraseña de ahora no es correcta."
+        : /requires-recent-login/.test(c)
+          ? "Por seguridad hay que volver a entrar. Cierra sesión, entra otra vez y repite."
+          : /weak-password/.test(c) ? "Esa contraseña es muy fácil, pon otra."
+          : /too-many-requests/.test(c) ? "Demasiados intentos. Espera un rato."
+          : errorFB(e));
+    }
+  };
 }
 
 /** Le pone contraseña a quien entró por enlace o por Google. */
@@ -11551,6 +11697,15 @@ function vConfiguracion() {
         </tr>`).join("")}</tbody>
       </table>
 
+      <h4 class="sub-titulo">Su propia ficha</h4>
+      <p class="expl">Desde la ficha propia se ven y se cambian el rol, el correo y las
+      fincas asignadas. Quién puede abrir la suya:</p>
+      <table class="tabla-inter"><tbody>
+        ${roles.map(r => `<tr>
+          <td>${ROLES[r].plural}</td>
+          <td class="num">${inter("fichaprop:" + r, puedeFichaPropia(r))}</td></tr>`).join("")}
+      </tbody></table>
+
       <h4 class="sub-titulo">Bloques de Configuración</h4>
       <p class="expl">Entrar a Configuración ya depende del puesto; esto decide qué bloques
       ve dentro quien sí entra.</p>
@@ -12553,6 +12708,8 @@ function conectar() {
       const [que, a, b] = el.dataset.inter.split(":");
       if (que === "secadoaviso") {
         D.config.avisarSecadoSinRegistrar = el.checked;
+      } else if (que === "fichaprop") {
+        (D.config.fichaPropia ||= {})[a] = el.checked;
       } else if (que === "borrar") {
         (D.config.borrar ||= {})[a] = el.checked;
       } else if (que === "vista") {
@@ -12857,6 +13014,8 @@ function pedirFoto(animalId) {
 
 function conectarHoja(d) {
   d.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = cerrarHoja);
+  // Los botones de acción también valen dentro de una hoja.
+  d.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => acciones(b.dataset.acc));
 
   d.querySelectorAll("[data-foto]").forEach(b => b.onclick = () => pedirFoto(b.dataset.foto));
 
@@ -13623,6 +13782,22 @@ async function acciones(a) {
         (lista.length ? "• " + lista.join("\n• ") : "(nadie más)") +
         `\n\n¿Guardar?`)) return;
     await guardarRaiz(lista);
+    return;
+  }
+  if (a === "mi-clave") { formCambiarClave(); return; }
+
+  if (a === "mi-clave-correo") {
+    // Para quien no recuerda la de ahora: la vía del correo, como siempre.
+    const c = (FB.user?.email || miCorreo() || "").toLowerCase();
+    if (!c) return alert("No hay un correo con el que trabajar.");
+    if (!confirm(`Se te manda un correo a ${c} con un enlace para poner una ` +
+        `contraseña nueva.\n\nLa de ahora sigue sirviendo hasta que la cambies.\n\n¿Enviar?`)) return;
+    try {
+      await enviarReinicio(c);
+      cerrarHoja();
+      alert(`Listo. Revisa ${c}, y mira también en correo no deseado.\n\n` +
+        `El enlace dura una hora.`);
+    } catch (e) { alert("No se pudo enviar: " + errorFB(e)); }
     return;
   }
   if (a === "partos-todo") { V.rangoPartos = 0; pintar(); return; }
