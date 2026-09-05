@@ -893,11 +893,16 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.21.0";
+const VERSION = "2.22.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.22.0", "5 sep 2026", [
+    "ARREGLO: en las pantallas con varias tablas —Leche tiene tres— el orden se aplicaba " +
+      "siempre a la primera, sin importar en cuál se hubiera pulsado. Ahora cada tabla " +
+      "lleva el suyo.",
+  ]],
   ["2.21.0", "5 sep 2026", [
     "En el celular, la etiqueta de cada dato sacaba también la flecha del orden: salía " +
       "«MESES GESTACIÓN↑» en cada tarjeta. Ahora solo el nombre de la columna.",
@@ -4735,6 +4740,7 @@ const filtroEspecie = (a) => V.especie === "todas" || especieDe(a) === V.especie
 /* ---------- armazón ---------- */
 function pintar() {
   if (!S.persona) return pantallaAcceso();
+  _nTabla = 0;
   // Dónde iba la lista, para no devolverla al principio en cada repintado.
   const _alto = document.querySelector(".lienzo")?.scrollTop || 0;
   const _altoVentana = window.scrollY || 0;
@@ -4934,15 +4940,20 @@ function avisoRecorte(coleccion) {
 function vacio(t, p, btn) {
   return `<div class="vacio"><h2>${t}</h2><p>${p}</p>${btn||""}</div>`;
 }
+let _nTabla = 0;
+
 function tabla(cols, filas) {
   if (!filas.trim()) return vacio("Nada por aquí", "Ajusta los filtros o la búsqueda para ver más registros.");
-  const o = V.orden && V.orden.vista === V.vista ? V.orden : null;
+  /* Hay pantallas con varias tablas —Leche tiene tres— y cada una lleva su
+     propio orden. Sin numerarlas, el orden de una se aplicaba a la primera. */
+  const t = _nTabla++;
+  const o = V.orden && V.orden.vista === V.vista && V.orden.t === t ? V.orden : null;
   const flecha = (i) => !o || o.i !== i ? "" :
     `<span class="orden-f">${o.dir > 0 ? "↑" : "↓"}</span>`;
 
   /* En el celular las cabeceras no se ven, así que el orden se elige con un
      desplegable. Es la misma lista de columnas. */
-  const selector = `<div class="orden-movil">
+  const selector = `<div class="orden-movil" data-tabla-sel="${t}">
     <label>Ordenar por</label>
     <select data-orden-col>
       <option value="">Como viene</option>
@@ -4951,7 +4962,7 @@ function tabla(cols, filas) {
         <option value="${i}:1" ${o && o.i === i && o.dir > 0 ? "selected" : ""}>${c.et} ↑</option>`).join("")}
     </select></div>`;
 
-  return `${selector}<div class="tabla-caja"><table>
+  return `${selector}<div class="tabla-caja" data-tabla="${t}"><table>
     <thead><tr>${cols.map((c, i) =>
       `<th class="${c.num ? "num" : ""} ordenable" data-orden-i="${i}"
          title="Pulsa para ordenar">${c.et}${flecha(i)}</th>`).join("")}<th></th></tr></thead>
@@ -5010,28 +5021,33 @@ function ordenarTabla(caja, i, dir) {
 
 /** Engancha las cabeceras y el desplegable, y repone el orden elegido. */
 function activarOrden() {
-  const caja = document.querySelector(".tabla-caja");
   const o = V.orden && V.orden.vista === V.vista ? V.orden : null;
-  if (caja && o) ordenarTabla(caja, o.i, o.dir);
+  if (o) {
+    const caja = document.querySelector(`.tabla-caja[data-tabla="${o.t}"]`);
+    if (caja) ordenarTabla(caja, o.i, o.dir);
+  }
 
-  document.querySelectorAll("th[data-orden-i]").forEach(th => {
+  document.querySelectorAll(".tabla-caja[data-tabla] th[data-orden-i]").forEach(th => {
     th.onclick = () => {
+      const t = Number(th.closest("[data-tabla]").dataset.tabla);
       const i = Number(th.dataset.ordenI);
-      const ya = V.orden && V.orden.vista === V.vista && V.orden.i === i;
+      const ya = V.orden && V.orden.vista === V.vista && V.orden.t === t && V.orden.i === i;
       // Primer toque: de menor a mayor, que es lo que se espera. Segundo
       // toque sobre la misma columna: al revés.
-      V.orden = { vista: V.vista, i, dir: ya && V.orden.dir > 0 ? -1 : 1 };
+      V.orden = { vista: V.vista, t, i, dir: ya && V.orden.dir > 0 ? -1 : 1 };
       pintar();
     };
   });
 
-  const sel = document.querySelector("[data-orden-col]");
-  if (sel) sel.onchange = () => {
-    if (!sel.value) { V.orden = null; return pintar(); }
-    const [i, dir] = sel.value.split(":").map(Number);
-    V.orden = { vista: V.vista, i, dir };
-    pintar();
-  };
+  document.querySelectorAll("[data-orden-col]").forEach(sel => {
+    sel.onchange = () => {
+      const t = Number(sel.closest("[data-tabla-sel]").dataset.tablaSel);
+      if (!sel.value) { V.orden = null; return pintar(); }
+      const [i, dir] = sel.value.split(":").map(Number);
+      V.orden = { vista: V.vista, t, i, dir };
+      pintar();
+    };
+  });
 }
 /** Agrupa filas por finca como en AppSheet. */
 function agrupado(items, fn) {
