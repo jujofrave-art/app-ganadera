@@ -305,6 +305,18 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .datos dt{font-family:var(--dato);font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--tenue);margin-bottom:3px}
 .datos dd{margin:0;font-size:13.5px;font-weight:500}
 .seccion{margin-bottom:18px}
+.seccion.plegable{border:1px solid var(--linea);border-radius:9px;margin-bottom:11px;
+  overflow:hidden;background:var(--alto)}
+.seccion.plegable > summary{list-style:none;cursor:pointer;padding:11px 13px;
+  display:flex;align-items:center;gap:9px;user-select:none}
+.seccion.plegable > summary::-webkit-details-marker{display:none}
+.seccion.plegable > summary:hover{background:rgba(var(--tinta-rgb),.04)}
+.seccion.plegable > summary .tit{font-family:var(--display);font-size:14px;font-weight:700}
+.seccion.plegable > summary .flecha-acord{margin-left:auto;transition:transform .15s;
+  color:var(--tenue)}
+.seccion.plegable[open] > summary .flecha-acord{transform:rotate(180deg)}
+.seccion.plegable[open] > summary{border-bottom:1px solid var(--linea)}
+.plegable-cuerpo{padding:11px 13px 13px}
 .seccion h3{font-family:var(--display);font-size:14px;font-weight:700;margin:0 0 9px;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .linea-ev{display:flex;gap:11px;padding:9px 0;border-bottom:1px dashed var(--linea);font-size:12.5px;align-items:flex-start}
 .linea-ev:last-child{border-bottom:0}
@@ -849,11 +861,30 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.7.0";
+const VERSION = "2.9.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.9.0", "5 sep 2026", [
+    "Las tablas de la ficha del animal se pliegan. Con seis abiertas a la vez —servicios, " +
+      "partos, palpaciones, secados, tratamientos y leche— la ficha se hacía kilométrica y " +
+      "había que bajar un rato para ver qué había.",
+    "Ahora se ve el título de cada una con cuántos registros tiene, y se abre la que " +
+      "interese. Los datos de arriba —gestación, partos, parto probable, secado— siguen " +
+      "a la vista sin tocar nada.",
+    "Cuáles se dejan abiertas se recuerda mientras dure la sesión: si abres Servicios en " +
+      "una vaca, sale abierta en la siguiente que mires.",
+  ]],
+  ["2.8.0", "5 sep 2026", [
+    "ARREGLO: cerrar la ventana de Google sin entrar dejaba el botón en «Entrando…» para " +
+      "siempre y había que recargar la página. La app tomaba el cierre por un bloqueo del " +
+      "navegador y volvía a mandar a Google por otra vía; si eso tampoco salía, se quedaba " +
+      "colgada. Ahora cancelar es cancelar: el botón vuelve a la normalidad sin decir nada.",
+    "Se sigue intentando por redirección cuando el que estorba es de verdad el navegador.",
+    "Y por si acaso: si el botón lleva 45 segundos en «Entrando…» sin haber entrado, se " +
+      "suelta solo.",
+  ]],
   ["2.7.0", "5 sep 2026", [
     "ENCONTRADO EL FALLO DE LAS VERSIONES QUE SE DEVOLvÍAN. Al instalarse, el service worker " +
       "guardaba la app pasando por la caché del navegador, y GitHub Pages manda el archivo " +
@@ -3688,6 +3719,18 @@ const misEventos = (col) => {
 /* ==========================================================
    PANTALLA DE ACCESO
    ========================================================== */
+/* Red de seguridad para el botón de entrar. Si algo se queda a medias —una
+   ventana emergente que no vuelve, una redirección que no ocurre— el botón
+   se suelta solo en vez de dejar la pantalla trabada. */
+let _tCargando = null;
+function soltarCargando(seg) {
+  clearTimeout(_tCargando);
+  if (!S.cargando) return;
+  _tCargando = setTimeout(() => {
+    if (S.cargando && !S.persona) { S.cargando = false; pantallaAcceso(); }
+  }, (seg || 45) * 1000);
+}
+
 function pantallaAcceso() {
   const hayFB = !!D.config.firebase?.apiKey;
   const gente = D.personas.filter(p => p.activo !== false);
@@ -3992,9 +4035,15 @@ function conectarAcceso() {
     if (a === "olvide-ir") { S.modoAcceso = "olvide"; S.error = ""; S.aviso = ""; return pantallaAcceso(); }
 
     if (a === "google") {
-      S.error = ""; S.aviso = ""; S.cargando = true; pantallaAcceso();
-      try { await entrarConGoogle(); }
-      catch (e) { S.error = errorFB(e); S.cargando = false; pantallaAcceso(); }
+      S.error = ""; S.aviso = ""; S.cargando = true; pantallaAcceso(); soltarCargando(45);
+      try {
+        const r = await entrarConGoogle();
+        // Si canceló, el botón vuelve a la normalidad sin decir nada: no pasó
+        // nada malo, simplemente cambió de idea.
+        if (r === "cancelado") { S.cargando = false; pantallaAcceso(); }
+      } catch (e) {
+        S.error = errorFB(e); S.cargando = false; pantallaAcceso();
+      }
       return;
     }
 
@@ -5718,11 +5767,28 @@ function fichaAnimal(id) {
     </div>`, true);
 }
 
+/**
+ * Una tabla de la ficha, plegada.
+ *
+ * Con seis tablas abiertas a la vez —servicios, partos, palpaciones, secados,
+ * tratamientos y leche— la ficha se hacía kilómetrica y había que bajar un
+ * rato para ver qué hay. Ahora se ve el título con cuántos registros tiene y
+ * se abre la que interese. Cuáles quedan abiertas se recuerda mientras dure
+ * la sesión, para no tener que reabrirla en cada animal.
+ */
+const ABIERTAS = (window.ABIERTAS ||= new Set());
+
 function subTabla(titulo, n, boton, cols, filas) {
-  return `<div class="seccion"><h3>${titulo} <span class="p gris">${n}</span>${boton}</h3>
-    ${n === 0 ? '<p class="mini">Sin registros.</p>' : `<div class="sub-tabla"><table>
-      <thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
-      <tbody>${filas}</tbody></table></div>`}</div>`;
+  const abierta = ABIERTAS.has(titulo);
+  return `<details class="seccion plegable" data-plegable="${esc(titulo)}" ${abierta ? "open" : ""}>
+    <summary><span class="tit">${titulo}</span> <span class="p gris">${n}</span>
+      <span class="flecha-acord">▾</span></summary>
+    <div class="plegable-cuerpo">
+      ${boton ? `<div class="fila-btn" style="justify-content:flex-end;margin-bottom:9px">${boton}</div>` : ""}
+      ${n === 0 ? '<p class="mini">Sin registros.</p>' : `<div class="sub-tabla"><table>
+        <thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
+        <tbody>${filas}</tbody></table></div>`}
+    </div></details>`;
 }
 
 /* ---------- FORMULARIOS ---------- */
@@ -9934,7 +10000,15 @@ async function entrarConGoogle() {
     if (!ps.includes("password")) marcarSinClave(r.user.email);
   } catch (e) {
     const c = e?.code || "";
-    if (/popup-blocked|popup-closed|cancelled-popup|operation-not-supported/.test(c)) {
+
+    /* Cerrar la ventana de Google es cancelar, no un fallo: antes la app lo
+       tomaba por un bloqueo del navegador y volvía a mandar a Google por
+       otra vía. Si eso tampoco salía, el botón se quedaba en «Entrando…»
+       para siempre y había que recargar. */
+    if (/popup-closed|cancelled-popup|user-cancelled/.test(c)) return "cancelado";
+
+    // Esto sí es el navegador estorbando: se intenta por redirección.
+    if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(c)) {
       await auth.signInWithRedirect(FB.auth, prov);
       return;
     }
@@ -12373,6 +12447,13 @@ function conectarHoja(d) {
   d.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = cerrarHoja);
 
   d.querySelectorAll("[data-foto]").forEach(b => b.onclick = () => pedirFoto(b.dataset.foto));
+
+  d.querySelectorAll("[data-plegable]").forEach(el => {
+    el.addEventListener("toggle", () => {
+      if (el.open) ABIERTAS.add(el.dataset.plegable);
+      else ABIERTAS.delete(el.dataset.plegable);
+    });
+  });
 
   const bs = d.querySelector("[data-soltar-historial]");
   if (bs) bs.querySelector("button").onclick = () => {
