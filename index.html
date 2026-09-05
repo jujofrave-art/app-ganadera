@@ -463,6 +463,18 @@ details.panel:not([open])>summary{border-bottom:0}
 .sub-titulo{font-family:var(--dato);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
   color:var(--tenue);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--linea)}
 .sub-titulo:first-child{margin-top:0}
+
+/* El nombre de la especie tenía el mismo tamaño minúsculo que las etiquetas
+   de los campos, y con siete bloques seguidos uno se perdía: no se sabía si
+   estaba en bovinos o en búfalos. */
+.cab-especie{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin:26px 0 12px;padding:9px 12px;border-radius:8px;
+  background:rgba(var(--chapeta-rgb),.12);
+  border-left:4px solid var(--chapeta)}
+.cab-especie:first-child{margin-top:4px}
+.cab-especie .nombre{font-family:var(--display);font-size:17px;font-weight:700;
+  letter-spacing:-.02em;color:var(--tinta)}
+.cab-especie .dato{font-family:var(--dato);font-size:11px;color:var(--tenue)}
 .fila-btn{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 
 /* ---------- interruptores de permisos ---------- */
@@ -861,11 +873,27 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.10.0";
+const VERSION = "2.12.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.12.0", "5 sep 2026", [
+    "Los encabezados de cada especie en Parámetros tenían el mismo tamaño minúsculo que las " +
+      "etiquetas de los campos, y con siete bloques seguidos uno se perdía: no se sabía si " +
+      "estaba en bovinos o en búfalos.",
+    "Ahora cada especie abre con su nombre grande, sobre fondo ámbar y con una franja al " +
+      "lado. Y al lado dice cuánto gesta y si se ordeña o no, que es lo que se necesita " +
+      "saber antes de tocar nada.",
+  ]],
+  ["2.11.0", "5 sep 2026", [
+    "ARREGLO: los parámetros de la finca se perdían al salir. Había que bajar hasta el " +
+      "botón Guardar, que está al final de siete bloques de especies, y casi nadie llega " +
+      "ahí: se cambiaba un interruptor, se salía a otra pantalla y no había pasado nada.",
+    "Ahora se guarda al tocar cada cosa. En una casilla, al tocarla; en un número, al salir " +
+      "del campo, no letra por letra. El botón sigue ahí para quien lo busque.",
+    "Como se guarda de verdad, también viaja a los demás equipos en el momento.",
+  ]],
   ["2.10.0", "5 sep 2026", [
     "La alerta de secado dice de dónde sale la fecha: «día 211 de gestación» o «7 meses " +
       "menos 2 días desde el servicio», según la regla que esté puesta. Sin eso no había " +
@@ -11721,7 +11749,12 @@ function vConfiguracion() {
         ${Object.entries(ESPECIES).map(([k, base]) => {
           const g = { ...base, ...(p[k] || {}) };
           return `
-          <h4 class="sub-titulo">${base.plural}</h4>
+          <h4 class="cab-especie">
+            <span class="nombre">${base.plural}</span>
+            <span class="dato">gesta ${g.gestacion} días</span>
+            ${g.lechero ? '<span class="p verde">se ordeñan</span>'
+                        : '<span class="p gris">no se ordeñan</span>'}
+          </h4>
           <div class="rej">
             <div class="campo"><label>Días de gestación</label>
               <input type="number" name="${k}_gestacion" min="1" value="${g.gestacion}"></div>
@@ -11787,6 +11820,7 @@ function vConfiguracion() {
         }).join("")}
         <div class="fila-btn">
           <button class="btn btn-firme">Guardar parámetros</button>
+        <span class="ayuda" style="align-self:center">Se guarda solo al cambiar cada cosa</span>
           <button type="button" class="btn" data-acc="params-fabrica">Volver a los valores de fábrica</button>
         </div>
       </form>
@@ -12389,9 +12423,12 @@ function conectar() {
     };
   });
 
+  /* Los parámetros se guardan solos al tocarlos. Antes hacía falta bajar
+     hasta el botón Guardar, al final de siete bloques de especies: se cambiaba
+     un interruptor, se salía a otra pantalla y el cambio se perdía sin
+     avisar. El botón sigue ahí para quien lo busque. */
   const fp = document.querySelector("[data-guardar-params]");
-  if (fp) fp.onsubmit = (e) => {
-    e.preventDefault();
+  const guardarParams = (repintar, avisando) => {
     const v = datos(fp), n = (x) => Math.max(1, Number(x) || 1);
     const out = {};
     for (const k in ESPECIES) {
@@ -12418,8 +12455,22 @@ function conectar() {
     }
     D.config.params = out;
     if (v.palpaSegun) D.config.palpaSegun = v.palpaSegun === "monta" ? "monta" : "todas";
-    guardar(); pintar(); avisar("Parámetros guardados");
+    guardar();
+    if (repintar) pintar();
+    if (avisando) avisar("Parámetros guardados");
   };
+
+  if (fp) {
+    /* Con «change» y no «input»: en una casilla salta al tocarla, y en un
+       número al salir del campo, no letra por letra mientras se escribe. */
+    fp.addEventListener("change", (ev) => {
+      const t = ev.target?.type;
+      const interruptor = t === "checkbox" || t === "radio";
+      guardarParams(interruptor, false);
+      if (!interruptor) avisar("Guardado");
+    });
+    fp.onsubmit = (e) => { e.preventDefault(); guardarParams(true, true); };
+  }
 }
 
 /** Reduce la foto antes de guardarla: si no, el navegador se llena. */
