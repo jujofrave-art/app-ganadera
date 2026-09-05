@@ -861,11 +861,17 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.9.0";
+const VERSION = "2.10.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.10.0", "5 sep 2026", [
+    "La alerta de secado dice de dónde sale la fecha: «día 211 de gestación» o «7 meses " +
+      "menos 2 días desde el servicio», según la regla que esté puesta. Sin eso no había " +
+      "forma de saber por qué decía una fecha y no otra.",
+    "El panel de Parámetros lo muestra también en su etiqueta, sin abrirlo.",
+  ]],
   ["2.9.0", "5 sep 2026", [
     "Las tablas de la ficha del animal se pliegan. Con seis abiertas a la vez —servicios, " +
       "partos, palpaciones, secados, tratamientos y leche— la ficha se hacía kilométrica y " +
@@ -3050,7 +3056,11 @@ function alertas(incluirHechas) {
         e.diasGest >= e.secarDesdeD - avisoDias && e.diasGest < e.secarDesdeD) {
       const faltan = e.secarDesdeD - e.diasGest;
       push("media", `Se seca en ${faltan} día${faltan === 1 ? "" : "s"}`,
-        `${e.gestacion} de gestación. Toca secarla el ${fmt(e.fechaSecado)}. ` +
+        `${e.gestacion} de gestación. Toca secarla el ${fmt(e.fechaSecado)} ` +
+        `(${P.secadoModo === "meses"
+          ? `${P.secarMeses} meses${P.secarMenosDias ? ` menos ${P.secarMenosDias} días` : ""}` +
+            " desde el servicio"
+          : `día ${e.secarDesdeD} de gestación`}). ` +
         `Ve consiguiendo la droga de secado. Parto probable ${fmt(e.fechaProbableParto)}.`,
         790 + e.diasGest, `presecar:${srv}`);
     }
@@ -11648,6 +11658,13 @@ function vConfiguracion() {
     <summary class="panel-cab"><h2>Parámetros de la finca</h2>
       <span class="p gris">Palpar: ${D.config.palpaSegun === "monta"
         ? "solo montas" : "todas las servidas"}</span>
+      ${(() => {
+        const g = { ...ESPECIES.bovino, ...(D.config.params?.bovino || {}) };
+        if (!g.lechero) return "";
+        return `<span class="p gris">Secado: ${g.secadoModo === "meses"
+          ? `${g.secarMeses} meses${g.secarMenosDias ? ` − ${g.secarMenosDias} d` : ""}`
+          : `${g.gestacion - g.secarDesde} días antes`}</span>`;
+      })()}
       <span class="flecha-acord">▾</span></summary>
     <div class="panel-cuerpo">
       <p class="expl">De estos números salen las fechas de palpación, secado y parto probable,
