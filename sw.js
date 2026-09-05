@@ -4,16 +4,31 @@
    todo abra sin señal. Súbelo junto al index.html.
    ========================================================== */
 
-const CACHE = "ganadero-v5";
+const CACHE = "ganadero-v6";
 const BASE = new URL("./", self.location).pathname;
 
+/* AQUI ESTABA EL FALLO DE LAS VERSIONES QUE SE DEVOLVIAN.
+
+   Al instalarse, el service worker guardaba la app con un addAll normal, y
+   eso pasa por la cache del navegador. GitHub Pages manda el index.html con
+   diez minutos de vida, asi que muchas veces lo que se guardaba era la copia
+   VIEJA que el navegador tenia a mano, pisando la nueva que se acababa de
+   bajar. Al quedarse sin internet, o al reabrir, salia la version anterior.
+
+   Ahora se pide con cache "reload", que se salta la cache del navegador y va
+   al servidor si o si. */
 self.addEventListener("install", (e) => {
   self.skipWaiting();
-  e.waitUntil(
-    caches.open(CACHE)
-      .then((c) => c.addAll([BASE, BASE + "index.html"]).catch(() => c.add(BASE)))
-      .catch(() => {})
-  );
+  e.waitUntil((async () => {
+    try {
+      const r = await fetch(new Request(BASE, { cache: "reload", credentials: "same-origin" }));
+      if (r && r.ok) {
+        const c = await caches.open(CACHE);
+        await c.put(BASE, r.clone());
+        await c.put(BASE + "index.html", r.clone());
+      }
+    } catch {}
+  })());
 });
 
 self.addEventListener("activate", (e) => {

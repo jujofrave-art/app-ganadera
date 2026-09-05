@@ -841,7 +841,7 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
 let CONFIG_INCLUIDA = {"apiKey": "AIzaSyCjOJ5K5ek4nOMjooBg1sLLjpKfS2URHfQ", "authDomain": "app-ganadera-42eff.firebaseapp.com", "projectId": "app-ganadera-42eff", "storageBucket": "app-ganadera-42eff.firebasestorage.app", "messagingSenderId": "633091361694", "appId": "1:633091361694:web:f13f7eda9435ac3783248f"}; /*[[CONFIG-FIREBASE]]*/
 
 /* Código del service worker, para descargarlo desde Configuración. */
-const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app y el SDK de Firebase en el tel\u00e9fono para que\n   todo abra sin se\u00f1al. S\u00fabelo junto al index.html.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v5\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil(\n    caches.open(CACHE)\n      .then((c) => c.addAll([BASE, BASE + \"index.html\"]).catch(() => c.add(BASE)))\n      .catch(() => {})\n  );\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\n/** El SDK de Firebase lleva la versi\u00f3n en la URL, as\u00ed que nunca cambia:\n    se puede guardar para siempre. Sin esto la app no abre sin se\u00f1al. */\nconst esSDK = (u) =>\n  u.hostname === \"www.gstatic.com\" && u.pathname.includes(\"/firebasejs/\");\n\n/** Las tipograf\u00edas tampoco cambian. */\nconst esTipografia = (u) =>\n  u.hostname === \"fonts.googleapis.com\" || u.hostname === \"fonts.gstatic.com\";\n\n/** Datos en vivo: nunca se cachean, Firestore ya trae su propio offline. */\nconst esDatos = (u) =>\n  /firestore\\.googleapis|identitytoolkit|securetoken|firebaseio|firebaseinstallations/\n    .test(u.hostname);\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n  const url = new URL(req.url);\n\n  if (esDatos(url)) return;   // que pase directo\n\n  /* La app: primero la copia guardada, para que abra al instante aunque no\n     haya se\u00f1al en el corral. Detr\u00e1s, sin hacer esperar a nadie, se baja la\n     versi\u00f3n de internet y se reemplaza la copia. La app ya avisa sola cuando\n     hay una versi\u00f3n m\u00e1s reciente, as\u00ed que nada se queda atr\u00e1s por esto. */\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      caches.match(BASE)\n        .then((r) => r || caches.match(BASE + \"index.html\"))\n        .then((guardada) => {\n          /* La copia se guarda ESPERANDO a que termine. Antes se lanzaba y se\n             seguia adelante: el navegador apaga el service worker en cuanto\n             cree que acabo, asi que muchas veces la copia nueva no llegaba a\n             escribirse y la app volvia a abrir con la version vieja. */\n          const red = fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n            .then(async (r) => {\n              if (r && r.ok) {\n                const copia = r.clone();\n                try {\n                  const c = await caches.open(CACHE);\n                  await c.put(BASE, copia);\n                  await c.put(BASE + \"index.html\", r.clone());\n                } catch {}\n              }\n              return r;\n            });\n\n          e.waitUntil(red.catch(() => {}));\n          if (guardada) return guardada;\n\n          // Primera vez en este tel\u00e9fono: no hay copia, toca esperar la red.\n          return red.catch(() => new Response(\n            \"<!doctype html><meta charset=utf-8><title>Sin conexion</title>\" +\n            \"<body style='font-family:system-ui;padding:40px;text-align:center'>\" +\n            \"<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder \" +\n            \"usarla despues sin senal.</p></body>\",\n            { headers: { \"Content-Type\": \"text/html; charset=utf-8\" } }));\n        })\n    );\n    return;\n  }\n\n  // SDK y tipograf\u00edas: primero lo guardado. Es lo que permite abrir sin se\u00f1al.\n  if (esSDK(url) || esTipografia(url)) {\n    e.respondWith(\n      caches.match(req).then((hit) => {\n        if (hit) {\n          fetch(req).then((r) => {\n            if (r && r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));\n          }).catch(() => {});\n          return hit;\n        }\n        return fetch(req).then((r) => {\n          if (r && (r.ok || r.type === \"opaque\")) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        });\n      })\n    );\n    return;\n  }\n\n  if (url.origin === self.location.origin) {\n    /* Las consultas con ?v=... son la revision de version: cada una es una\n       direccion distinta, asi que guardarlas llenaba el telefono con una\n       copia nueva del archivo cada dos minutos. Van directo a la red. */\n    if (url.search) return;\n\n    e.respondWith(\n      caches.match(req).then((hit) =>\n        hit || fetch(req).then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        }).catch(() => hit)\n      )\n    );\n  }\n});\n\n/** La app puede pedir que se rehaga la copia guardada al actualizar. */\nself.addEventListener(\"message\", (e) => {\n  if (e.data && e.data.tipo === \"refrescar-app\") {\n    e.waitUntil((async () => {\n      try {\n        const r = await fetch(new Request(BASE, { cache: \"reload\", credentials: \"same-origin\" }));\n        if (r && r.ok) {\n          const c = await caches.open(CACHE);\n          await c.put(BASE, r.clone());\n          await c.put(BASE + \"index.html\", r.clone());\n        }\n      } catch {}\n      e.source && e.source.postMessage({ tipo: \"app-refrescada\" });\n    })());\n    return;\n  }\n  if (e.data && e.data.tipo === \"guardar-sdk\" && Array.isArray(e.data.urls)) {\n    e.waitUntil(\n      caches.open(CACHE).then((c) =>\n        Promise.all(e.data.urls.map((u) => c.add(u).catch(() => {})))\n      )\n    );\n  }\n});\n";
+const SW_FUENTE = "/* ==========================================================\n   Control Ganadero \u2014 service worker\n   Guarda la app y el SDK de Firebase en el tel\u00e9fono para que\n   todo abra sin se\u00f1al. S\u00fabelo junto al index.html.\n   ========================================================== */\n\nconst CACHE = \"ganadero-v6\";\nconst BASE = new URL(\"./\", self.location).pathname;\n\n/* AQUI ESTABA EL FALLO DE LAS VERSIONES QUE SE DEVOLVIAN.\n\n   Al instalarse, el service worker guardaba la app con un addAll normal, y\n   eso pasa por la cache del navegador. GitHub Pages manda el index.html con\n   diez minutos de vida, asi que muchas veces lo que se guardaba era la copia\n   VIEJA que el navegador tenia a mano, pisando la nueva que se acababa de\n   bajar. Al quedarse sin internet, o al reabrir, salia la version anterior.\n\n   Ahora se pide con cache \"reload\", que se salta la cache del navegador y va\n   al servidor si o si. */\nself.addEventListener(\"install\", (e) => {\n  self.skipWaiting();\n  e.waitUntil((async () => {\n    try {\n      const r = await fetch(new Request(BASE, { cache: \"reload\", credentials: \"same-origin\" }));\n      if (r && r.ok) {\n        const c = await caches.open(CACHE);\n        await c.put(BASE, r.clone());\n        await c.put(BASE + \"index.html\", r.clone());\n      }\n    } catch {}\n  })());\n});\n\nself.addEventListener(\"activate\", (e) => {\n  e.waitUntil(\n    caches.keys()\n      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))\n      .then(() => self.clients.claim())\n  );\n});\n\n/** El SDK de Firebase lleva la versi\u00f3n en la URL, as\u00ed que nunca cambia:\n    se puede guardar para siempre. Sin esto la app no abre sin se\u00f1al. */\nconst esSDK = (u) =>\n  u.hostname === \"www.gstatic.com\" && u.pathname.includes(\"/firebasejs/\");\n\n/** Las tipograf\u00edas tampoco cambian. */\nconst esTipografia = (u) =>\n  u.hostname === \"fonts.googleapis.com\" || u.hostname === \"fonts.gstatic.com\";\n\n/** Datos en vivo: nunca se cachean, Firestore ya trae su propio offline. */\nconst esDatos = (u) =>\n  /firestore\\.googleapis|identitytoolkit|securetoken|firebaseio|firebaseinstallations/\n    .test(u.hostname);\n\nself.addEventListener(\"fetch\", (e) => {\n  const req = e.request;\n  if (req.method !== \"GET\") return;\n  const url = new URL(req.url);\n\n  if (esDatos(url)) return;   // que pase directo\n\n  /* La app: primero la copia guardada, para que abra al instante aunque no\n     haya se\u00f1al en el corral. Detr\u00e1s, sin hacer esperar a nadie, se baja la\n     versi\u00f3n de internet y se reemplaza la copia. La app ya avisa sola cuando\n     hay una versi\u00f3n m\u00e1s reciente, as\u00ed que nada se queda atr\u00e1s por esto. */\n  if (req.mode === \"navigate\") {\n    e.respondWith(\n      caches.match(BASE)\n        .then((r) => r || caches.match(BASE + \"index.html\"))\n        .then((guardada) => {\n          /* La copia se guarda ESPERANDO a que termine. Antes se lanzaba y se\n             seguia adelante: el navegador apaga el service worker en cuanto\n             cree que acabo, asi que muchas veces la copia nueva no llegaba a\n             escribirse y la app volvia a abrir con la version vieja. */\n          const red = fetch(new Request(req.url, { cache: \"reload\", credentials: \"same-origin\" }))\n            .then(async (r) => {\n              if (r && r.ok) {\n                const copia = r.clone();\n                try {\n                  const c = await caches.open(CACHE);\n                  await c.put(BASE, copia);\n                  await c.put(BASE + \"index.html\", r.clone());\n                } catch {}\n              }\n              return r;\n            });\n\n          e.waitUntil(red.catch(() => {}));\n          if (guardada) return guardada;\n\n          // Primera vez en este tel\u00e9fono: no hay copia, toca esperar la red.\n          return red.catch(() => new Response(\n            \"<!doctype html><meta charset=utf-8><title>Sin conexion</title>\" +\n            \"<body style='font-family:system-ui;padding:40px;text-align:center'>\" +\n            \"<h1>Sin conexion</h1><p>Abre la app una vez con internet para poder \" +\n            \"usarla despues sin senal.</p></body>\",\n            { headers: { \"Content-Type\": \"text/html; charset=utf-8\" } }));\n        })\n    );\n    return;\n  }\n\n  // SDK y tipograf\u00edas: primero lo guardado. Es lo que permite abrir sin se\u00f1al.\n  if (esSDK(url) || esTipografia(url)) {\n    e.respondWith(\n      caches.match(req).then((hit) => {\n        if (hit) {\n          fetch(req).then((r) => {\n            if (r && r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));\n          }).catch(() => {});\n          return hit;\n        }\n        return fetch(req).then((r) => {\n          if (r && (r.ok || r.type === \"opaque\")) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        });\n      })\n    );\n    return;\n  }\n\n  if (url.origin === self.location.origin) {\n    /* Las consultas con ?v=... son la revision de version: cada una es una\n       direccion distinta, asi que guardarlas llenaba el telefono con una\n       copia nueva del archivo cada dos minutos. Van directo a la red. */\n    if (url.search) return;\n\n    e.respondWith(\n      caches.match(req).then((hit) =>\n        hit || fetch(req).then((r) => {\n          if (r && r.ok) {\n            const copia = r.clone();\n            caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});\n          }\n          return r;\n        }).catch(() => hit)\n      )\n    );\n  }\n});\n\n/** La app puede pedir que se rehaga la copia guardada al actualizar. */\nself.addEventListener(\"message\", (e) => {\n  if (e.data && e.data.tipo === \"refrescar-app\") {\n    e.waitUntil((async () => {\n      try {\n        const r = await fetch(new Request(BASE, { cache: \"reload\", credentials: \"same-origin\" }));\n        if (r && r.ok) {\n          const c = await caches.open(CACHE);\n          await c.put(BASE, r.clone());\n          await c.put(BASE + \"index.html\", r.clone());\n        }\n      } catch {}\n      e.source && e.source.postMessage({ tipo: \"app-refrescada\" });\n    })());\n    return;\n  }\n  if (e.data && e.data.tipo === \"guardar-sdk\" && Array.isArray(e.data.urls)) {\n    e.waitUntil(\n      caches.open(CACHE).then((c) =>\n        Promise.all(e.data.urls.map((u) => c.add(u).catch(() => {})))\n      )\n    );\n  }\n});\n";
 
 /* ==========================================================
    CONTROL GANADERO
@@ -849,11 +849,31 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.5.0";
+const VERSION = "2.7.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.7.0", "5 sep 2026", [
+    "ENCONTRADO EL FALLO DE LAS VERSIONES QUE SE DEVOLvÍAN. Al instalarse, el service worker " +
+      "guardaba la app pasando por la caché del navegador, y GitHub Pages manda el archivo " +
+      "con diez minutos de vida. Muchas veces lo que se guardaba era la copia VIEJA que el " +
+      "navegador tenía a mano, pisando la nueva que se acababa de bajar: al quedarse sin " +
+      "internet o al reabrir, salía la versión anterior.",
+    "Peor aún, el arreglo de la 1.95 lo disparó más: al desregistrar el service worker para " +
+      "actualizar, se volvía a instalar y era justo entonces cuando guardaba la copia vieja.",
+    "Ahora la copia se pide saltándose la caché del navegador, va al servidor sí o sí.",
+    "Botón nuevo en Configuración: <strong>Bajar la app de nuevo</strong>, para salir del " +
+      "atasco a mano si vuelve a pasar.",
+    "HAY QUE SUBIR sw.js. La caché pasa a ganadero-v6 y la mala se borra sola.",
+  ]],
+  ["2.6.0", "4 sep 2026", [
+    "Las alertas marcadas guardan ahora <strong>quién las marcó</strong>, no solo la fecha. " +
+      "En la pestaña de Hechas sale «Marcada como hecha el 4 sep 2026 por Jorge». Si varias " +
+      "personas trabajan la misma finca, hacía falta saberlo.",
+    "Las que ya estaban marcadas se siguen leyendo igual, solo que sin nombre: de esas no " +
+      "se guardó quién fue.",
+  ]],
   ["2.5.0", "4 sep 2026", [
     "ARREGLO GRAVE DE SINCRONIZACIÓN: al abrir la app, el equipo subía todo lo que tenía " +
       "guardado ANTES de saber qué había en el servidor. Como no tenía con qué comparar, " +
@@ -3091,13 +3111,21 @@ function marcarAlertaHecha(animalId, clave, accion) {
       motivo: "ventana", observaciones: "Registrado desde la alerta",
       creadoPor: S.persona?.id || null,
     });
-    (a.hechas ||= {})[clave] = hoyISO();
+    (a.hechas ||= {})[clave] = { f: hoyISO(), p: S.persona?.id || null };
     return "secado";
   }
 
-  (a.hechas ||= {})[clave] = hoyISO();
+  (a.hechas ||= {})[clave] = { f: hoyISO(), p: S.persona?.id || null };
   return "hecha";
 }
+
+/* Una alerta marcada guarda desde la 2.6.0 la fecha Y quién la marcó. Las de
+   antes son solo la fecha, en texto, y se siguen leyendo igual. */
+const fechaHecha = (h) => (h && typeof h === "object" ? h.f : h) || "";
+const quienHecha = (h) => {
+  const id = h && typeof h === "object" ? h.p : null;
+  return id ? (persona(id)?.nombre || "") : "";
+};
 
 const ETIQUETA_ALERTA = {
   palpar:   "Palpación",
@@ -3149,7 +3177,7 @@ function alertasHechas() {
       });
     }
   }
-  return out.sort((x, y) => String(y.hecha).localeCompare(String(x.hecha)));
+  return out.sort((x, y) => fechaHecha(y.hecha).localeCompare(fechaHecha(x.hecha)));
 }
 
 function deshacerAlerta(animalId, clave) {
@@ -4758,7 +4786,8 @@ function vAlertas() {
         <div class="cu" data-abrir="${x.animalId}">
           <strong>${esc(x.nombre)} — ${esc(x.titulo)}</strong>
           <span>${esc(x.detalle)}</span>
-          ${x.hecha ? `<span class="hecha-el">Marcada como hecha el ${fmt(x.hecha)}${
+          ${x.hecha ? `<span class="hecha-el">Marcada como hecha el ${fmt(fechaHecha(x.hecha))}${
+            quienHecha(x.hecha) ? ` por ${esc(quienHecha(x.hecha))}` : ""}${
             x.vieja ? " · ya no aplica" : ""}</span>` : ""}
         </div>
         <div class="alerta-acc">
@@ -11145,6 +11174,7 @@ function vConfiguracion() {
       ${VERSION_NUEVA ? `<div class="aviso">Hay una versión más reciente: ${esc(VERSION_NUEVA)}.</div>` : ""}
       <div class="fila-btn" style="margin-bottom:14px">
         <button class="btn" data-acc="revisar-version">Buscar actualizaciones</button>
+        <button class="btn" data-acc="forzar-version">Bajar la app de nuevo</button>
         ${VERSION_NUEVA ? '<button class="btn btn-firme" data-acc="actualizar">Actualizar ahora</button>' : ""}
       </div>
       ${CAMBIOS.map(([v, f, lista], i) => `
@@ -13083,6 +13113,12 @@ async function acciones(a) {
     for (const idA of [...(FB.historial || [])]) n += soltarHistorialAnimal(idA);
     pintar();
     avisar(n ? "Vuelven a verse solo los últimos meses" : "No había historial suelto");
+    return;
+  }
+  if (a === "forzar-version") {
+    if (!confirm("Se va a borrar la copia guardada y volver a bajar la app del servidor.\n\n" +
+        "Los datos NO se tocan. Hace falta internet.\n\n¿Seguir?")) return;
+    await aplicarActualizacion();
     return;
   }
   if (a === "raiz-leer") { FB.raizError = ""; await cargarRaiz(); pintar(); return; }
