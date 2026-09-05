@@ -873,11 +873,34 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.12.0";
+const VERSION = "2.14.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.14.0", "5 sep 2026", [
+    "Revisado el secado de todas las especies. Búfalos pasan de 75-65 a <strong>70-60 días</strong> " +
+      "de descanso, y cabras de 60-53 a <strong>60-45</strong>, que es la ventana de seis a " +
+      "ocho semanas que se maneja. Los bovinos no se tocan.",
+    "Ovinos, equinos y asnales ya traen su descanso puesto para cuando se encienda el " +
+      "interruptor de «aquí se ordeñan»: 45 a 60 días en los tres. Antes se les ponía un " +
+      "60 genérico igual para todos.",
+    "La marrana no lleva secado y se explica por qué: no se seca antes de parir, se desteta " +
+      "después, a los 21 o 28 días de la cría. Ese manejo no encaja con esta pantalla.",
+    "Cada especie trae ahora una nota con lo usual, para saber si el número que hay puesto " +
+      "tiene sentido antes de cambiarlo.",
+    "Los valores se corrigen SOLO en las especies que nadie haya tocado.",
+  ]],
+  ["2.13.0", "5 sep 2026", [
+    "Los dos campos del secado por meses decían «A los … meses de gestación» y «… menos … " +
+      "días», partidos en dos y sin explicar nada, y el segundo venía en 0. Ahora dicen «Se " +
+      "seca a los … meses» y «… y … días ANTES de cumplirlos», con el ejemplo de los dos " +
+      "días escrito al lado.",
+    "Debajo sale un ejemplo con fechas de verdad: «con estos números, una servida el 10 feb " +
+      "2026 se seca el 8 sep 2026, que es el día 210 de gestación y 73 días antes del " +
+      "parto». Se actualiza al cambiar los números, así que se ve al momento si son los " +
+      "buenos sin tener que esperar a la alerta.",
+  ]],
   ["2.12.0", "5 sep 2026", [
     "Los encabezados de cada especie en Parámetros tenían el mismo tamaño minúsculo que las " +
       "etiquetas de los campos, y con siete bloques seguidos uno se perdía: no se sabía si " +
@@ -1878,24 +1901,38 @@ const CAMBIOS = [
 const ESPECIES = {
   bovino:   { et:"Bovino",   plural:"Bovinos",   gestacion:283, preparto:259, palpar:40, estro:21,
               edadServicio:15, lechero:true,  secarDesde:211, secarHasta:218,
+              descanso:"60 a 72 días, que es lo que se dice «dos meses de descanso». Por " +
+                       "debajo de 45 la vaca pare floja y da menos en la siguiente.",
               celo:{uno:30,dos:60,tres:90} },
   bufalino: { et:"Bufalino", plural:"Búfalos",   gestacion:310, preparto:286, palpar:45, estro:21,
-              edadServicio:24, lechero:true,  secarDesde:235, secarHasta:245,
+              edadServicio:24, lechero:true,  secarDesde:240, secarHasta:250,
+              descanso:"60 a 70 días. La búfala aguanta lactancias largas, pero por debajo " +
+                       "de 60 la cría siguiente sale liviana.",
               celo:{uno:40,dos:70,tres:100} },
   caprino:  { et:"Caprino",  plural:"Caprinos",  gestacion:150, preparto:126, palpar:30, estro:21,
-              edadServicio:8,  lechero:true,  secarDesde:90,  secarHasta:97,
+              edadServicio:8,  lechero:true,  secarDesde:90,  secarHasta:105,
+              descanso:"45 a 60 días, o sea de seis a ocho semanas. Menos de 45 castiga la " +
+                       "ubre y la lactancia que viene.",
               celo:{uno:25,dos:45,tres:70} },
   ovino:    { et:"Ovino",    plural:"Ovinos",    gestacion:147, preparto:123, palpar:30, estro:17,
-              edadServicio:8,  lechero:false,
+              edadServicio:8,  lechero:false, secarDesde:87,  secarHasta:102,
+              descanso:"45 a 60 días en oveja lechera. Si no se ordeña, deja el interruptor " +
+                       "apagado y no hay secado.",
               celo:{uno:25,dos:45,tres:70} },
   porcino:  { et:"Porcino",  plural:"Porcinos",  gestacion:114, preparto:90, palpar:25, estro:21,
-              edadServicio:8,  lechero:false,
+              edadServicio:8,  lechero:false, secarDesde:100, secarHasta:107,
+              descanso:"La marrana no se seca antes de parir: se desteta después, a los 21 o " +
+                       "28 días de la cría. Esto no encaja aquí; déjalo apagado.",
               celo:{uno:10,dos:21,tres:35} },
   equino:   { et:"Equino",   plural:"Equinos",   gestacion:340, preparto:316, palpar:16, estro:21,
-              edadServicio:36, lechero:false,
+              edadServicio:36, lechero:false, secarDesde:280, secarHasta:295,
+              descanso:"45 a 60 días si se ordeña la yegua. Lo normal es destetar el potro y " +
+                       "dejarla secar sola.",
               celo:{uno:30,dos:60,tres:90} },
   asnal:    { et:"Asnal",    plural:"Asnales",   gestacion:365, preparto:341, palpar:16, estro:24,
-              edadServicio:36, lechero:false,
+              edadServicio:36, lechero:false, secarDesde:305, secarHasta:320,
+              descanso:"45 a 60 días. La burra da poca leche y lactancias muy largas; el " +
+                       "descanso antes del parto se respeta igual.",
               celo:{uno:30,dos:60,tres:90} },
 };
 
@@ -2668,8 +2705,17 @@ function migrar(d) {
     g.lechero = g.lechero === undefined ? !!ESPECIES[esp].lechero : !!g.lechero;
     if (!g.lechero) { delete g.secarDesde; delete g.secarHasta; }
     else if (!g.secarDesde) {
-      g.secarDesde = Math.max(1, g.gestacion - 60);
-      g.secarHasta = g.secarDesde + 7;
+      g.secarDesde = ESPECIES[esp].secarDesde || Math.max(1, g.gestacion - 60);
+      g.secarHasta = ESPECIES[esp].secarHasta || (g.secarDesde + 7);
+    }
+    /* Los valores de fábrica de búfalos y cabras estaban un poco largos. Se
+       corrigen SOLO si nadie los ha tocado, para no pisar lo que cada finca
+       haya ajustado a su manejo. */
+    const VIEJOS = { bufalino: [235, 245], caprino: [90, 97] };
+    const vj = VIEJOS[esp];
+    if (vj && g.secarDesde === vj[0] && g.secarHasta === vj[1]) {
+      g.secarDesde = ESPECIES[esp].secarDesde;
+      g.secarHasta = ESPECIES[esp].secarHasta;
     }
     if (g.lechero) {
       g.secadoModo ??= "dias";
@@ -11764,6 +11810,9 @@ function vConfiguracion() {
               <input type="number" name="${k}_preparto" min="0" value="${g.preparto || 0}">
               <span class="ayuda">${g.preparto
                 ? `${g.gestacion - g.preparto} días antes del parto` : "sin alerta"}</span></div>
+            ${base.descanso ? `<div class="campo ancho">
+              <div class="nota" style="margin:0"><strong>Lo usual en ${
+                base.plural.toLowerCase()}:</strong> ${base.descanso}</div></div>` : ""}
             <div class="campo ancho">
               <label class="recordar" style="margin:0">
                 <input type="checkbox" name="${k}_lechero" ${g.lechero ? "checked" : ""}>
@@ -11782,13 +11831,31 @@ function vConfiguracion() {
                 según cuándo la sirvieran.</span></div>
 
               <div class="campo" ${g.secadoModo === "meses" ? "" : "hidden"}
-                data-secado-meses="${k}"><label>A los … meses de gestación</label>
+                data-secado-meses="${k}"><label>Se seca a los … meses</label>
                 <input type="number" name="${k}_secarMeses" min="1" max="14"
-                  value="${g.secarMeses ?? Math.round((g.secarDesde || 1) / 30.44)}"></div>
+                  value="${g.secarMeses ?? Math.round((g.secarDesde || 1) / 30.44)}">
+                <span class="ayuda">Meses de calendario contados desde el servicio</span></div>
               <div class="campo" ${g.secadoModo === "meses" ? "" : "hidden"}
-                data-secado-meses="${k}"><label>… menos … días</label>
+                data-secado-meses="${k}"><label>… y … días ANTES de cumplirlos</label>
                 <input type="number" name="${k}_secarMenosDias" min="0" max="60"
-                  value="${g.secarMenosDias ?? 0}"></div>
+                  value="${g.secarMenosDias ?? 0}">
+                <span class="ayuda">Si en la finca se dice «dos días antes de los siete
+                meses», aquí va un <strong>2</strong>. Con 0 se seca el día que los cumple.</span></div>
+
+              ${/* Un ejemplo con fechas de verdad vale más que cualquier
+                    explicación: así se ve al momento si el número es el bueno. */""}
+              <div class="campo ancho" ${g.secadoModo === "meses" ? "" : "hidden"}
+                data-secado-meses="${k}">
+                ${(() => {
+                  const ej = "2026-02-10";
+                  const m = Number(g.secarMeses) || 7, menos = Number(g.secarMenosDias) || 0;
+                  const f = sumarDias(sumarMeses(ej, m), -menos);
+                  return `<div class="nota" style="margin:0">Con estos números, una servida el
+                    <strong>${fmt(ej)}</strong> se seca el <strong>${fmt(f)}</strong>, que es el
+                    día <strong>${dias(ej, aFecha(f))}</strong> de gestación y
+                    <strong>${g.gestacion - dias(ej, aFecha(f))} días</strong> antes del parto.</div>`;
+                })()}
+              </div>
 
               <div class="campo" ${g.secadoModo === "meses" ? "hidden" : ""}
                 data-secado-dias="${k}"><label>Descanso: se seca hasta ${
@@ -12466,8 +12533,15 @@ function conectar() {
     fp.addEventListener("change", (ev) => {
       const t = ev.target?.type;
       const interruptor = t === "checkbox" || t === "radio";
-      guardarParams(interruptor, false);
+      // Se repinta siempre para que las ayudas y el ejemplo salgan con los
+      // números nuevos, y se devuelve el foco a donde estuviera.
+      const foco = document.activeElement?.name;
+      guardarParams(true, false);
       if (!interruptor) avisar("Guardado");
+      if (foco) {
+        const el = document.querySelector(`[data-guardar-params] [name="${foco}"]`);
+        if (el) el.focus({ preventScroll: true });
+      }
     });
     fp.onsubmit = (e) => { e.preventDefault(); guardarParams(true, true); };
   }
