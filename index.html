@@ -882,11 +882,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.16.0";
+const VERSION = "2.17.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.17.0", "5 sep 2026", [
+    "ENCONTRADO EL FALLO DE LOS AJUSTES QUE NO SUBÍAN. Lo que llegaba de Firebase pisaba " +
+      "SIEMPRE lo de este equipo, aunque se acabara de cambiar y todavía no hubiera subido. " +
+      "Se cambiaba el secado, llegaba un aviso de Firestore antes de que saliera el envío, " +
+      "y el valor viejo borraba el nuevo. Nunca llegó a subir nada, y por eso en Firestore " +
+      "seguían los números de siempre.",
+    "El arreglo de la 2.15.0 lo agravó sin querer: al pedir también las confirmaciones del " +
+      "servidor, esos avisos llegan mucho más a menudo y había más ocasiones de pisar.",
+    "Ahora, si lo de aquí cambió respecto a lo último que sabíamos del servidor, es más " +
+      "nuevo: se manda en vez de pisarlo.",
+    "Y un envío que no vuelve ya no bloquea los siguientes para siempre: al cabo de 20 " +
+      "segundos se puede reintentar.",
+  ]],
   ["2.16.0", "5 sep 2026", [
     "LAS TABLAS EN EL CELULAR OCUPAN LA CUARTA PARTE. Cada fila era una tarjeta con un " +
       "renglón por columna: siete u ocho renglones por animal, y con cuarenta animales eso " +
@@ -9520,17 +9533,32 @@ function escucharAjustes() {
         if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
         if (!snap.exists()) { pintarPronto(); return; }
         const d = snap.data() || {};
-        let cambio = false;
+        let cambio = false, hayQueSubir = false;
+
         for (const k of claves) {
           if (d[k] === undefined) continue;
-          const json = firmaDoc(d[k]);
-          FB.espejoAjustes[k] = json;
-          if (firmaDoc(D.config[k]) !== json) {
-            D.config[k] = JSON.parse(json);
-            cambio = true;
-          }
+          const remoto = firmaDoc(d[k]);
+          const local  = firmaDoc(D.config[k]);
+          const antes  = FB.espejoAjustes[k];      // lo que sabíamos del servidor
+          FB.espejoAjustes[k] = remoto;
+
+          if (local === remoto) continue;
+
+          /* AQUÍ ESTABA EL FALLO. Lo que llegaba de Firebase pisaba SIEMPRE lo
+             de este equipo, aunque se acabara de cambiar y todavía no hubiera
+             subido. Se cambiaba el secado, llegaba un aviso de Firestore antes
+             de que saliera el envío, y el valor viejo borraba el nuevo: nunca
+             llegó a subir nada. Ahora, si lo de aquí cambió respecto a lo que
+             ya sabíamos del servidor, es más nuevo y se manda en vez de
+             pisarlo. */
+          if (antes !== undefined && local !== antes) { hayQueSubir = true; continue; }
+
+          D.config[k] = JSON.parse(remoto);
+          cambio = true;
         }
+
         if (cambio) { guardarPronto(); pintarPronto(); }
+        if (hayQueSubir) programarEmpuje();
       },
       (e) => {
         /* Casi siempre es que faltan por publicar las reglas de /ajustes.
@@ -9558,11 +9586,15 @@ function empujarAjustes() {
       cambios[k] = JSON.parse(json);
     }
     if (!Object.keys(cambios).length) continue;
-    if ((FB.ajustesEnVuelo ||= {})[cual]) continue;   // ya hay uno esperando
-    FB.ajustesEnVuelo[cual] = true;
+    /* Sin señal, la escritura no se resuelve. Se espera a la anterior para no
+       encolar copias, pero con un tope: si en 20 segundos no ha vuelto, se
+       deja intentar otra vez en lugar de quedarse mudo para siempre. */
+    const vuelo = (FB.ajustesEnVuelo ||= {})[cual];
+    if (vuelo && Date.now() - vuelo < 20000) continue;
+    FB.ajustesEnVuelo[cual] = Date.now();
     fs.setDoc(fs.doc(FB.db, "ajustes", cual), limpiarParaFirestore(cambios), { merge: true })
       .then(() => {
-        FB.ajustesEnVuelo[cual] = false;
+        FB.ajustesEnVuelo[cual] = 0;
         // El espejo se apunta DESPUÉS de que la escritura sale bien. Antes se
         // apuntaba primero, así que un fallo dejaba el ajuste sin reintentar.
         for (const k of Object.keys(cambios)) {
@@ -9571,7 +9603,7 @@ function empujarAjustes() {
         if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
       })
       .catch((e) => {
-        FB.ajustesEnVuelo[cual] = false;
+        FB.ajustesEnVuelo[cual] = 0;
         (FB.ajustesError ||= {})[cual] = e?.code || String(e);
         pintarPronto();
       });
