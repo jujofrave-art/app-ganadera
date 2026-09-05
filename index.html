@@ -882,11 +882,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.17.0";
+const VERSION = "2.18.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.18.0", "5 sep 2026", [
+    "Lo último que se sabe del servidor sobre los ajustes se guarda ahora en el equipo. Sin " +
+      "eso, al cerrar y volver a abrir la app no había con qué comparar y lo del servidor " +
+      "pisaba lo de aquí aunque estuviera sin subir: un cambio hecho antes de cerrar se " +
+      "perdía sin dejar rastro. Es lo que pasaba al usar «bajar la app de nuevo».",
+    "ARREGLO: si un envío caía justo mientras se estaban aplicando datos recién bajados, se " +
+      "descartaba y nadie lo volvía a pedir. Ahora se aplaza en vez de tirarse.",
+    "Los ajustes se reintentan solos cada medio minuto por si alguno se quedó por el camino.",
+    "En Parámetros sale ahora si <strong>todo está guardado en Firebase</strong> o cuántos " +
+      "ajustes faltan por subir, con su nombre. Se acabó adivinar.",
+  ]],
   ["2.17.0", "5 sep 2026", [
     "ENCONTRADO EL FALLO DE LOS AJUSTES QUE NO SUBÍAN. Lo que llegaba de Firebase pisaba " +
       "SIEMPRE lo de este equipo, aunque se acabara de cambiar y todavía no hubiera subido. " +
@@ -9510,9 +9521,24 @@ function escucharColecciones(mias) {
  * si no, un computador recién instalado le pisaba a la finca sus parámetros
  * con los de fábrica.
  */
+/* Lo último que supimos del servidor sobre los ajustes, guardado en el
+   equipo. Sin esto, al cerrar y volver a abrir la app no había con qué
+   comparar y lo del servidor pisaba lo de aquí aunque estuviera sin subir:
+   un cambio hecho antes de cerrar se perdía sin dejar rastro. */
+const CLAVE_ESPEJO = () => (CLAVE_DATOS || CLAVE) + "-espajustes";
+
+function leerEspejoAjustes() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_ESPEJO()) || "{}"); }
+  catch { return {}; }
+}
+function apuntarEspejoAjustes() {
+  try { localStorage.setItem(CLAVE_ESPEJO(), JSON.stringify(FB.espejoAjustes || {})); }
+  catch {}
+}
+
 function escucharAjustes() {
   const { fs } = FB.mods;
-  FB.espejoAjustes = {};
+  FB.espejoAjustes = leerEspejoAjustes();
   FB.ajustesLeidos = {};
 
   for (const [cual, claves] of Object.entries(AJUSTES)) {
@@ -9557,6 +9583,7 @@ function escucharAjustes() {
           cambio = true;
         }
 
+        apuntarEspejoAjustes();
         if (cambio) { guardarPronto(); pintarPronto(); }
         if (hayQueSubir) programarEmpuje();
       },
@@ -9600,6 +9627,7 @@ function empujarAjustes() {
         for (const k of Object.keys(cambios)) {
           (FB.espejoAjustes ||= {})[k] = firmaDoc(D.config[k]);
         }
+        apuntarEspejoAjustes();
         if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
       })
       .catch((e) => {
@@ -9694,9 +9722,15 @@ async function sincronizarUsuarios() {
    evita que un registro hecho sin señal se suba dos veces. */
 
 function programarEmpuje() {
-  if (!FB.db || !FB.user || FB.aplicando) return;
+  if (!FB.db || !FB.user) return;
   clearTimeout(FB.pendiente);
-  FB.pendiente = setTimeout(empujar, 120);
+  /* Antes, si justo en ese momento se estaban aplicando datos recién bajados,
+     el envío se descartaba y nadie lo volvía a pedir: el cambio se quedaba
+     sin subir. Ahora se aplaza en vez de tirarse. */
+  FB.pendiente = setTimeout(() => {
+    if (FB.aplicando) { FB.pendiente = setTimeout(empujar, 400); return; }
+    empujar();
+  }, 120);
 }
 
 /**
@@ -9920,6 +9954,9 @@ async function esperarSubida() {
 /* Red de seguridad: si el contador lleva rato sin bajar y hay señal,
    se vuelve a preguntar. Antes podía quedarse en «Subiendo 2» para siempre. */
 if (typeof window !== "undefined") {
+  // Por si un envío se quedó por el camino, se reintenta cada medio minuto.
+  setInterval(() => { try { empujarAjustes(); } catch {} }, 30000);
+
   setInterval(() => {
     if (FB.db && FB.user && FB.sinSubir > 0 && navigator.onLine !== false) esperarSubida();
   }, 12000);
@@ -11816,6 +11853,20 @@ function vConfiguracion() {
       <p class="expl">Esto sí viaja: los parámetros y a quién se le palpa son de la finca, así
       que al guardarlos quedan iguales en todos los equipos. Lo que se queda en este aparato es
       el tema, cuánto historial se baja, el bloqueo de giro y la conexión con Firebase.</p>
+      ${(() => {
+        if (!FB.user) return "";
+        const pend = Object.entries(AJUSTES).flatMap(([cual, ks]) =>
+          ks.filter(k => D.config[k] !== undefined
+            && FB.espejoAjustes?.[k] !== firmaDoc(D.config[k])));
+        if (!pend.length) return `<div class="nota" style="margin-bottom:12px">
+          Todo lo de aquí está <strong>guardado en Firebase</strong> y llega a los demás
+          equipos.</div>`;
+        return `<div class="nota recorte" style="display:block;margin-bottom:12px">
+          Hay <strong>${pend.length} ajuste(s) sin subir</strong> todavía: ${
+          esc(pend.join(", "))}. Suben solos en cuanto haya señal; si esto no
+          desaparece, algo está fallando y conviene mirar las reglas.</div>`;
+      })()}
+
       ${FB.user && FB.ajustesError && Object.keys(FB.ajustesError).length ? `
         <div class="aviso">Estos ajustes <strong>no están viajando a los demás equipos</strong>.
         ${String(Object.values(FB.ajustesError)[0]).includes("permission")
