@@ -849,11 +849,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.4.0";
+const VERSION = "2.5.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.5.0", "4 sep 2026", [
+    "ARREGLO GRAVE DE SINCRONIZACIÓN: al abrir la app, el equipo subía todo lo que tenía " +
+      "guardado ANTES de saber qué había en el servidor. Como no tenía con qué comparar, " +
+      "todo le parecía nuevo y lo mandaba encima. El celular reescribía con su copia vieja " +
+      "lo que se acababa de hacer en el computador: por eso un «Listo» daba marcha atrás " +
+      "solo, y no solo las alertas — cualquier cambio podía deshacerse igual.",
+    "Ahora ninguna tabla se sube hasta que ha llegado su primera respuesta del servidor. " +
+      "Con eso y el arreglo de la 2.4.0 se acaban los pisotones entre equipos.",
+  ]],
   ["2.4.0", "4 sep 2026", [
     "ARREGLO DE FONDO: la app resubía TODOS los animales en cada envío. Para saber si un " +
       "registro había cambiado comparaba su texto con el de la copia de referencia, y los " +
@@ -9132,6 +9141,12 @@ function escucharColecciones(mias) {
     const via = cajon || "principal";
     const u = fs.onSnapshot(consulta, { includeMetadataChanges: true },
       (snap) => {
+        /* Hasta que no ha llegado la primera respuesta de una tabla, este
+           equipo no manda nada de ella. Antes, al abrir la app, se subía todo
+           lo que hubiera guardado ANTES de saber qué había en el servidor:
+           el celular reescribía con su copia vieja lo que se había hecho en
+           el computador, y por eso un «Listo» daba marcha atrás solo. */
+        (FB.leidas ||= new Set()).add(nombre);
         // Los metadatos cambian muchas veces sin que cambie ningún dato.
         // En ese caso solo se refresca el indicador, sin volver a guardar.
         FB.enCache = snap.metadata.fromCache;
@@ -9195,6 +9210,9 @@ function escucharColecciones(mias) {
       },
       (e) => {
         const codigo = String(e?.code || "");
+        // Si la tabla falla, se marca igual como leída: mejor poder intentar
+        // subir que quedarse sin mandar nada de ella para siempre.
+        (FB.leidas ||= new Set()).add(nombre);
         const msg = String(e?.message || e);
         const url = (msg.match(/https:\/\/console\.firebase\.google\.com\S+/) || [])[0];
         (FB.fallos ||= {})[nombre] = { codigo, msg, url };
@@ -9243,6 +9261,7 @@ function escucharColecciones(mias) {
   }
   const corte = FB.todoElHistorial ? null : corteVentana();
   FB.corte = corte;
+  FB.leidas = new Set();
   podarAlRecorte();
 
   for (const n of ["animales", "inseminaciones", "palpaciones", "partos",
@@ -9573,6 +9592,9 @@ async function empujar() {
 
   FB.espejo ||= {}; FB.sinConfirmar ||= {}; FB.borrados ||= {};
   for (const nombre of COLECCIONES) {
+    // Sin haber leído la tabla no hay con qué comparar: todo parecería nuevo
+    // y se mandaría encima de lo que haya en el servidor.
+    if (!FB.leidas?.has(nombre)) continue;
     const espejo = FB.espejo[nombre] || {};
     const vistos = new Set();
     for (const doc of (D[nombre] || [])) {
