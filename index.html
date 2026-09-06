@@ -183,6 +183,7 @@ tr.grupo .n{opacity:.55;margin-left:6px}
 .p{font-family:var(--dato);font-size:10px;letter-spacing:.04em;padding:3px 7px;border-radius:4px;background:rgba(var(--tinta-rgb),.06);color:var(--tinta2);text-transform:uppercase;white-space:nowrap;display:inline-block}
 .p.verde{background:rgba(var(--pasto-rgb),.14);color:var(--pasto)}
 .p.roja{background:rgba(var(--hierro-rgb),.13);color:var(--hierro)}
+.sub.roja{color:var(--hierro);background:none}
 .p.ambar{background:rgba(var(--ambar-rgb),.2);color:var(--ambar)}
 .p.gris{background:rgba(var(--tinta-rgb),.07);color:var(--tenue)}
 
@@ -480,6 +481,11 @@ details.panel:not([open])>summary{border-bottom:0}
   font-family:var(--dato);cursor:pointer;padding:6px 0;text-align:left;width:100%;
   text-decoration:underline;text-underline-offset:2px}
 .liga-pie:hover{opacity:1}
+.ayuda-btn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+  margin-left:5px;border-radius:50%;border:1px solid var(--linea);background:none;
+  color:var(--tenue);font-size:10px;font-weight:700;cursor:pointer;padding:0;line-height:1;
+  vertical-align:middle}
+.ayuda-btn:hover{color:var(--pasto);border-color:var(--pasto)}
 .quien-fijo{cursor:default}
 .quien-fijo:hover{background:none}
 
@@ -899,11 +905,29 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.27.0";
+const VERSION = "2.29.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.29.0", "5 sep 2026", [
+    "El <strong>intervalo entre partos</strong> sale ahora con su valoración al lado —al año, " +
+      "aceptable o largo— y con la meta debajo, para no tener que acordarse de los números.",
+    "Y una interrogación al lado del título abre la explicación completa: qué es, la tabla de " +
+      "referencia, de qué se compone y por qué los abortos no cuentan.",
+    "La escala se calcula con la gestación de cada especie: en bovinos da los 365-400 de " +
+      "siempre, pero en una cabra que gesta 150 días los números son otros. Y se ajusta sola " +
+      "si cambias la gestación en Parámetros.",
+  ]],
+  ["2.28.0", "5 sep 2026", [
+    "En la ficha, debajo de <strong>Fecha parto</strong> se dice ahora si después de ese " +
+      "parto hubo abortos y cuántos: «y 1 aborto después, el último el 18/08/26». La fecha " +
+      "sola engañaba: «2 oct 2025» parecía que no había pasado nada desde entonces.",
+    "Cuando no hay abortos de por medio lo dice igual, «último parto de verdad», para que se " +
+      "entienda que ese campo nunca muestra abortos.",
+    "Y debajo del <strong>intervalo entre partos</strong> se aclara que va de parto a parto, " +
+      "sin contar abortos, que es una pregunta que sale sola al ver los dos números juntos.",
+  ]],
   ["2.27.0", "5 sep 2026", [
     "EL ABORTO REINICIA EL CICLO, como debe ser: es un parto adelantado. Cierra la preñez y " +
       "la vaca queda vacía desde ese día.",
@@ -3053,6 +3077,12 @@ function estado(a) {
   // Último parto propiamente dicho, sin contar abortos.
   const ultPartoReal = partosReales[0]
     || (a.ultimoPartoPrevio ? { fecha: a.ultimoPartoPrevio, previo: true } : null);
+  /* Cuántos abortos van después del último parto de verdad. La fecha del
+     parto sola engaña: «2 oct 2025» parece que no ha pasado nada desde
+     entonces, cuando puede haber uno o dos abortos por el medio. */
+  const abortosTrasParto = partos.filter(p => p.tipo === "aborto"
+    && (!ultPartoReal || p.fecha > ultPartoReal.fecha)).length;
+
   const ultInsem = insems[0] || null;
   const ultPalp  = palps[0] || null;
 
@@ -3187,7 +3217,7 @@ function estado(a) {
   return {
     prenada, diasGest, servicioValido, ultParto, ultInsem, ultPalp,
     mesesVacia, diasVacia, gestacion, partoAServicio, primerServicio,
-    diasEntreInsem, motivoDias,
+    diasEntreInsem, motivoDias, abortosTrasParto,
     alertaCelo, diasDesdeServicio, secadoActual,
     diasSeca: secadoActual ? dias(secadoActual.fecha) : null,
     ultParto, ultPartoReal, totalInsemCiclo: insemCiclo.length,
@@ -5911,6 +5941,64 @@ function seg(nombre, ops, valor) {
     <span>${t}</span></label>`).join("")}</div>`;
 }
 
+/**
+ * Cómo de bueno es un intervalo entre partos, para esta especie.
+ *
+ * La referencia es la gestación más unos 85 a 115 días vacía, que es lo que
+ * se busca. En bovinos eso da los 365 a 400 días de siempre; en una cabra,
+ * que gesta 150, el mismo criterio da otra escala muy distinta. Por eso se
+ * calcula y no se deja escrito a mano.
+ */
+function juzgarIntervalo(dias, P) {
+  const g = P?.gestacion || 283;
+  const bueno = g + 115, aceptable = g + 165;
+  if (!dias) return null;
+  if (dias <= bueno)     return { cl: "verde", et: "al año", meta: `hasta ${bueno}` };
+  if (dias <= aceptable) return { cl: "ambar", et: "aceptable", meta: `hasta ${aceptable}` };
+  return { cl: "roja", et: "largo", meta: `más de ${aceptable}` };
+}
+
+/** La tablita de referencia, para cuando surja la duda. */
+function ayudaIntervalo(P) {
+  const g = P?.gestacion || 283;
+  const filas = [
+    ["verde", `${g + 60} a ${g + 115} días`, "Lo que se busca: una cría al año"],
+    ["ambar", `${g + 116} a ${g + 165} días`, "Aceptable, pero hay margen"],
+    ["roja",  `más de ${g + 165} días`,      "Se está perdiendo una cría"],
+  ];
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Intervalo entre partos</h2>
+      <div class="sub">${P?.plural || "Bovinos"} · gestación de ${g} días</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <div style="padding:2px 0 6px">
+      <p class="expl">Son los días que pasaron entre los <strong>dos últimos partos</strong> de
+      esa hembra. Es la medida más honesta de la reproducción, porque una vaca solo produce
+      cuando pare: cuántas veces la sirvieron o si repitió se resume todo ahí.</p>
+
+      <div class="sub-tabla"><table>
+        <thead><tr><th>Intervalo</th><th>Qué significa</th></tr></thead>
+        <tbody>${filas.map(([cl, r, q]) => `<tr>
+          <td><span class="p ${cl}">${r}</span></td><td>${q}</td></tr>`).join("")}</tbody>
+      </table></div>
+
+      <h4 class="sub-titulo">De qué se compone</h4>
+      <p class="expl">De dos partes. Los <strong>${g} días de gestación</strong>, que no se
+      pueden mover, y los <strong>días vacía</strong> —desde que pare hasta que vuelve a
+      quedar preñada—, que son los únicos sobre los que se puede trabajar. Lo bueno son de
+      85 a 115 días vacía. Cada día de más es un día que come sin producir al tope.</p>
+
+      <h4 class="sub-titulo">Detalles que conviene saber</h4>
+      <p class="expl">Solo cuenta <strong>partos de verdad</strong>. Un aborto no es una cría, y
+      si contara, un intervalo malo saldría bueno. Por eso una vaca que abortó conserva su
+      intervalo anterior: ese aborto no cerró nada, solo alargó la espera.</p>
+      <p class="expl">Hacen falta <strong>al menos dos partos registrados</strong>. Con uno solo
+      o ninguno sale una raya.</p>
+      <p class="expl">La escala se calcula con la gestación de cada especie, así que en cabras
+      o cerdas los números son otros. Se ajusta sola si cambias la gestación en Parámetros.</p>
+    </div>
+    <div class="hoja-pie"><button class="btn btn-firme" data-cerrar>Entendido</button></div>`);
+}
+
 function fichaAnimal(id) {
   const a = animal(id); if (!a) return;
   const e = estado(a);
@@ -5934,7 +6022,7 @@ function fichaAnimal(id) {
 
   abrirHoja(`
     <div class="hoja-cab">
-      <h2 style="font-size:16px">Ficha del animal</h2>
+      <h2 style="font-size:16px" data-ficha-animal="${id}">Ficha del animal</h2>
       <button class="cerrar" data-cerrar aria-label="Cerrar">×</button>
     </div>
     <div class="hoja-cuerpo">
@@ -5994,12 +6082,23 @@ function fichaAnimal(id) {
             ? `solo las de los últimos ${D.config.ventanaMeses || 24} meses`
             : "de toda su vida, sin reiniciar"}</span></li>
         <li class="${e.ultPartoReal && !e.ultPartoReal.previo ? "liga" : ""}" ${e.ultPartoReal && !e.ultPartoReal.previo ? `data-ev="parto:${e.ultPartoReal.id}"` : ""}>
-          <dt>Fecha parto</dt><dd>${e.ultPartoReal ? fmt(e.ultPartoReal.fecha) : "—"}</dd></li>
+          <dt>Fecha parto</dt><dd>${e.ultPartoReal ? fmt(e.ultPartoReal.fecha) : "—"}</dd>
+          ${e.abortosTrasParto ? `<span class="sub roja">y ${e.abortosTrasParto}
+            aborto${e.abortosTrasParto === 1 ? "" : "s"} después${
+            e.ultParto?.tipo === "aborto" ? `, el último el ${fmtCorto(e.ultParto.fecha)}` : ""}</span>`
+          : e.ultPartoReal ? '<span class="sub">último parto de verdad</span>' : ""}</li>
         <li class="${e.ultInsem ? "liga" : ""}" ${e.ultInsem ? `data-ev="insem:${e.ultInsem.id}"` : ""}>
           <dt>Fecha inseminación</dt><dd>${e.ultInsem ? fmt(e.ultInsem.fecha) : "—"}</dd></li>
         <li><dt>${e.motivoDias === "repeticion" ? "Días entre servicios" : "Días parto → servicio"}</dt>
           <dd>${e.diasEntreInsem !== null ? e.diasEntreInsem + " días" : "—"}</dd></li>
-        <li><dt>Intervalo partos</dt><dd>${e.intervaloPartos ? e.intervaloPartos + " días" : "—"}</dd></li>
+        ${(() => {
+          const j = juzgarIntervalo(e.intervaloPartos, P);
+          return `<li><dt>Intervalo partos
+            <button class="ayuda-btn" data-ayuda-intervalo title="¿Qué es esto?">?</button></dt>
+            <dd>${e.intervaloPartos ? e.intervaloPartos + " días" : "—"}
+            ${j ? `<span class="p ${j.cl}" style="margin-left:6px">${j.et}</span>` : ""}</dd>
+            <span class="sub">${j ? `lo bueno es ${j.meta} días · ` : ""}sin contar abortos</span></li>`;
+        })()}
       </ul>
 
       ${e.secadoActual ? `<dl class="plan">
@@ -13059,6 +13158,13 @@ function conectarHoja(d) {
       else ABIERTAS.delete(el.dataset.plegable);
     });
   });
+
+  const bi2 = d.querySelector("[data-ayuda-intervalo]");
+  if (bi2) bi2.onclick = (ev) => {
+    ev.stopPropagation();
+    const a = animal(bi2.closest("[data-ficha-animal]")?.dataset.fichaAnimal || "");
+    ayudaIntervalo(a ? par(a) : null);
+  };
 
   const bs = d.querySelector("[data-soltar-historial]");
   if (bs) bs.querySelector("button").onclick = () => {
