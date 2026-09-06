@@ -905,11 +905,31 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.32.0";
+const VERSION = "2.34.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.34.0", "5 sep 2026", [
+    "Alerta nueva: <strong>«Ya debería haber parido»</strong>. Sale cuando una hembra pasa " +
+      "de cierta edad y sigue en levante sin ningún parto registrado. Casi siempre es que " +
+      "alguien no apuntó el parto, y mientras tanto la app la trata como novillona: sin " +
+      "lactancia, sin palpación y fuera de los promedios de leche.",
+    "La edad se pone por especie en Configuración → Parámetros. De fábrica: bovinos 30 meses, " +
+      "búfalos 42, cabras y ovejas 20, marranas 16, yeguas y burras 54. Con 0 se apaga.",
+    "El aviso dice qué hacer: registrar el parto, y la app la asciende sola.",
+  ]],
+  ["2.33.0", "5 sep 2026", [
+    "AL REGISTRAR UN PARTO O UN ABORTO, la categoría sube sola. Una ternera o una novillona " +
+      "que pare ya es vaca, y en la finca no siempre se acuerdan de cambiarlo. Mientras no " +
+      "se cambiara, la app la seguía tratando como levante: no le calculaba lactancia ni " +
+      "entraba en los promedios de leche. Vale para las siete especies.",
+    "Vuelven los campos de <strong>partos antes de llegar</strong> y <strong>fecha del " +
+      "último parto</strong>, que quité en la 1.50. Con las compradas hacían falta: una vaca " +
+      "que llega ya parida no tenía dónde decirlo y la app la daba por novillona.",
+    "Solo salen mientras no haya partos registrados en la app. En cuanto se le registre " +
+      "uno, desaparecen y todo se calcula de la tabla de Partos, como debe ser.",
+  ]],
   ["2.32.0", "5 sep 2026", [
     "NO SE DUPLICA POR PULSAR GUARDAR VARIAS VECES. Sin señal no se ve que algo haya pasado " +
       "y es normal volver a pulsar creyendo que no cogió; cada pulsación creaba un registro " +
@@ -2093,37 +2113,37 @@ const CAMBIOS = [
    ========================================================== */
 const ESPECIES = {
   bovino:   { et:"Bovino",   plural:"Bovinos",   gestacion:283, preparto:259, palpar:40, estro:21,
-              edadServicio:15, lechero:true,  secarDesde:211, secarHasta:218,
+              edadServicio:15, avisoLevante:30, lechero:true,  secarDesde:211, secarHasta:218,
               descanso:"60 a 72 días, que es lo que se dice «dos meses de descanso». Por " +
                        "debajo de 45 la vaca pare floja y da menos en la siguiente.",
               celo:{uno:30,dos:60,tres:90} },
   bufalino: { et:"Bufalino", plural:"Búfalos",   gestacion:310, preparto:286, palpar:45, estro:21,
-              edadServicio:24, lechero:true,  secarDesde:240, secarHasta:250,
+              edadServicio:24, avisoLevante:42, lechero:true,  secarDesde:240, secarHasta:250,
               descanso:"60 a 70 días. La búfala aguanta lactancias largas, pero por debajo " +
                        "de 60 la cría siguiente sale liviana.",
               celo:{uno:40,dos:70,tres:100} },
   caprino:  { et:"Caprino",  plural:"Caprinos",  gestacion:150, preparto:126, palpar:30, estro:21,
-              edadServicio:8,  lechero:true,  secarDesde:90,  secarHasta:105,
+              edadServicio:8,  avisoLevante:20, lechero:true,  secarDesde:90,  secarHasta:105,
               descanso:"45 a 60 días, o sea de seis a ocho semanas. Menos de 45 castiga la " +
                        "ubre y la lactancia que viene.",
               celo:{uno:25,dos:45,tres:70} },
   ovino:    { et:"Ovino",    plural:"Ovinos",    gestacion:147, preparto:123, palpar:30, estro:17,
-              edadServicio:8,  lechero:false, secarDesde:87,  secarHasta:102,
+              edadServicio:8,  avisoLevante:20, lechero:false, secarDesde:87,  secarHasta:102,
               descanso:"45 a 60 días en oveja lechera. Si no se ordeña, deja el interruptor " +
                        "apagado y no hay secado.",
               celo:{uno:25,dos:45,tres:70} },
   porcino:  { et:"Porcino",  plural:"Porcinos",  gestacion:114, preparto:90, palpar:25, estro:21,
-              edadServicio:8,  lechero:false, secarDesde:100, secarHasta:107,
+              edadServicio:8,  avisoLevante:16, lechero:false, secarDesde:100, secarHasta:107,
               descanso:"La marrana no se seca antes de parir: se desteta después, a los 21 o " +
                        "28 días de la cría. Esto no encaja aquí; déjalo apagado.",
               celo:{uno:10,dos:21,tres:35} },
   equino:   { et:"Equino",   plural:"Equinos",   gestacion:340, preparto:316, palpar:16, estro:21,
-              edadServicio:36, lechero:false, secarDesde:280, secarHasta:295,
+              edadServicio:36, avisoLevante:54, lechero:false, secarDesde:280, secarHasta:295,
               descanso:"45 a 60 días si se ordeña la yegua. Lo normal es destetar el potro y " +
                        "dejarla secar sola.",
               celo:{uno:30,dos:60,tres:90} },
   asnal:    { et:"Asnal",    plural:"Asnales",   gestacion:365, preparto:341, palpar:16, estro:24,
-              edadServicio:36, lechero:false, secarDesde:305, secarHasta:320,
+              edadServicio:36, avisoLevante:54, lechero:false, secarDesde:305, secarHasta:320,
               descanso:"45 a 60 días. La burra da poca leche y lactancias muy largas; el " +
                        "descanso antes del parto se respeta igual.",
               celo:{uno:30,dos:60,tres:90} },
@@ -2228,6 +2248,11 @@ function razasDe(especie) {
 
 /** Solo las hembras que ya salieron de cría se pueden servir. */
 const puedeServir = (c) => c && c.sexo === "H" && c.etapa !== "cria";
+
+/** La categoría de hembra adulta de cada especie: a esa se asciende al parir. */
+const ADULTA = Object.fromEntries(Object.entries(CATEGORIAS)
+  .filter(([, c]) => c.sexo === "H" && c.etapa === "adulta")
+  .map(([k, c]) => [c.especie, k]));
 
 const especieDe = (a) => CATEGORIAS[a?.categoria]?.especie || "bovino";
 
@@ -2911,6 +2936,7 @@ function migrar(d) {
       g.secarDesde = ESPECIES[esp].secarDesde;
       g.secarHasta = ESPECIES[esp].secarHasta;
     }
+    g.avisoLevante ??= ESPECIES[esp].avisoLevante || 0;
     if (g.lechero) {
       g.secadoModo ??= "dias";
       g.secarMeses ??= Math.max(1, Math.round(g.secarDesde / 30.44));
@@ -3404,6 +3430,23 @@ function alertas(incluirHechas) {
       push("media", `${P.et} lista para servir`,
         `${e.edadMeses} meses de edad y sin ningún servicio registrado.`,
         550, `servir:${a.fechaNacimiento || ""}`);
+    }
+
+    /* 9b. Lleva demasiada edad en levante y no tiene ni un parto.
+       Casi siempre es que alguien no apuntó el parto: la vaca ya es vaca y la
+       app la sigue tratando como novillona, sin lactancia, sin palpación y
+       fuera de los promedios de leche. */
+    const topeLevante = Number(P.avisoLevante) || 0;
+    /* Se mira el SEXO, no si ya tiene edad de servirse: una «ternera» de
+       treinta meses es justo el caso que se busca, un animal que quedó con
+       la categoría de cría y nadie la cambió. */
+    if (topeLevante && P.sexo === "H" && e.totalPartos === 0 && !e.prenada
+        && e.edadMeses !== null && e.edadMeses >= topeLevante) {
+      push("media", "Ya debería haber parido",
+        `${e.edadMeses} meses de edad y sigue en levante, sin ningún parto registrado. ` +
+        `${e.ultInsem ? `Su último servicio fue el ${fmt(e.ultInsem.fecha)}. ` : "Nunca la han servido. "}` +
+        `Si ya parió, regístralo y la app la pasa a ${CATEGORIAS[ADULTA[especieDe(a)]]?.et || "adulta"} sola.`,
+        540, `levante:${a.fechaNacimiento || ""}`);
     }
 
     // 10. Tratamiento en curso
@@ -6391,19 +6434,27 @@ function formAnimal(id, estadoIni) {
              último NO se escriben: salen de la tabla de Partos. -->
         ${(() => {
           const suyos = id ? partosDe(id).filter(p => p.tipo === "parto") : [];
-          const previos = Number(a.partosPrevios) || 0;
-          return `<div class="campo ancho" data-solo-vaca hidden>
-            <div class="nota" style="margin:0">
-              ${suyos.length
-                ? `Tiene <strong>${suyos.length} parto(s) registrados</strong>, el último el
-                   ${fmt(suyos[0].fecha)}.`
-                : previos
-                  ? `Trae <strong>${previos} parto(s)</strong> de antes de la app.`
-                  : `Todavía no tiene partos registrados.`}
-              El total de partos y la fecha del último se calculan de la tabla de
-              <strong>Partos</strong>, así que no se escriben aquí. Si trae historia
-              vieja, súbela por <strong>Importar</strong> o registra los partos.
-            </div></div>`;
+          if (suyos.length) return `<div class="campo ancho" data-solo-vaca hidden>
+            <div class="nota" style="margin:0">Tiene <strong>${suyos.length} parto(s)
+            registrados</strong>, el último el ${fmt(suyos[0].fecha)}. El total y la fecha
+            salen de la tabla de <strong>Partos</strong>, así que no se escriben aquí.</div></div>`;
+
+          /* Sin partos registrados sí hacen falta estos dos campos. Una vaca
+             comprada llega con su historia hecha y en ninguna parte se podía
+             decir: la app la daba por novillona de levante. */
+          return `
+            <div class="campo ancho" data-solo-vaca hidden>
+              <div class="nota" style="margin:0">Si esta hembra <strong>ya había parido antes
+              de llegar</strong>, apúntalo aquí. Sin esto la app la trata como levante: no le
+              cuenta lactancia ni entra en los promedios de leche. En cuanto le registres un
+              parto en la app, estos dos campos desaparecen y todo se calcula de ahí.</div></div>
+            <div class="campo" data-solo-vaca hidden><label>Partos antes de llegar</label>
+              <input type="number" name="partosPrevios" min="0" max="20"
+                value="${Number(a.partosPrevios) || 0}">
+              <span class="ayuda">Cuántas crías había tenido</span></div>
+            <div class="campo" data-solo-vaca hidden><label>Fecha del último parto</label>
+              <input type="date" name="ultimoPartoPrevio" value="${a.ultimoPartoPrevio || ""}">
+              <span class="ayuda">Desde ahí cuentan los días vacía y la lactancia</span></div>`;
         })()}
 
         <!-- Al añadir desde la tabla de Vendido-Muerto no tiene sentido
@@ -12468,6 +12519,13 @@ function vConfiguracion() {
                 <span class="ayuda">Pasado el día ${g.secarHasta} ya se da por seca.
                 Ventana de ${g.secarHasta - g.secarDesde + 1} días</span></div>
             `}
+            <div class="campo"><label>Avisar si sigue en levante a los … meses</label>
+              <input type="number" name="${k}_avisoLevante" min="0" max="120"
+                value="${g.avisoLevante ?? 0}">
+              <span class="ayuda">${g.avisoLevante
+                ? `A esa edad, una hembra sin ningún parto sale en Alertas: casi siempre es
+                   que nadie apuntó el parto. Con 0 se apaga.`
+                : "Apagado. Pon una edad para que avise."}</span></div>
             <div class="campo"><label>Edad mínima de servicio (meses)</label>
               <input type="number" name="${k}_edad" min="1" value="${g.edadServicio}"></div>
             <div class="campo"><label>Ciclo de celo (días)</label>
@@ -13108,7 +13166,8 @@ function conectar() {
     const v = datos(fp), n = (x) => Math.max(1, Number(x) || 1);
     const out = {};
     for (const k in ESPECIES) {
-      const g = { gestacion:n(v[k+"_gestacion"]), palpar:n(v[k+"_palpar"]),
+      const g = { avisoLevante: Math.max(0, Math.min(120, Number(v[k+"_avisoLevante"]) || 0)),
+                  gestacion:n(v[k+"_gestacion"]), palpar:n(v[k+"_palpar"]),
                   preparto: Math.max(0, Number(v[k+"_preparto"]) || 0),
                   edadServicio:n(v[k+"_edad"]), estro:n(v[k+"_estro"]),
                   celo:{ uno:n(v[k+"_celo1"]), dos:n(v[k+"_celo2"]), tres:n(v[k+"_celo3"]) } };
@@ -13516,11 +13575,17 @@ function enviar(f) {
     if (v.origen === "comprado" && !v.fechaIngreso && !id
         && !confirm("No pusiste la fecha de compra o entrada.\n\n¿Guardar así?")) return;
 
-    // Estos dos ya no se escriben a mano: salen de los partos registrados.
-    // Lo que traiga de antes (importado o de una versión anterior) se respeta.
-    const previo = id ? animal(id) : null;
-    v.partosPrevios = previo ? (Number(previo.partosPrevios) || 0) : 0;
-    v.ultimoPartoPrevio = previo ? (previo.ultimoPartoPrevio || null) : null;
+    /* Estos dos solo se escriben mientras no haya partos registrados en la
+       app. En cuanto los haya, mandan ellos y estos se dejan como estaban. */
+    const antes = id ? animal(id) : null;
+    const yaTiene = id && partosDe(id).some(p => p.tipo === "parto");
+    if (yaTiene) {
+      v.partosPrevios = Number(antes?.partosPrevios) || 0;
+      v.ultimoPartoPrevio = antes?.ultimoPartoPrevio || null;
+    } else {
+      v.partosPrevios = Math.max(0, Number(v.partosPrevios) || 0);
+      v.ultimoPartoPrevio = v.ultimoPartoPrevio || null;
+    }
     delete v.especie;   // se deriva de la categoría
     const cat = CATEGORIAS[v.categoria];
     if (!cat || cat.sexo !== "H" || cat.etapa !== "adulta") {
@@ -13673,18 +13738,29 @@ function enviar(f) {
     return persistir("Palpación registrada");
   }
 
+  /* Una ternera o una novillona que pare ya es vaca. En la finca no siempre
+     se acuerdan de cambiarle la categoría, y mientras no se cambie la app la
+     sigue tratando como levante: no le calcula lactancia ni la mete en los
+     promedios de leche. Al registrar el parto se asciende sola. */
+  const ascender = (animalId, queEs) => {
+    const an = animal(animalId);
+    if (!an) return;
+    const c = CATEGORIAS[an.categoria];
+    if (!c || c.sexo !== "H" || c.etapa === "adulta") return;
+    const nueva = ADULTA[c.especie];
+    if (!nueva || nueva === an.categoria) return;
+    an.categoria = nueva;
+    avisar(`${an.nombre} pasa de ${c.et} a ${CATEGORIAS[nueva].et}: ya ${queEs}`);
+  };
+
   if (tipo === "parto") {
     if (v.tipo === "aborto") v.sexoCria = "";
     if (id) Object.assign(D.partos.find(x => x.id === id), v);
     else D.partos.push(nuevo(v));
-    // Una novillona que pare pasa a ser vaca.
-    const a = animal(v.animalId);
-    if (a && v.tipo === "parto" && CATEGORIAS[a.categoria]?.etapa === "levante") {
-      const esp = CATEGORIAS[a.categoria].especie;
-      const adulta = Object.entries(CATEGORIAS)
-        .find(([, c]) => c.especie === esp && c.sexo === "H" && c.etapa === "adulta");
-      if (adulta) a.categoria = adulta[0];
-    }
+    /* Sube de categoría. Antes solo ascendía a las de levante y solo con un
+       parto: una TERNERA que paría se quedaba como ternera, y un aborto no
+       ascendía a nadie. Las dos cosas pasan en la finca. */
+    ascender(v.animalId, v.tipo === "parto" ? "parió" : "abortó");
     return persistir(v.tipo === "parto" ? "Parto registrado" : "Aborto registrado");
   }
 
