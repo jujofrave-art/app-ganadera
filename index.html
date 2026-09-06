@@ -905,11 +905,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.34.0";
+const VERSION = "2.35.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.35.0", "5 sep 2026", [
+    "ARREGLO: la alerta de «ya debería haber parido» necesitaba la fecha de nacimiento, y " +
+      "muchas terneras entran sin ella —compradas, o nadie la apuntó—. Sin edad, la alerta " +
+      "no saltaba nunca y el animal se quedaba invisible, que es justo lo contrario de lo " +
+      "que se busca.",
+    "Ahora, si no hay fecha de nacimiento, se mide desde que llegó a la finca o desde que se " +
+      "creó su ficha: «lleva 34 meses en la finca sin ningún parto».",
+    "Y si no se sabe ni eso, sale un aviso aparte, <strong>«Sin fecha de nacimiento»</strong>, " +
+      "para que no pase de largo. Sin ninguna fecha la app no puede decir ni cuándo toca " +
+      "servirla.",
+    "En la ficha se dice de dónde sale la edad: «34 meses» si es del nacimiento, o «34 meses " +
+      "en la finca (sin fecha de nacimiento)» si es una estimación.",
+  ]],
   ["2.34.0", "5 sep 2026", [
     "Alerta nueva: <strong>«Ya debería haber parido»</strong>. Sale cuando una hembra pasa " +
       "de cierta edad y sigue en levante sin ningún parto registrado. Casi siempre es que " +
@@ -2998,7 +3011,9 @@ function migrar(d) {
     }
     delete a.sinPalpar;
     // Antes se daba por hecho que todo animal había nacido aquí.
-    a.origen ??= (a.fechaIngreso || a.detallesCompra) ? "comprado" : "nacido";
+      a.origen ??= (a.fechaIngreso || a.detallesCompra) ? "comprado" : "nacido";
+    // Desde cuándo existe esta ficha, para poder medir algo sin fecha de nacer.
+    a.creado ??= a.fechaNacimiento || a.fechaIngreso || hoyISO();
     a.hechas ??= {};   // alertas que alguien ya marcó como cumplidas
   }
   (d.inseminaciones || []).forEach(i => {
@@ -3277,6 +3292,13 @@ function estado(a) {
     diasAbiertos, intervaloPartos, fechaProbableParto, fechaSecado, fechaPalpacion,
     secarDesdeD, secarHastaD,
     etapa, edadMeses: mesesEntre(a.fechaNacimiento),
+    /* Muchas terneras entran sin fecha de nacimiento: la compraron, o nadie
+       la apuntó. Sin ella no hay edad, y sin edad la app no puede avisar de
+       nada. Como referencia se usa lo que haya: el nacimiento si está, y si
+       no, el día que llegó a la finca o el día que se creó la ficha. */
+    mesesSeguidos: mesesEntre(a.fechaNacimiento || a.fechaIngreso || a.creado),
+    refEdad: a.fechaNacimiento ? "nacimiento"
+           : a.fechaIngreso ? "llegada" : a.creado ? "ficha" : null,
   };
 }
 
@@ -3440,13 +3462,38 @@ function alertas(incluirHechas) {
     /* Se mira el SEXO, no si ya tiene edad de servirse: una «ternera» de
        treinta meses es justo el caso que se busca, un animal que quedó con
        la categoría de cría y nadie la cambió. */
-    if (topeLevante && P.sexo === "H" && e.totalPartos === 0 && !e.prenada
-        && e.edadMeses !== null && e.edadMeses >= topeLevante) {
+    const enLevante = topeLevante && P.sexo === "H" && e.totalPartos === 0 && !e.prenada;
+    const adulta = CATEGORIAS[ADULTA[especieDe(a)]]?.et || "adulta";
+
+    if (enLevante && e.edadMeses !== null && e.edadMeses >= topeLevante) {
       push("media", "Ya debería haber parido",
         `${e.edadMeses} meses de edad y sigue en levante, sin ningún parto registrado. ` +
         `${e.ultInsem ? `Su último servicio fue el ${fmt(e.ultInsem.fecha)}. ` : "Nunca la han servido. "}` +
-        `Si ya parió, regístralo y la app la pasa a ${CATEGORIAS[ADULTA[especieDe(a)]]?.et || "adulta"} sola.`,
+        `Si ya parió, regístralo y la app la pasa a ${adulta} sola.`,
         540, `levante:${a.fechaNacimiento || ""}`);
+    }
+
+    /* Sin fecha de nacimiento no hay edad, y sin edad la de arriba no salta
+       nunca: el animal se queda invisible. Se mide entonces desde que llegó
+       a la finca, que es lo único que se sabe de él. */
+    else if (enLevante && e.edadMeses === null && e.mesesSeguidos !== null
+             && e.mesesSeguidos >= topeLevante) {
+      push("media", "Ya debería haber parido",
+        `Lleva ${e.mesesSeguidos} meses en la finca sin ningún parto y no tiene fecha de ` +
+        `nacimiento, así que no se le puede calcular la edad. Si ya parió, regístralo y ` +
+        `pasa a ${adulta} sola. Y si puedes, ponle la fecha de nacimiento.`,
+        538, `levante:${a.creado || ""}`);
+    }
+
+    /* Y si no se sabe ni cuándo llegó, al menos que no pase de largo. Con una
+       fecha de llegada no hace falta: esa ya la cubre el aviso de arriba
+       cuando corresponda, y mientras tanto es una cría joven y normal. */
+    else if (enLevante && e.mesesSeguidos === null) {
+      push("baja", "Sin fecha de nacimiento",
+        `Es una hembra en levante y no tiene fecha de nacimiento ni de llegada, así que la ` +
+        `app no puede saber si ya debería haber parido ni cuándo toca servirla. ` +
+        `Ponle una fecha aunque sea aproximada.`,
+        300, `sinfecha:${a.id}`);
     }
 
     // 10. Tratamiento en curso
@@ -6110,7 +6157,10 @@ function fichaAnimal(id) {
             a.origen === "comprado"
               ? ` · comprado${a.fechaIngreso ? " el " + fmt(a.fechaIngreso) : ""}`
               : a.fechaNacimiento ? ` · nació el ${fmt(a.fechaNacimiento)}` : ""}${
-            e.edadMeses !== null ? ` · ${e.edadMeses} meses` : ""}</div>
+            e.edadMeses !== null ? ` · ${e.edadMeses} meses`
+            : e.mesesSeguidos !== null && e.refEdad !== "nacimiento"
+              ? ` · ${e.mesesSeguidos} meses en la finca (sin fecha de nacimiento)`
+              : " · sin fecha de nacimiento"}</div>
           ${a.detallesCompra ? `<div class="meta">${esc(a.detallesCompra)}</div>` : ""}
           ${(a.madre || a.padre) ? `<div class="meta">madre ${
             a.madre ? nombrePadre(a.madre) : "—"} · padre ${
