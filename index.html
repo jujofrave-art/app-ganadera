@@ -899,11 +899,30 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.25.0";
+const VERSION = "2.27.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.27.0", "5 sep 2026", [
+    "EL ABORTO REINICIA EL CICLO, como debe ser: es un parto adelantado. Cierra la preñez y " +
+      "la vaca queda vacía desde ese día.",
+    "Antes <strong>meses vacía</strong> y la <strong>alerta de celo</strong> se contaban " +
+      "desde el último parto de verdad, sin hacer caso al aborto. Una vaca que abortó hace " +
+      "18 días salía con once meses vacía y con la alerta de celo en rojo, cuando lo normal " +
+      "es esperar.",
+    "Un secado anterior al aborto tampoco cuenta ya: pertenece al ciclo que se cerró.",
+    "La alerta dice ahora «Abortó el…» en vez de «Parió el…» cuando corresponde.",
+    "Y para la leche, el aborto arranca la lactancia igual que un parto. La app ya la " +
+      "ponía en «Producción» pero la dejaba fuera del promedio: se contradecía.",
+    "El <strong>intervalo entre partos</strong> sigue contando solo partos de verdad, que es " +
+      "lo correcto: un aborto no es una cría.",
+  ]],
+  ["2.26.0", "5 sep 2026", [
+    "ARREGLO: al explicar por qué un animal no entra en el promedio de leche, a las terneras " +
+      "y cabritas les decía «es macho». Son hembras, solo que todavía crías. Ahora dice " +
+      "«todavía es ternera».",
+  ]],
   ["2.25.0", "5 sep 2026", [
     "La contraseña se cambia ahora <strong>dentro de la app</strong>: se escribe la de ahora " +
       "y la nueva, y listo. Sin correos ni enlaces. Es lo que hace falta cuando alguien " +
@@ -3106,21 +3125,26 @@ function estado(a) {
     ? sumarDias(ultInsem.fecha, P.palpar) : null;
 
   // Secado registrado a mano: vale desde que se hace hasta el próximo parto.
-  const secadoActual = secas.find(s => !ultPartoReal || s.fecha > ultPartoReal.fecha) || null;
+  // Igual con el secado: el de antes del aborto es del ciclo ya cerrado.
+  const secadoActual = secas.find(s => !ultParto || s.fecha > ultParto.fecha) || null;
 
   // ---- Inseminaciones del ciclo actual (se reinicia con cada parto o aborto) ----
   const desdeCiclo = ultParto ? ultParto.fecha : "0000-00-00";
   const insemCiclo = insems.filter(x => x.fecha > desdeCiclo);
 
-  // ---- Alerta de celo: parió y nadie la ha vuelto a servir ----
-  const alertaCelo = calcularAlertaCelo(insemCiclo.length, ultPartoReal, a);
+  /* Un aborto es un parto adelantado: cierra la preñez y arranca el ciclo de
+     nuevo igual que uno normal. La vaca queda vacía desde ese día y hay que
+     volver a servirla. Antes estas cuentas se hacían desde el último parto de
+     verdad, así que una vaca que abortó ayer salía con once meses vacía y con
+     la alerta de celo en rojo. */
+  const alertaCelo = calcularAlertaCelo(insemCiclo.length, ultParto, a);
 
   // ---- Meses vacía ----
-  // Cuenta desde el último parto y se congela en cuanto la sirven.
+  // Cuenta desde el último parto o aborto, y se congela al servirla.
   const yaServida = insemCiclo.length > 0;
-  const mesesVacia = (yaServida || !ultPartoReal || dias(ultPartoReal.fecha) === 0)
-    ? "0" : textoCalendario(ultPartoReal.fecha);
-  const diasVacia = (yaServida || !ultPartoReal) ? 0 : dias(ultPartoReal.fecha);
+  const mesesVacia = (yaServida || !ultParto || dias(ultParto.fecha) === 0)
+    ? "0" : textoCalendario(ultParto.fecha);
+  const diasVacia = (yaServida || !ultParto) ? 0 : dias(ultParto.fecha);
 
   // ---- Meses gestación ----
   // El texto de la gestación sale de la fecha que de verdad manda: puede ser
@@ -3214,7 +3238,8 @@ function alertas(incluirHechas) {
     };
 
     const srv = e.servicioValido?.fecha || e.ultInsem?.fecha || "";
-    const prt = e.ultPartoReal?.fecha || "";
+    const prt = e.ultParto?.fecha || "";
+    const parioOAborto = e.ultParto?.tipo === "aborto" ? "Abortó" : "Parió";
 
     // 1. Palpación, solo en las que sí se palpan
     if (e.fechaPalpacion) {
@@ -3309,7 +3334,7 @@ function alertas(incluirHechas) {
     if (e.alertaCelo) {
       const c = e.alertaCelo;
       push(c.nivel, c.texto.charAt(0).toUpperCase() + c.texto.slice(1),
-        `Parió el ${fmt(prt)}, hace ${e.mesesVacia}, y no tiene ningún servicio.`,
+        `${parioOAborto} el ${fmt(prt)}, hace ${e.mesesVacia}, y no tiene ningún servicio.`,
         600 + c.dias, `celo:${prt}:${c.texto}`);
     }
 
@@ -3600,7 +3625,10 @@ function enProduccionEn(a, fecha) {
   if (a.fechaNacimiento && a.fechaNacimiento > fecha) return false;
 
   // El último parto anterior a esa fecha abre la lactancia.
-  const partos = partosDe(a.id).filter(p => p.tipo === "parto" && p.fecha <= fecha);
+  /* El aborto cuenta como parto para la leche: la vaca queda produciendo
+     igual. Es lo que ya hacía la etapa —salía «Producción»— mientras el
+     promedio de leche la dejaba fuera, que era contradecirse. */
+  const partos = partosDe(a.id).filter(p => p.fecha <= fecha);
   const previo = a.ultimoPartoPrevio && a.ultimoPartoPrevio <= fecha
     ? { fecha: a.ultimoPartoPrevio } : null;
   const parto = partos[0] || previo;
@@ -3626,13 +3654,19 @@ function enProduccionEn(a, fecha) {
 function motivoNoProduce(a, fecha) {
   if (!a) return "no existe";
   const P = par(a);
-  if (!P.sirve)   return "es macho";
+  // Antes cualquiera que no pudiera servirse salía como «es macho», incluidas
+  // las terneras y las cabritas, que son hembras pero todavía crías.
+  if (P.sexo === "M") return "es macho";
+  if (!P.sirve)       return `todavía es ${(P.et || "cría").toLowerCase()}`;
   if (!P.lechero) return `los ${(P.plural || "de esta especie").toLowerCase()} no se ordeñan`;
   if (a.estado !== "activo" && (!a.fechaSalida || a.fechaSalida <= fecha))
     return "ya no estaba en el hato";
   if (a.fechaNacimiento && a.fechaNacimiento > fecha) return "todavía no había nacido";
 
-  const partos = partosDe(a.id).filter(p => p.tipo === "parto" && p.fecha <= fecha);
+  /* El aborto cuenta como parto para la leche: la vaca queda produciendo
+     igual. Es lo que ya hacía la etapa —salía «Producción»— mientras el
+     promedio de leche la dejaba fuera, que era contradecirse. */
+  const partos = partosDe(a.id).filter(p => p.fecha <= fecha);
   const previo = a.ultimoPartoPrevio && a.ultimoPartoPrevio <= fecha
     ? { fecha: a.ultimoPartoPrevio } : null;
   const parto = partos[0] || previo;
