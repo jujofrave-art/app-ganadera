@@ -905,11 +905,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.29.0";
+const VERSION = "2.30.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.30.0", "5 sep 2026", [
+    "SEGURIDAD: la cuenta raíz queda blindada. Antes, cualquier otro superadministrador " +
+      "podía quitarle las fincas, desactivarla o bajarle el rango, y dejar al dueño de la " +
+      "app fuera de su propia app. Solo hacía falta que tú mismo lo hubieras nombrado.",
+    "Ahora ni su ficha ni su permiso los toca nadie más que ella, ni desde la pantalla ni " +
+      "desde la consola del navegador. Tampoco se puede borrar.",
+    "Y nadie puede suplantarla poniéndole ese correo a otra ficha.",
+    "HAY QUE VOLVER A PUBLICAR LAS REGLAS.",
+  ]],
   ["2.29.0", "5 sep 2026", [
     "El <strong>intervalo entre partos</strong> sale ahora con su valoración al lado —al año, " +
       "aceptable o largo— y con la meta debajo, para no tener que acordarse de los números.",
@@ -3947,6 +3956,10 @@ const sinAsignar = (p) => !((p.fincas || []).length);
 
 const puedoEditarPersona = (p) => {
   if (!p) return false;
+  /* La cuenta raíz no la toca nadie más que ella. Sin esto, cualquier otro
+     superadministrador podía quitarle las fincas, desactivarla o bajarle el
+     rango, y dejarla fuera de su propia app. */
+  if ((p.correo || "").toLowerCase() === CORREO_RAIZ) return soyRaiz();
   if (esSuper()) return true;
   if (!puede("editaPersona")) return false;
   if (p.id === S.persona.id) return true;
@@ -6466,6 +6479,7 @@ function formFinca(id) {
   const bloque = (rol) => {
     const gente = (esSuper() ? D.personas : misPersonas())
       .filter(p => p.rol === rol).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    // La raíz no se puede desmarcar de una finca desde aquí.
     return `<div class="campo ancho"><label>${ROLES[rol].plural}</label>
       ${gente.length === 0
         ? `<span class="ayuda">No hay ${ROLES[rol].plural.toLowerCase()} registrados todavía.</span>`
@@ -11537,6 +11551,10 @@ service cloud.firestore {
     // navegador y quedarse con todas las fincas.
     match /usuarios/{correo} {
       function esMio() { return correo == request.auth.token.email; }
+      /* El permiso de la cuenta raíz solo lo toca ella. Aunque un
+         superadministrador pueda con todo lo demás, no puede desactivar a la
+         raíz ni quitarle las fincas ni bajarle el rango. */
+      function esDeRaiz() { return correo == correoRaiz(); }
 
       // Sobre el propio permiso: la app lo repara sola (recuperar fincas,
       // unir fichas duplicadas), así que hay que dejarla escribir. Lo que
@@ -11566,11 +11584,12 @@ service cloud.firestore {
 
       allow read:   if request.auth != null
                     && (esMio() || (registrado() && manda()));
-      allow create: if soyRaiz() || (registrado() && otorgoAOtro() && superPermitido());
-      allow update: if soyRaiz() || (registrado() && superPermitido() && (arregloMio() ||
-                    (otorgoAOtro()
+      allow create: if soyRaiz() || (registrado() && !esDeRaiz()
+                    && otorgoAOtro() && superPermitido());
+      allow update: if soyRaiz() || (registrado() && !esDeRaiz() && superPermitido()
+                    && (arregloMio() || (otorgoAOtro()
                      && (esSuper() || rango(resource.data.get('rol', 'empleado')) < rango(rol())))));
-      allow delete: if soyRaiz() || (registrado() && !esMio() && (esSuper()
+      allow delete: if soyRaiz() || (registrado() && !esMio() && !esDeRaiz() && (esSuper()
                     || (manda() && rango(resource.data.get('rol', 'empleado')) < rango(rol()))));
     }
 
@@ -11594,12 +11613,16 @@ service cloud.firestore {
       // CUALQUIERA del proyecto, aunque fuera de otra finca. Ahora alcanza
       // solo a quien comparte finca conmigo o a quien yo registré, y nunca
       // a alguien de rango igual o mayor.
+      // La ficha de la raíz tampoco: ni editarla ni borrarla.
+      function fichaDeRaiz() {
+        return resource.data.get('correo', '') == correoRaiz();
+      }
       function alcanzo() {
-        return esSuper() || (manda() && (
+        return !fichaDeRaiz() && (esSuper() || (manda() && (
           resource.data.fincas.hasAny(misFincas())
           || resource.data.creadoPor == yo().persona
           || resource.data.sinFinca == true
-        ) && rango(resource.data.get('rol', 'empleado')) < rango(rol()));
+        ) && rango(resource.data.get('rol', 'empleado')) < rango(rol())));
       }
       // Su propia ficha sí la edita cada quien (nombre, teléfono), pero
       // sin cambiarse el rol.
@@ -11607,15 +11630,20 @@ service cloud.firestore {
         return resource.data.get('correo', '') == request.auth.token.email
                && request.resource.data.rol == resource.data.rol;
       }
+      // Nadie puede convertir a otra persona en la raíz ponjéndole ese correo.
+      function noSuplanta() {
+        return request.resource.data.get('correo', '') != correoRaiz() || soyRaiz();
+      }
       // Igual que en /usuarios: la ficha tampoco puede decir «superadmin» si
       // ese correo no está autorizado en la lista raíz.
       function superFichaOk() {
         return request.resource.data.rol != 'superadmin'
                || autorizadoSuper(request.resource.data.get('correo', ''));
       }
-      allow create: if soyRaiz() || (registrado() && manda() && superFichaOk()
+      allow create: if soyRaiz() || (registrado() && manda() && superFichaOk() && noSuplanta()
                     && (esSuper() || rango(request.resource.data.rol) < rango(rol())));
-      allow update: if soyRaiz() || (registrado() && superFichaOk() && (miFicha() || (alcanzo()
+      allow update: if soyRaiz() || (registrado() && superFichaOk() && noSuplanta()
+                    && (miFicha() || (alcanzo()
                     && (esSuper() || rango(request.resource.data.rol) < rango(rol())))));
       allow delete: if soyRaiz() || (registrado() && alcanzo());
     }
