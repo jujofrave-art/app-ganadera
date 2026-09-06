@@ -905,11 +905,26 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.30.0";
+const VERSION = "2.32.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.32.0", "5 sep 2026", [
+    "NO SE DUPLICA POR PULSAR GUARDAR VARIAS VECES. Sin señal no se ve que algo haya pasado " +
+      "y es normal volver a pulsar creyendo que no cogió; cada pulsación creaba un registro " +
+      "nuevo. Ahora el formulario se cierra a cal y canto en cuanto se manda una vez.",
+    "Si el guardado no sale —faltó un campo, hubo un reparo— el botón se suelta solo para " +
+      "poder corregir y volver a intentar.",
+    "Lo mismo en «pegar la leche del cuaderno», que crea muchos registros de una vez: un " +
+      "doble toque habría metido el mes entero dos veces.",
+  ]],
+  ["2.31.0", "5 sep 2026", [
+    "Sin señal, un ajuste cambiado se reintentaba cada medio minuto y se iban encolando " +
+      "copias: en una tarde sin cobertura, cientos del mismo dato. Firestore ya lo tiene " +
+      "guardado y lo manda solo al volver la señal, así que ahora solo se vuelve a intentar " +
+      "si el valor cambió o si pasaron cinco minutos.",
+  ]],
   ["2.30.0", "5 sep 2026", [
     "SEGURIDAD: la cuenta raíz queda blindada. Antes, cualquier otro superadministrador " +
       "podía quitarle las fincas, desactivarla o bajarle el rango, y dejar al dueño de la " +
@@ -7095,8 +7110,11 @@ function formLecheRapida(fincaPre) {
 
   f.onsubmit = (ev) => {
     ev.preventDefault();
+    if (f.dataset.enviando === "1") return;      // no duplicar por doble toque
+    f.dataset.enviando = "1";
+    btn.disabled = true;
     const { filas, fincaId } = ultimo;
-    if (!filas.length || !fincaId) return;
+    if (!filas.length || !fincaId) { f.dataset.enviando = "0"; btn.disabled = false; return; }
     const viejas = filas.filter(x => dias(x.fecha) > 400).length;
     if (viejas && !confirm(`${viejas} de esos registros tienen más de un año.\n\n` +
         `Se guardan y suben igual, pero si tienes puesto el recorte de historial ` +
@@ -9963,15 +9981,18 @@ function empujarAjustes() {
       cambios[k] = JSON.parse(json);
     }
     if (!Object.keys(cambios).length) continue;
-    /* Sin señal, la escritura no se resuelve. Se espera a la anterior para no
-       encolar copias, pero con un tope: si en 20 segundos no ha vuelto, se
-       deja intentar otra vez en lugar de quedarse mudo para siempre. */
+    /* Sin señal la escritura no se resuelve, pero Firestore ya la tiene
+       encolada y saldrá sola al volver la señal. Si se reintentara cada
+       medio minuto se encolarían cien copias del mismo ajuste en una tarde
+       sin cobertura: solo se vuelve a mandar si el valor CAMBIÓ desde el
+       último intento, o si han pasado cinco minutos. */
+    const huella = firmaDoc(cambios);
     const vuelo = (FB.ajustesEnVuelo ||= {})[cual];
-    if (vuelo && Date.now() - vuelo < 20000) continue;
-    FB.ajustesEnVuelo[cual] = Date.now();
+    if (vuelo && vuelo.huella === huella && Date.now() - vuelo.cuando < 300000) continue;
+    FB.ajustesEnVuelo[cual] = { huella, cuando: Date.now() };
     fs.setDoc(fs.doc(FB.db, "ajustes", cual), limpiarParaFirestore(cambios), { merge: true })
       .then(() => {
-        FB.ajustesEnVuelo[cual] = 0;
+        FB.ajustesEnVuelo[cual] = null;
         // El espejo se apunta DESPUÉS de que la escritura sale bien. Antes se
         // apuntaba primero, así que un fallo dejaba el ajuste sin reintentar.
         for (const k of Object.keys(cambios)) {
@@ -9981,7 +10002,7 @@ function empujarAjustes() {
         if (FB.ajustesError?.[cual]) { delete FB.ajustesError[cual]; pintarPronto(); }
       })
       .catch((e) => {
-        FB.ajustesEnVuelo[cual] = 0;
+        FB.ajustesEnVuelo[cual] = null;
         (FB.ajustesError ||= {})[cual] = e?.code || String(e);
         pintarPronto();
       });
@@ -13339,8 +13360,27 @@ function conectarHoja(d) {
     }
   };
 
+  /* Sin señal no se ve que algo haya pasado, y es normal volver a pulsar
+     Guardar creyendo que no cogió. Cada pulsación creaba un registro nuevo.
+     El formulario se cierra a cal y canto en cuanto se manda una vez. */
   const f = d.querySelector("form[data-guardar]");
-  if (f) f.onsubmit = (e) => { e.preventDefault(); enviar(f); };
+  if (f) f.onsubmit = (e) => {
+    e.preventDefault();
+    if (f.dataset.enviando === "1") return;
+    f.dataset.enviando = "1";
+    const btn = f.querySelector("button:not([type=button]):not([data-cerrar])");
+    if (btn) btn.disabled = true;
+    try { enviar(f); }
+    finally {
+      /* Si la hoja sigue abierta es que no se guardó (faltó un campo, hubo un
+         reparo): se suelta para que se pueda corregir y volver a intentar. */
+      setTimeout(() => {
+        if (!f.isConnected) return;
+        f.dataset.enviando = "0";
+        if (btn) btn.disabled = false;
+      }, 400);
+    }
+  };
 }
 
 function datos(f) {
@@ -13354,6 +13394,23 @@ function datos(f) {
 function error(f, msg) {
   const a = f.querySelector("[data-error]");
   a.textContent = msg; a.hidden = false;
+}
+
+/**
+ * ¿Ya hay un registro igual, hecho hace un momento?
+ *
+ * Sin señal no se ve que algo haya pasado y es fácil volver a registrar lo
+ * mismo. Esto mira si en la última hora se guardó uno idéntico —mismo animal,
+ * misma fecha, mismo tipo— y avisa antes de crear el segundo.
+ */
+function yaHayIgual(col, v, id) {
+  if (id) return null;                                  // se está editando, no creando
+  const campo = { tratamientos: "inicio" }[col] || "fecha";
+  return (D[col] || []).find(x => x.id !== id
+    && x.animalId === v.animalId
+    && (x.fincaId || null) === (v.fincaId || null)
+    && x[campo] === v[campo]
+    && (col !== "partos" || x.tipo === v.tipo)) || null;
 }
 
 /**
@@ -13545,6 +13602,21 @@ function enviar(f) {
 
     if (marcadas) asignarFincas(pid, marcadas);
     return persistir("Persona guardada");
+  }
+
+  /* Antes de crear cualquier evento: ¿no estaremos metiendo dos veces lo
+     mismo? Pasa sin señal, cuando no se ve que el primero ya entró. */
+  const COL_DE = { insem: "inseminaciones", palp: "palpaciones", parto: "partos",
+                   secado: "secados", trat: "tratamientos" };
+  if (COL_DE[tipo] && !id) {
+    const v0 = datos(f);
+    const gemelo = yaHayIgual(COL_DE[tipo], v0, id);
+    if (gemelo && !confirm(
+        `Ya hay un registro de ${animal(v0.animalId)?.nombre || "este animal"} ` +
+        `con esa misma fecha.\n\nPuede que el anterior sí entrara aunque no lo ` +
+        `hayas visto, sobre todo si estabas sin señal.\n\n¿Guardar otro igual?`)) {
+      return;
+    }
   }
 
   if (tipo === "insem") {
