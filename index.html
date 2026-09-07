@@ -491,6 +491,9 @@ details.panel:not([open])>summary{border-bottom:0}
   letter-spacing:-.02em;color:var(--tinta)}
 .cab-especie .dato{font-family:var(--dato);font-size:11px;color:var(--tenue)}
 .fila-btn{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+button.sync{border:0;background:none;padding:0;text-align:left;cursor:pointer;
+  font:inherit;width:100%}
+button.sync:hover{text-decoration:underline;text-underline-offset:2px}
 .liga-pie{background:none;border:0;color:var(--rail-fg);opacity:.72;font-size:11.5px;
   font-family:var(--dato);cursor:pointer;padding:6px 0;text-align:left;width:100%;
   text-decoration:underline;text-underline-offset:2px}
@@ -921,11 +924,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.52.0";
+const VERSION = "2.53.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.53.0", "7 sep 2026", [
+    "Tocando el indicador de conexión —abajo en el menú, donde dice «Todo guardado»— se " +
+      "abre una pantalla que cuenta qué está pasando: tu puesto, cuántas fincas te " +
+      "autoriza tu permiso, qué tablas están fallando y con qué código, y cuántos " +
+      "registros hay bajados de cada una.",
+    "Hasta ahora el diagnóstico vivía en Configuración, que un empleado no puede abrir: el " +
+      "único que podía contar qué pasaba era justo el que no podía verlo.",
+    "Traduce los dos errores típicos: «permission denied» es que faltan las reglas o la " +
+      "finca asignada; «failed precondition» es que falta un índice.",
+    "Y trae un botón para volver a conectar sin recargar.",
+  ]],
   ["2.52.0", "7 sep 2026", [
     "LA APP ABRE DE UNA VEZ. Antes había que esperar a que bajara la tabla de personas para " +
       "saber quién eras, y hasta entonces la pantalla se quedaba en «Entrando». En un " +
@@ -5442,7 +5456,8 @@ function pintar() {
       title="${D.config.giroBloqueado ? "Pantalla fija. Toca para permitir el giro"
                                       : "Toca para dejar la pantalla fija"}"
       aria-label="Bloquear giro">${D.config.giroBloqueado ? "🔒" : "⟳"}</button>` : ""}
-    <span class="ver-chip sync-chip ${estadoSync().clase}">${estadoSync().corto}</span>
+    <span class="ver-chip sync-chip ${estadoSync().clase}" data-acc="ver-estado"
+      style="cursor:pointer">${estadoSync().corto}</span>
     ${nAlertas ? `<button class="topbar-alertas" data-ir="alertas">${nAlertas}</button>` : ""}
   </header>
   <div class="rail-fondo ${V.railAbierto ? "visible" : ""}" data-cerrar-menu></div>
@@ -5463,7 +5478,8 @@ function pintar() {
         `).join("")}
       </nav>
       <div class="pie">
-        <div class="sync ${estadoSync().clase}">${estadoSync().texto}</div>
+        <button class="sync ${estadoSync().clase}" data-acc="ver-estado"
+          title="Ver qué está pasando con la conexión">${estadoSync().texto}</button>
         ${puedeFichaPropia() ? `
         <button class="quien" data-perfil title="Editar mis datos">
           <span class="p ${ROLES[S.persona.rol].cl}">${ROLES[S.persona.rol].et}</span>
@@ -5530,6 +5546,71 @@ function selectorFinca() {
 }
 /** Solo aparece si en la finca hay más de una especie. */
 /** Cómo va la sincronización, en una línea. */
+/**
+ * Qué está pasando con la conexión, en cristiano y sin permisos especiales.
+ *
+ * El diagnóstico completo vive en Configuración, que un empleado no puede
+ * abrir. Cuando algo falla, el único que puede contar qué pasó es justo el
+ * que no puede verlo. Esto se abre tocando el indicador del menú.
+ */
+function hojaEstado() {
+  const fallos = FB.fallos || {};
+  const conFallo = Object.keys(fallos);
+  const cuenta = (c) => (D[c] || []).length;
+
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Estado de la conexión</h2>
+      <div class="sub">${esc(FB.user?.email || "sin sesión")}</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <div style="padding:2px 0 6px">
+
+      <dl class="plan">
+        <div><dt>Puesto</dt><dd>${ROLES[rolActual()]?.et || rolActual() || "—"}</dd></div>
+        <div><dt>Fincas autorizadas</dt><dd>${(FB.fincasRemotas || []).length}</dd></div>
+        <div><dt>Fincas que se ven</dt><dd>${(D.fincas || []).length}</dd></div>
+        <div><dt>Sin subir</dt><dd>${FB.sinSubir || 0}</dd></div>
+      </dl>
+
+      ${!(FB.fincasRemotas || []).length ? `<div class="aviso">Tu permiso no tiene ninguna
+        finca asignada, así que no hay nada que mostrar. Pídele al dueño que te asigne
+        al menos una en tu ficha.</div>` : ""}
+
+      ${conFallo.length ? `
+        <h4 class="sub-titulo">Lo que está fallando</h4>
+        <div class="sub-tabla"><table>
+          <thead><tr><th>Tabla</th><th>Problema</th></tr></thead>
+          <tbody>${conFallo.map(c => `<tr>
+            <td>${c}</td>
+            <td><span class="sub">${esc(fallos[c].codigo || "?")}</span><br>
+              <span class="sub">${esc(String(fallos[c].msg || "").slice(0, 160))}</span></td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+        <p class="expl">${conFallo.some(c => String(fallos[c].codigo).includes("permission"))
+          ? "«Permission denied» quiere decir que las reglas de Firestore no dejan leer esa " +
+            "tabla con tu permiso. Casi siempre falta publicar las reglas, o falta asignarte " +
+            "una finca."
+          : conFallo.some(c => String(fallos[c].codigo).includes("failed-precondition"))
+            ? "«Failed precondition» quiere decir que falta crear un índice en Firestore. La " +
+              "app sigue funcionando sin él, bajando todo el historial."
+            : "Enséñale esta pantalla al dueño de la finca."}</p>
+      ` : `<div class="nota">Ninguna tabla está dando error.</div>`}
+
+      <h4 class="sub-titulo">Qué hay bajado</h4>
+      <div class="sub-tabla"><table>
+        <thead><tr><th>Tabla</th><th class="num">Registros</th></tr></thead>
+        <tbody>${COLECCIONES.map(c => `<tr>
+          <td>${c}</td><td class="num">${cuenta(c)}</td></tr>`).join("")}</tbody>
+      </table></div>
+
+      <p class="expl">Si todo sale en cero y no hay ningún error, es que aún no ha
+      terminado de bajar o que tu permiso no alcanza ninguna finca.</p>
+    </div>
+    <div class="hoja-pie">
+      <button class="btn" data-acc="reconectar">Volver a conectar</button>
+      <button class="btn btn-firme" data-cerrar>Cerrar</button>
+    </div>`);
+}
+
 function estadoSync() {
   const sinRed = typeof navigator !== "undefined" && navigator.onLine === false;
   if (!D.config.firebase) return { clase: "", texto: "○ Solo en este equipo", corto: "Local" };
@@ -15035,6 +15116,14 @@ async function acciones(a) {
       alert(`Listo. Revisa ${c}, y mira también en correo no deseado.\n\n` +
         `El enlace dura una hora.`);
     } catch (e) { alert("No se pudo enviar: " + errorFB(e)); }
+    return;
+  }
+  if (a === "ver-estado") { hojaEstado(); return; }
+  if (a === "reconectar") {
+    cerrarHoja();
+    avisar("Volviendo a conectar…");
+    try { pararTodo(); } catch {}
+    try { await conectarFirebase(true); } catch {}
     return;
   }
   if (a === "cancelar-entrada") {
