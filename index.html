@@ -921,11 +921,30 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.46.0";
+const VERSION = "2.48.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.48.0", "7 sep 2026", [
+    "«Es mi primera vez» decía que faltaba activar correo y contraseña cuando ya estaba " +
+      "activado. El enlace por correo tiene su PROPIO interruptor, dentro del mismo " +
+      "proveedor pero más abajo: «Enlace de correo electrónico (inicio de sesión sin " +
+      "contraseña)». Ahora lo dice con esas palabras y ofrece ponerse la contraseña ahí " +
+      "mismo mientras tanto.",
+    "Cuando Firebase niega el acceso, el mensaje ya no es «error de conexión» a secas. A " +
+      "un empleado le dice qué pedirle al dueño; el diagnóstico completo vive en " +
+      "Configuración, que él no puede abrir.",
+    "Quien entra sin tener ficha en la finca ya no se queda con la sesión abierta a medias: " +
+      "se cierra sola. Vale igual con correo, con enlace o con Google.",
+  ]],
+  ["2.47.0", "7 sep 2026", [
+    "El aviso de la tabla de Leche dec\u00eda que faltaban \u00absecados y servicios\u00bb, y eso desor\u00edenta " +
+      "en una finca donde no se apuntan secados. Lo que de verdad hace falta son los " +
+      "SERVICIOS: de su fecha sale la gestaci\u00f3n, y de la gestaci\u00f3n sabe la app qui\u00e9n ya " +
+      "estaba seca aunque nadie lo haya apuntado. Los partos est\u00e1n siempre, porque esos " +
+      "nunca se recortan.",
+  ]],
   ["2.46.0", "7 sep 2026", [
     "«Pegar del cuaderno» acepta ahora <strong>años enteros de una vez</strong>. Basta con " +
       "escribir el nombre del mes en su propia línea antes de sus números: «Enero 2023», los " +
@@ -4440,11 +4459,12 @@ function bloqueInicio(hayFB) {
 function bloqueEntrar(hayFB, gente, primeraVez) {
   if (!hayFB) return bloqueLocal(gente);
   const modo = S.modoAcceso || "entrar";
-  return {
+  return ({
     entrar:  bloqueClave,
     primera: bloquePrimeraVez,
     olvide:  bloqueOlvide,
-  }[modo]();
+    "clave-nueva": bloqueClaveNueva,
+  }[modo] || bloqueClave)();
 }
 
 /* ---------- entrar con contraseña ---------- */
@@ -4492,6 +4512,35 @@ ${(FB.estado === "error" || !enLinea()) && haySesionGuardada() ? `<div class="no
 
     <div class="separa"><span>o</span></div>
     ${botonGoogle()}`;
+}
+
+/* ---------- ponerse la contraseña sin enlace ----------
+   Salida para cuando el enlace por correo no está activado en Firebase.
+   Crea la cuenta con contraseña. No abre nada por sí sola: si ese correo no
+   tiene ficha en la finca, la app cierra la sesión al entrar. */
+function bloqueClaveNueva() {
+  return `
+    <h2>Ponte una contraseña</h2>
+    <p class="lede">Escribe el correo con el que te registraron y la contraseña que quieras.
+    Solo funciona si nadie la ha creado antes con ese correo.</p>
+    ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
+    ${S.aviso ? `<div class="nota">${esc(S.aviso)}</div>` : ""}
+
+    <form data-acceso="clave-nueva">
+      <div class="campo"><label>Tu correo</label>
+        <input name="correo" type="email" value="${esc(D.config.correo)}"
+          autocomplete="username" required autofocus></div>
+      <div class="campo"><label>Contraseña nueva</label>
+        <input name="clave" type="password" autocomplete="new-password" minlength="6" required>
+        <span class="ayuda">Mínimo 6 caracteres</span></div>
+      <div class="campo"><label>Repítela</label>
+        <input name="repite" type="password" autocomplete="new-password" minlength="6" required></div>
+      <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
+        ${S.cargando ? "Creando…" : "Crear mi contraseña"}</button>
+    </form>
+    <div class="ligas">
+      <button class="liga" data-modo="entrar">Volver a iniciar sesión</button>
+    </div>`;
 }
 
 /* ---------- primera vez ---------- */
@@ -4623,8 +4672,56 @@ function conectarAcceso() {
         S.cargando = false;
         S.aviso = `Listo. Revisa ${correo} y abre el enlace desde este mismo dispositivo. ` +
                   `Si no llega en un par de minutos, mira en correo no deseado.`;
-      } catch (err) { S.cargando = false; S.error = errorFB(err); }
+      } catch (err) {
+        S.cargando = false;
+        const c = String(err?.code || "");
+
+        /* El enlace por correo se activa con un interruptor DISTINTO del de
+           correo y contraseña: está dentro del mismo proveedor, más abajo,
+           y se llama «Enlace de correo electrónico (inicio de sesión sin
+           contraseña)». Es normal tener el primero encendido y el segundo no,
+           y el mensaje de Firebase no lo aclara. */
+        if (/operation-not-allowed|unauthorized-continue-uri|invalid-continue-uri/.test(c)) {
+          if (confirm(
+              `Firebase no deja mandar el enlace por correo.\n\n` +
+              `En la consola de Firebase, en Authentication → Sign-in method → ` +
+              `Correo electrónico/contraseña, hay DOS interruptores. El de arriba ya lo ` +
+              `tienes; falta el de abajo: «Enlace de correo electrónico (inicio de sesión ` +
+              `sin contraseña)».\n\n` +
+              `Mientras tanto puedes ponerte la contraseña aquí mismo, sin enlace.\n\n` +
+              `¿Quieres hacerlo ahora?`)) {
+            S.modoAcceso = "clave-nueva";
+            S.aviso = `Ponle una contraseña a ${correo}. Solo funciona si nadie la ha ` +
+                      `creado antes con ese correo.`;
+            return pantallaAcceso();
+          }
+          S.error = "Falta encender «Enlace de correo electrónico» en Firebase, " +
+                    "dentro del proveedor de correo y contraseña.";
+        } else {
+          S.error = errorFB(err);
+        }
+      }
       pantallaAcceso(); return;
+    }
+
+    if (f.dataset.acceso === "clave-nueva") {
+      const v = datos(f);
+      if (v.clave.length < 6) { S.error = "La contraseña necesita al menos 6 caracteres."; return pantallaAcceso(); }
+      if (v.clave !== v.repite) { S.error = "Las dos contraseñas no son iguales."; return pantallaAcceso(); }
+      S.cargando = true; S.error = ""; pantallaAcceso();
+      try {
+        await entrarFirebase(correo, v.clave, true);
+        S.cargando = false;
+      } catch (err) {
+        S.cargando = false;
+        const c = String(err?.code || "");
+        S.error = /email-already-in-use/.test(c)
+          ? `Ese correo ya tiene cuenta. Entra normal, o usa «Olvidé mi contraseña».`
+          : /weak-password/.test(c) ? "Esa contraseña es muy fácil, pon otra."
+          : errorFB(err);
+        pantallaAcceso();
+      }
+      return;
     }
 
     if (f.dataset.acceso === "olvide") {
@@ -4890,9 +4987,14 @@ function asegurarPersona(email) {
   }
 
   if (D.personas.length > 0) {
-    S.error = `La cuenta ${email} entró bien, pero no hay ninguna persona registrada con ese ` +
-              `correo. Pídele a un dueño que te cree la ficha y te asigne a una finca.`;
+    /* Entrar a Firebase no es entrar a la app: hace falta tener ficha. Vale
+       igual con correo, con enlace o con Google. Y se cierra la sesión para
+       no dejarla abierta a medias en un equipo que no es suyo. */
+    S.error = `La cuenta ${email} entró bien en Google/Firebase, pero no hay ninguna persona ` +
+              `registrada con ese correo en esta finca. Pídele a un dueño que te cree la ` +
+              `ficha y te asigne a una finca.`;
     S.persona = null;
+    try { salirFirebase(); } catch {}
     return;
   }
 
@@ -5361,6 +5463,7 @@ function estadoSync() {
     texto: `▲ No sube: ${fallos.slice(0, 2).join(", ")}${fallos.length > 2 ? "…" : ""}`,
     corto: "!" };
   if (FB.estado === "error") return { clase: "error", texto: "▲ Error de conexión", corto: "Error" };
+  if (FB.sinPermiso) return { clase: "error", texto: "▲ Sin permiso todavía", corto: "Permiso" };
   if (sinRed || FB.enCache) {
     return FB.sinSubir
       ? { clase: "espera", texto: `◌ Sin señal · ${FB.sinSubir} por subir`, corto: `${FB.sinSubir}` }
@@ -6223,9 +6326,10 @@ function avisoLecheVieja(L) {
   if (!viejos) return "";
   return `<div class="nota recorte">
     <span><strong>${viejos}</strong> de estos registros son anteriores al
-    ${fmt(FB.corte)}. Los <strong>secados y servicios</strong> de esa época no están
-    bajados, y sin ellos la app no sabe cuáles vacas estaban secas cada día: cuenta de
-    más y el promedio por vaca sale bajo. Trae todo el historial para que cuadre.</span>
+    ${fmt(FB.corte)}, y los <strong>servicios</strong> de esa época no están bajados.
+    De la fecha del servicio sale la gestación, y de la gestación sabe la app quién ya
+    estaba seca, aunque nadie apunte los secados. Sin eso cuenta vacas de más y el
+    promedio por vaca sale bajo. Los partos sí están siempre: esos nunca se recortan.</span>
     <button class="btn btn-sm" data-acc="todo-historial">Traer todo</button>
   </div>`;
 }
@@ -10230,6 +10334,7 @@ function escucharColecciones(mias) {
   pararEscuchas();
   FB.cajones = {};
   FB.fallos = {};
+  FB.sinPermiso = false;
   FB.fincasCargadas = false;
   FB.espejoUsuarios = {};
   FB.usuariosRemotos = {};
@@ -10342,6 +10447,23 @@ function escucharColecciones(mias) {
         const url = (msg.match(/https:\/\/console\.firebase\.google\.com\S+/) || [])[0];
         (FB.fallos ||= {})[nombre] = { codigo, msg, url };
         if (url) (FB.indicesFaltantes ||= {})[nombre] = url;
+
+        /* Sin permiso casi siempre es que el documento de acceso de esta
+           persona todavía no existe en Firebase, o que las reglas no están
+           publicadas. El empleado no puede arreglarlo ni ver el diagnóstico,
+           que vive en Configuración: hay que decírselo aquí y en cristiano. */
+        if (codigo.includes("permission-denied")) {
+          FB.sinPermiso = true;
+          FB.estado = "error";
+          FB.error = manda()
+            ? `Firestore niega el acceso a ${nombre}. Revisa que las reglas estén ` +
+              `publicadas y que tu documento en /usuarios exista y esté activo.`
+            : `Tu cuenta entró bien pero Firebase todavía no le da acceso a los datos. ` +
+              `Avísale al dueño de la finca: tiene que abrir la app una vez para que se ` +
+              `cree tu permiso, y comprobar que las reglas estén publicadas.`;
+          pintar();
+          return;
+        }
 
         // Falta el índice compuesto: se reintenta sin el filtro de fechas,
         // que es lo que lo exige. Así la app sirve igual mientras lo creas.
