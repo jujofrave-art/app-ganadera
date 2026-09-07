@@ -921,11 +921,43 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.48.0";
+const VERSION = "2.51.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.51.0", "7 sep 2026", [
+    "ENCONTRADO EL CUELGUE AL CAMBIAR DE CUENTA. La app se suscribe al permiso de quien " +
+      "entra, pero antes de hacerlo comprobaba «¿ya hay una suscripción?» sin mirar DE " +
+      "QUIÉN era. Al entrar con otra cuenta sin recargar la página —con Google es lo " +
+      "normal, porque la ventana deja elegir cuenta— la suscripción vieja seguía viva, " +
+      "apuntando al correo anterior, y la app nunca se enteraba del permiso del nuevo. Se " +
+      "quedaba en «Entrando…» para siempre.",
+    "Ahora, si la suscripción es de otro correo, se corta y se rehace. Y al salir se " +
+      "olvidan también el rol y las fincas de la cuenta anterior, que se quedaban puestos.",
+    "Recargar la página lo arreglaba; por eso funcionaba «la primera cuenta» de cada " +
+      "arranque y ninguna más.",
+  ]],
+  ["2.50.0", "7 sep 2026", [
+    "ARREGLO: al entrar con correo y contraseña el botón se quedaba en «Entrando…». La " +
+      "contraseña se aceptaba bien, pero nadie soltaba el botón: se quedaba así hasta que " +
+      "Firestore contestara, y si algo se atascaba, para siempre.",
+    "Ahora, en cuanto Firebase acepta la contraseña, sale una pantalla que dice qué está " +
+      "pasando: «ya te reconoció, está bajando los animales y los servicios de tu finca». " +
+      "Con un botón para cancelar y volver, por si se demora demasiado.",
+    "Y todas las vías de entrada tienen ahora tope de tiempo: ninguna se queda colgada.",
+    "Lo lento de la primera entrada en un aparato es bajar la finca entera de Firebase. " +
+      "Las siguientes abren al instante porque ya está guardada.",
+  ]],
+  ["2.49.0", "7 sep 2026", [
+    "ARREGLO: al cambiar de cuenta, la segunda no mantenía la sesión abierta. Firebase solo " +
+      "aplica esa preferencia a los ingresos posteriores al momento en que se le dice, y la " +
+      "app se lo decía UNA sola vez, al arrancar. La primera cuenta la aprovechaba; las " +
+      "demás heredaban lo que hubiera al abrir la página y se caían al salir de la app.",
+    "Ahora se fija justo antes de cada ingreso —con contraseña, con Google o por enlace— con " +
+      "lo que esté puesto en ese momento.",
+    "Y la casilla de «mantener la sesión abierta» vale ya, no al próximo arranque.",
+  ]],
   ["2.48.0", "7 sep 2026", [
     "«Es mi primera vez» decía que faltaba activar correo y contraseña cuando ya estaba " +
       "activado. El enlace por correo tiene su PROPIO interruptor, dentro del mismo " +
@@ -4388,6 +4420,7 @@ const misEventos = (col) => {
    ventana emergente que no vuelve, una redirección que no ocurre— el botón
    se suelta solo en vez de dejar la pantalla trabada. */
 let _tCargando = null;
+let _tEntrando = null;
 function soltarCargando(seg) {
   clearTimeout(_tCargando);
   if (!S.cargando) return;
@@ -4458,6 +4491,33 @@ function bloqueInicio(hayFB) {
 /** Ya hay gente registrada. */
 function bloqueEntrar(hayFB, gente, primeraVez) {
   if (!hayFB) return bloqueLocal(gente);
+  /* Entre que la contraseña se acepta y que llegan los datos de la finca
+     pasan unos segundos. Antes se quedaba el formulario con el botón gris,
+     que parece que se colgó. */
+  if (S.entrando && FB.user && !S.persona) {
+    /* Si a los 40 segundos no han llegado los datos, algo va mal: casi
+       siempre es que Firestore le niega el acceso a esa cuenta. Se avisa en
+       vez de dejar la pantalla girando. */
+    clearTimeout(_tEntrando);
+    _tEntrando = setTimeout(() => {
+      if (S.entrando && !S.persona) {
+        S.error = "Est\u00e1 tardando demasiado. Puede ser que no haya se\u00f1al, o que tu " +
+                  "cuenta todav\u00eda no tenga permiso en esta finca. Av\u00edsale al due\u00f1o.";
+        pantallaAcceso();
+      }
+    }, 40000);
+    return `
+      <h2>Entrando</h2>
+      <p class="lede">Ya te reconoció Firebase. Ahora está bajando los animales, los
+      servicios y lo demás de tu finca. La primera vez en un aparato tarda un poco más;
+      después abre al instante.</p>
+      <div class="nota">${esc(S.entrando)}</div>
+      ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
+      <div class="enlaces">
+        <button class="liga" data-acc="cancelar-entrada">Cancelar y volver</button>
+      </div>`;
+  }
+
   const modo = S.modoAcceso || "entrar";
   return ({
     entrar:  bloqueClave,
@@ -4648,7 +4708,7 @@ function conectarAcceso() {
     const correo = (v.correo || "").trim().toLowerCase();
 
     if (f.dataset.acceso === "primera-vez") {
-      S.cargando = true; pantallaAcceso();
+      S.cargando = true; pantallaAcceso(); soltarCargando(30);
       try {
         const m = await formasDeEntrar(correo);
         if (m.includes("password")) {
@@ -4708,10 +4768,10 @@ function conectarAcceso() {
       const v = datos(f);
       if (v.clave.length < 6) { S.error = "La contraseña necesita al menos 6 caracteres."; return pantallaAcceso(); }
       if (v.clave !== v.repite) { S.error = "Las dos contraseñas no son iguales."; return pantallaAcceso(); }
-      S.cargando = true; S.error = ""; pantallaAcceso();
+      S.cargando = true; S.error = ""; pantallaAcceso(); soltarCargando(30);
       try {
         await entrarFirebase(correo, v.clave, true);
-        S.cargando = false;
+        S.cargando = false; S.entrando = correo; pantallaAcceso();
       } catch (err) {
         S.cargando = false;
         const c = String(err?.code || "");
@@ -4725,7 +4785,7 @@ function conectarAcceso() {
     }
 
     if (f.dataset.acceso === "olvide") {
-      S.cargando = true; pantallaAcceso();
+      S.cargando = true; pantallaAcceso(); soltarCargando(30);
       try {
         const m = await formasDeEntrar(correo);
         if (m.length && !m.includes("password")) {
@@ -4744,8 +4804,17 @@ function conectarAcceso() {
     // Entrar con contraseña
     D.config.recordarSesion = !!v.recordar;
     guardarLocal();
-    S.cargando = true; pantallaAcceso();
-    try { await entrarFirebase(correo, v.clave); }
+    S.cargando = true; S.error = ""; pantallaAcceso(); soltarCargando(25);
+    try {
+      await entrarFirebase(correo, v.clave);
+      /* La contraseña ya se comprobó. Lo que falte —bajar los datos de la
+         finca— lo enseña la pantalla de carga, no este botón. Sin esto el
+         botón se quedaba en «Entrando…» hasta que Firestore contestara, y si
+         algo se atascaba, para siempre. */
+      S.cargando = false;
+      S.entrando = correo;
+      pantallaAcceso();
+    }
     catch (err) {
       S.cargando = false;
       S.error = errorFB(err);
@@ -4783,7 +4852,9 @@ function conectarAcceso() {
         const r = await entrarConGoogle();
         // Si canceló, el botón vuelve a la normalidad sin decir nada: no pasó
         // nada malo, simplemente cambió de idea.
-        if (r === "cancelado") { S.cargando = false; pantallaAcceso(); }
+        // En los dos casos se suelta el botón: si entró, la pantalla de
+        // «Entrando» toma el relevo; si canceló, vuelve el formulario.
+        S.cargando = false; pantallaAcceso();
       } catch (e) {
         S.error = errorFB(e); S.cargando = false; pantallaAcceso();
       }
@@ -4917,6 +4988,7 @@ function cerrarSesion() {
     try { Promise.resolve(salirFirebase()).catch(() => {}); } catch {}
   }
   S.persona = null; S.modo = null; S.error = ""; S.modoAcceso = "entrar";
+  S.entrando = null;
   guardarSesion();
   // Con Firebase, los datos vuelven a cerrarse: la pestaña queda limpia.
   if (D.config.firebase?.apiKey) {
@@ -4930,8 +5002,8 @@ function cerrarSesion() {
 /** Une la cuenta de Firebase con su ficha de persona, si ya existe. */
 function vincularUsuario(email) {
   const p = D.personas.find(x => (x.correo || "").toLowerCase() === email.toLowerCase());
-  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; }
-  else { S.persona = null; }   // se resuelve al llegar los datos de Firestore
+  if (p) { S.persona = p; S.modo = "firebase"; S.error = ""; S.entrando = null; }
+  else { S.persona = null; S.entrando = email; }   // llegará con los datos
   S.cargando = false;
 }
 
@@ -10233,8 +10305,30 @@ async function conectarFirebase(silencioso) {
   pintar();
 }
 
+/**
+ * Dice a Firebase si la sesión se guarda en el equipo o solo en la pestaña.
+ *
+ * Esto se hacía UNA sola vez, al arrancar la app. Y Firebase solo lo aplica a
+ * los ingresos que vengan después de llamarlo. Resultado: si alguien cerraba
+ * sesión y entraba con otra cuenta sin recargar la página, esa segunda cuenta
+ * heredaba lo que hubiera al abrir, y al salir de la app se perdía. Por eso
+ * funcionaba con la primera cuenta y con las demás no.
+ *
+ * Ahora se fija justo antes de cada ingreso, con lo que esté puesto en ese
+ * momento.
+ */
+async function aplicarPersistencia() {
+  try {
+    const { auth } = FB.mods;
+    if (!auth || !FB.auth) return;
+    await auth.setPersistence(FB.auth, sesionPersistente()
+      ? auth.browserLocalPersistence : auth.browserSessionPersistence);
+  } catch {}
+}
+
 async function entrarFirebase(correo, clave, registrar) {
   const { auth } = await cargarSDK();
+  await aplicarPersistencia();
   const fn = registrar ? auth.createUserWithEmailAndPassword : auth.signInWithEmailAndPassword;
   await fn(FB.auth, correo, clave);
   marcarConClave(correo);
@@ -10256,7 +10350,12 @@ function pararTodo() {
   pararEscuchas();
   try { FB.escuchaUsuario?.(); } catch {}
   FB.escuchaUsuario = null;
+  FB.correoEscuchado = null;
   FB.claveFincas = null;
+  FB.rolRemoto = null;
+  FB.personaRemota = null;
+  FB.fincasRemotas = [];
+  FB.permisoRevisado = false;
 }
 
 /* ---------- escuchar cambios remotos ----------
@@ -10267,9 +10366,19 @@ function pararTodo() {
 /** Observa mi propio documento de usuario. Cuando cambian mis fincas
     —por ejemplo al crear la primera— vuelve a suscribir las colecciones. */
 function escucharTodo() {
-  if (FB.escuchaUsuario) return;
   const { fs } = FB.mods;
   const correo = FB.user.email.toLowerCase();
+
+  /* AQUÍ ESTABA EL CUELGUE AL CAMBIAR DE CUENTA.
+     Esto decía «si ya hay una escucha, no hagas nada», sin mirar DE QUIÉN
+     era. Al entrar con otra cuenta sin recargar —con Google es lo normal,
+     porque la ventana deja elegir cuenta— la escucha vieja seguía viva,
+     apuntando al correo anterior, y la app nunca se suscribía al permiso del
+     nuevo. Se quedaba en «Entrando…» para siempre.
+     Ahora, si la escucha es de otro correo, se corta y se rehace. */
+  if (FB.escuchaUsuario && FB.correoEscuchado === correo) return;
+  if (FB.escuchaUsuario) pararTodo();
+  FB.correoEscuchado = correo;
 
   FB.escuchaUsuario = fs.onSnapshot(fs.doc(FB.db, "usuarios", correo),
     (snap) => {
@@ -10313,7 +10422,7 @@ function escucharTodo() {
       if (datos.activo === false) {
         FB.estado = "listo";
         salirFirebase();
-        S.persona = null; S.modo = null;
+        S.persona = null; S.modo = null; S.entrando = null; S.cargando = false;
         S.error = "Tu acceso fue desactivado. Habla con el dueño de la finca.";
         CLAVE_DATOS = null;
         const cfg = D.config;
@@ -11286,6 +11395,7 @@ async function invitarPorCorreo(correo) {
 async function completarEnlace() {
   const { auth } = FB.mods;
   if (!auth.isSignInWithEmailLink(FB.auth, location.href)) return false;
+  await aplicarPersistencia();
 
   let correo = null;
   try { correo = localStorage.getItem(CLAVE_INVITADO); } catch {}
@@ -11310,6 +11420,7 @@ async function completarEnlace() {
 
 async function entrarConGoogle() {
   const { auth } = await cargarSDK();
+  await aplicarPersistencia();
   const prov = new auth.GoogleAuthProvider();
   prov.setCustomParameters({ prompt: "select_account" });
   try {
@@ -11447,6 +11558,7 @@ async function rechazarAcceso(correo) {
   pararTodo();
   try { await salirFirebase(); } catch {}
   S.persona = null; S.modo = null; S.modoAcceso = "entrar"; S.aviso = "";
+  S.entrando = null; S.cargando = false;
   S.error = `La cuenta ${correo} existe, pero no está autorizada en esta finca. ` +
             `Pídele al dueño que te registre con ese mismo correo y te asigne a una finca.`;
   FB.estado = "listo"; FB.error = "";
@@ -13783,12 +13895,13 @@ function conectar() {
 
   document.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => acciones(b.dataset.acc));
   const rc = document.getElementById("recordar-eq");
-  if (rc) rc.onchange = () => {
+  if (rc) rc.onchange = async () => {
     D.config.recordarSesion = rc.checked;
     guardarLocal();
+    await aplicarPersistencia();     // vale ya, no al próximo arranque
     avisar(rc.checked
       ? "La sesión quedará abierta en este equipo"
-      : "Cada pestaña pedirá su propio usuario. Aplica al volver a entrar.");
+      : "Cada pestaña pedirá su propio usuario");
   };
 
   const cg = document.getElementById("cuenta-google");
@@ -14889,6 +15002,11 @@ async function acciones(a) {
         `El enlace dura una hora.`);
     } catch (e) { alert("No se pudo enviar: " + errorFB(e)); }
     return;
+  }
+  if (a === "cancelar-entrada") {
+    S.entrando = null; S.cargando = false;
+    try { await salirFirebase(); } catch {}
+    return pantallaAcceso();
   }
   if (a === "partos-todo") { V.rangoPartos = 0; pintar(); return; }
   if (a === "leche-cuaderno") {
