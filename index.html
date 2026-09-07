@@ -921,11 +921,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.51.0";
+const VERSION = "2.52.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.52.0", "7 sep 2026", [
+    "LA APP ABRE DE UNA VEZ. Antes había que esperar a que bajara la tabla de personas para " +
+      "saber quién eras, y hasta entonces la pantalla se quedaba en «Entrando». En un " +
+      "aparato nuevo eso son varios segundos, y si algo se atascaba, para siempre.",
+    "Pero el documento de permiso ya trae lo imprescindible: quién eres, qué puesto tienes y " +
+      "qué fincas alcanzas. Con eso se abre en el acto y el resto llega por detrás. Cuando " +
+      "baja tu ficha de verdad, sustituye a la provisional sin que se note.",
+    "Se quitó el aviso de «está tardando demasiado»: salía con buena señal y solo asustaba.",
+    "Y quien tiene permiso pero cuya ficha aún no ha llegado ya no queda fuera: se trabaja " +
+      "con la provisional.",
+  ]],
   ["2.51.0", "7 sep 2026", [
     "ENCONTRADO EL CUELGUE AL CAMBIAR DE CUENTA. La app se suscribe al permiso de quien " +
       "entra, pero antes de hacerlo comprobaba «¿ya hay una suscripción?» sin mirar DE " +
@@ -4495,24 +4506,13 @@ function bloqueEntrar(hayFB, gente, primeraVez) {
      pasan unos segundos. Antes se quedaba el formulario con el botón gris,
      que parece que se colgó. */
   if (S.entrando && FB.user && !S.persona) {
-    /* Si a los 40 segundos no han llegado los datos, algo va mal: casi
-       siempre es que Firestore le niega el acceso a esa cuenta. Se avisa en
-       vez de dejar la pantalla girando. */
-    clearTimeout(_tEntrando);
-    _tEntrando = setTimeout(() => {
-      if (S.entrando && !S.persona) {
-        S.error = "Est\u00e1 tardando demasiado. Puede ser que no haya se\u00f1al, o que tu " +
-                  "cuenta todav\u00eda no tenga permiso en esta finca. Av\u00edsale al due\u00f1o.";
-        pantallaAcceso();
-      }
-    }, 40000);
+    /* Esta pantalla dura lo que tarde el permiso en llegar, que es un solo
+       documento: normalmente un instante. Ya no se avisa de nada a los 40
+       segundos, porque el aviso salía con buena señal y solo asustaba. */
     return `
       <h2>Entrando</h2>
-      <p class="lede">Ya te reconoció Firebase. Ahora está bajando los animales, los
-      servicios y lo demás de tu finca. La primera vez en un aparato tarda un poco más;
-      después abre al instante.</p>
+      <p class="lede">Un momento, comprobando tu acceso.</p>
       <div class="nota">${esc(S.entrando)}</div>
-      ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}
       <div class="enlaces">
         <button class="liga" data-acc="cancelar-entrada">Cancelar y volver</button>
       </div>`;
@@ -5052,11 +5052,16 @@ function asegurarPersona(email) {
 
   if (p) {
     if (FB.rolRemoto && RANGO[FB.rolRemoto] > (RANGO[p.rol] ?? 0)) p.rol = FB.rolRemoto;
-    S.persona = p; S.modo = "firebase"; S.error = "";
+    S.persona = p; S.modo = "firebase"; S.error = ""; S.entrando = null;
     guardarSesion(); ofrecerClave();
     if (p.nombrePorDefecto) pedirNombre();
     return;
   }
+
+  /* Con permiso pero sin ficha todavía: se sigue trabajando con la
+     provisional en vez de echar a la persona. La ficha puede estar de camino,
+     o simplemente no alcanzarse desde este puesto. */
+  if (S.persona?._provisional) return;
 
   if (D.personas.length > 0) {
     /* Entrar a Firebase no es entrar a la app: hace falta tener ficha. Vale
@@ -10392,6 +10397,32 @@ function escucharTodo() {
       FB.personaRemota = datos.persona || null;
       FB.fincasRemotas = datos.fincas || [];
 
+      /* ENTRAR DE UNA VEZ.
+
+         Antes había que esperar a que bajara la tabla de personas para saber
+         quién era y poder abrir la app. En un aparato nuevo eso son varios
+         segundos, y si algo se atascaba por el camino la pantalla se quedaba
+         en «Entrando» sin salida.
+
+         Pero este documento —el permiso— ya trae lo único imprescindible:
+         quién es, qué puesto tiene y qué fincas alcanza. Con eso se abre la
+         app en el acto y lo demás va llegando por detrás. Cuando llegue su
+         ficha de verdad, la sustituye sola. */
+      if (!S.persona && datos.activo !== false) {
+        const ya = D.personas.find(x => (x.correo || "").toLowerCase() === correo);
+        S.persona = ya || {
+          id: datos.persona || idDesdeCorreo(correo),
+          nombre: datos.nombre || nombreDesdeCorreo(correo),
+          rol: datos.rol || "empleado",
+          correo, telefono: "", documento: "", notas: "", activo: true,
+          fincas: datos.fincas || [], creadoPor: null,
+          _provisional: !ya,
+        };
+        S.modo = "firebase"; S.error = ""; S.entrando = null; S.cargando = false;
+        guardarSesion();
+        pintar();
+      }
+
       // ¿El permiso apunta a fincas que ya no existen y deja fuera las reales?
       if (!FB.permisoRevisado && S.persona) {
         FB.permisoRevisado = true;
@@ -10794,6 +10825,9 @@ function recombinar(nombre) {
  * Ahora solo se corrige lo que este equipo sí ve. Lo demás se respeta.
  */
 async function sincronizarUsuarios() {
+  // Con una ficha provisional todavía no se sabe lo suficiente: no se tocan
+  // los permisos de nadie hasta que llegue la de verdad.
+  if (S.persona?._provisional) return;
   if (!FB.db || !FB.user || !manda()) return;
   if (!FB.fincasCargadas) return;          // sin la lista de fincas no se toca nada
   const { fs } = FB.mods;
