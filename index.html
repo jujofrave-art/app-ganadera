@@ -921,11 +921,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.44.0";
+const VERSION = "2.45.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.45.0", "7 sep 2026", [
+    "RESPALDO EN GOOGLE DRIVE. «Guardar en Google Drive» sube una copia completa con la " +
+      "fecha en el nombre, y «Restaurar de Google Drive» enseña las últimas veinte para " +
+      "elegir. Se sigue pudiendo guardar y restaurar desde un archivo del equipo.",
+    "La app pide el permiso más pequeño que existe: solo alcanza los archivos que ella misma " +
+      "crea. El resto de tu Drive queda fuera.",
+    "Al restaurar, la app dice de qué día es la copia, con qué versión se hizo, cuántos " +
+      "animales trae y si se hizo con el historial recortado. Antes importaba a ciegas.",
+    "La copia lleva ahora una cabecera con la fecha y el resumen, así que se sabe qué es " +
+      "solo con abrir el archivo.",
+    "Y en Configuración queda explicado cómo <strong>mudarse a otra base de datos</strong>: " +
+      "copia, pegar la conexión nueva, restaurar. El proyecto viejo se queda intacto.",
+  ]],
   ["2.44.0", "7 sep 2026", [
     "Cualquier filtro abre las fincas, no solo el buscador. Si pides ver solo las secas, o " +
       "solo los caprinos, lo que quieres es VER el resultado, no encontrarte tres barras " +
@@ -10932,6 +10945,119 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   });
 }
 
+/* ==========================================================
+   RESPALDOS
+
+   Exportar deja un archivo JSON con TODO: fincas, animales, personas,
+   eventos y ajustes. Restaurar lo devuelve tal cual. El mismo archivo sirve
+   para mudarse a otra base de datos: se exporta, se cambia la conexión de
+   Firebase y se importa; la app sube todo al proyecto nuevo.
+   ========================================================== */
+
+/** El paquete que se guarda, con una cabecera para saber qué es. */
+function armarCopia() {
+  return {
+    _app: "control-ganadero",
+    _version: VERSION,
+    _fecha: new Date().toISOString(),
+    _resumen: {
+      fincas: (D.fincas || []).length,
+      animales: (D.animales || []).length,
+      personas: (D.personas || []).length,
+      eventos: ["inseminaciones", "palpaciones", "partos", "secados",
+                "tratamientos", "leche", "anotaciones"]
+        .reduce((t, c) => t + (D[c] || []).length, 0),
+      recortado: !!(historialRecortado()),
+    },
+    ...D,
+  };
+}
+
+/** Restaura una copia, venga de donde venga. */
+function restaurarCopia(j, de) {
+  if (!j || !j.animales || !j.fincas) {
+    alert("Ese archivo no tiene el formato esperado. Usa uno exportado desde esta misma app.");
+    return false;
+  }
+  const r = j._resumen || {};
+  const cuando = j._fecha ? fmt(j._fecha.slice(0, 10)) : "fecha desconocida";
+  if (!confirm(
+      `Copia de ${de}\n\n` +
+      `Hecha el ${cuando}${j._version ? ` con la versión ${j._version}` : ""}.\n` +
+      `Trae ${r.animales ?? j.animales.length} animales, ` +
+      `${r.fincas ?? j.fincas.length} fincas y ${r.eventos ?? "?"} eventos.\n\n` +
+      (r.recortado ? "OJO: se hizo con el historial recortado, así que no lleva lo más viejo.\n\n" : "") +
+      `Esto REEMPLAZA lo que hay en pantalla. Lo que esté en Firebase no se toca ` +
+      `hasta que la app suba estos datos.\n\n¿Continuar?`)) return false;
+
+  D = migrar(j);
+  guardar(); pintar();
+  avisar("Copia restaurada");
+  return true;
+}
+
+/* ---------- Google Drive ---------- */
+
+/**
+ * Permiso de Drive. Se pide aparte del de entrar a la app, y con el permiso
+ * más pequeño que existe: «drive.file» solo deja ver y tocar los archivos
+ * que crea esta app. El resto del Drive queda fuera de su alcance.
+ */
+async function tokenDrive() {
+  if (FB.tokenDrive && Date.now() < FB.tokenDriveHasta) return FB.tokenDrive;
+  const { auth } = FB.mods;
+  if (!auth || !FB.auth) throw new Error("Hace falta estar conectado a Firebase.");
+  const prov = new auth.GoogleAuthProvider();
+  prov.addScope("https://www.googleapis.com/auth/drive.file");
+  const r = await auth.signInWithPopup(FB.auth, prov);
+  const cred = auth.GoogleAuthProvider.credentialFromResult(r);
+  if (!cred?.accessToken) throw new Error("Google no dio permiso para Drive.");
+  FB.tokenDrive = cred.accessToken;
+  FB.tokenDriveHasta = Date.now() + 45 * 60 * 1000;
+  return FB.tokenDrive;
+}
+
+async function subirCopiaADrive() {
+  const tk = await tokenDrive();
+  const cuerpo = JSON.stringify(armarCopia(), null, 2);
+  const nombre = `control-ganadero-${hoyISO()}.json`;
+  const lim = "-----respaldo" + Date.now();
+  const meta = { name: nombre, mimeType: "application/json",
+                 description: "Respaldo de Control Ganadero" };
+  const cuerpoMulti =
+    `--${lim}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(meta) +
+    `\r\n--${lim}\r\nContent-Type: application/json\r\n\r\n` +
+    cuerpo + `\r\n--${lim}--`;
+  const res = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name",
+    { method: "POST",
+      headers: { Authorization: "Bearer " + tk,
+                 "Content-Type": `multipart/related; boundary=${lim}` },
+      body: cuerpoMulti });
+  if (!res.ok) throw new Error("Drive respondió " + res.status + ": " + (await res.text()).slice(0, 200));
+  return { ...(await res.json()), tam: cuerpo.length };
+}
+
+async function listarCopiasDrive() {
+  const tk = await tokenDrive();
+  const q = encodeURIComponent("name contains 'control-ganadero' and trashed = false");
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime desc&pageSize=20` +
+    `&fields=files(id,name,createdTime,size)`,
+    { headers: { Authorization: "Bearer " + tk } });
+  if (!res.ok) throw new Error("Drive respondió " + res.status);
+  return (await res.json()).files || [];
+}
+
+async function bajarCopiaDrive(id) {
+  const tk = await tokenDrive();
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
+    { headers: { Authorization: "Bearer " + tk } });
+  if (!res.ok) throw new Error("Drive respondió " + res.status);
+  return await res.json();
+}
+
 /** Descarga el sw.js para subirlo junto al index.html. */
 function descargarSW() {
   const cod = SW_FUENTE;
@@ -13227,15 +13353,37 @@ function vConfiguracion() {
       <p class="expl">Busca registros que apunten a algo que ya no existe: eventos de animales
       borrados, gente asignada a fincas eliminadas, autores desaparecidos. Te dice qué encontró
       antes de tocar nada.</p>
+      <h4 class="sub-titulo">Respaldos</h4>
+      <p class="expl">La copia lleva TODO: fincas, animales, personas, eventos y ajustes. El
+      mismo archivo sirve para mudarse a otra base de datos.</p>
       <div class="fila-btn">
-        <button class="btn" data-acc="exportar">Exportar copia</button>
+        <button class="btn" data-acc="exportar">Guardar en este equipo</button>
+        <button class="btn" data-acc="drive-subir">Guardar en Google Drive</button>
         ${verConfigAvanzada() ? `
-          <button class="btn" data-acc="importar">Importar copia</button>
-          <button class="btn btn-baja" data-acc="reiniciar">Borrar todo y empezar de cero</button>
+          <button class="btn" data-acc="importar">Restaurar de un archivo</button>
+          <button class="btn" data-acc="drive-restaurar">Restaurar de Google Drive</button>
         ` : ""}
       </div>
-      ${verConfigAvanzada() ? "" : `<p class="expl" style="margin:10px 0 0">Importar y borrar están
-      reservados al dueño principal, porque reemplazan los datos de todos.</p>`}
+      <p class="expl" style="margin-top:10px">En Drive la copia se llama
+      <strong>control-ganadero-fecha.json</strong>. La app solo alcanza los archivos que ella
+      misma crea: el resto de tu Drive queda fuera. Al restaurar te dice de qué día es y
+      cuántos animales trae antes de tocar nada.</p>
+
+      <h4 class="sub-titulo">Mudarse a otra base de datos</h4>
+      <p class="expl">Se hace en tres pasos y sin perder nada. <strong>Uno:</strong> guarda una
+      copia aquí mismo, en el equipo y en Drive. <strong>Dos:</strong> en «Conexión con
+      Firebase» pega los datos del proyecto nuevo. <strong>Tres:</strong> restaura la copia; la
+      app sube todo al proyecto nuevo sola.</p>
+      <p class="expl">El proyecto viejo se queda intacto, así que si algo sale mal se vuelve
+      pegando su configuración otra vez. Acuérdate de publicar las reglas en el nuevo.</p>
+
+      ${verConfigAvanzada() ? `
+      <h4 class="sub-titulo">Zona de peligro</h4>
+      <div class="fila-btn">
+        <button class="btn btn-baja" data-acc="reiniciar">Borrar todo y empezar de cero</button>
+      </div>` : ""}
+      ${verConfigAvanzada() ? "" : `<p class="expl" style="margin:10px 0 0">Restaurar y borrar
+      están reservados al dueño principal, porque reemplazan los datos de todos.</p>`}
     </div>
   </details>` : ""}`;
 }
@@ -14621,7 +14769,7 @@ async function acciones(a) {
         `Esta copia solo llevará los eventos desde el ${fmt(FB.corte)}, que es lo que ` +
         `tienes bajado.\n\nSi la quieres como respaldo completo, primero pulsa ` +
         `«Bajar todo ahora» en «Cuánto historial se baja».\n\n¿Exportar así de todos modos?`)) return;
-    const b = new Blob([JSON.stringify(D, null, 2)], { type: "application/json" });
+    const b = new Blob([JSON.stringify(armarCopia(), null, 2)], { type: "application/json" });
     const u = URL.createObjectURL(b);
     const el = document.createElement("a");
     el.href = u; el.download = `control-ganadero-${hoyISO()}.json`;
@@ -14635,19 +14783,51 @@ async function acciones(a) {
       const f = inp.files[0]; if (!f) return;
       const r = new FileReader();
       r.onload = () => {
-        try {
-          const j = JSON.parse(r.result);
-          if (!j.animales || !j.fincas) throw 0;
-          if (historialRecortado() && !confirm(
-              "Tienes el historial recortado. Al importar, esta copia reemplaza lo que hay " +
-              "en pantalla, pero lo anterior al recorte sigue intacto en Firebase.\n\n¿Continuar?")) return;
-          D = migrar(j); guardar(); pintar(); avisar("Datos importados");
-        } catch { alert("Ese archivo no tiene el formato esperado. Usa uno exportado desde esta misma app."); }
+        try { restaurarCopia(JSON.parse(r.result), "un archivo de este equipo"); }
+        catch { alert("Ese archivo no se pudo leer. Usa uno exportado desde esta misma app."); }
       };
       r.readAsText(f);
     };
     inp.click();
   }
+  if (a === "drive-subir") {
+    if (!FB.db) return alert("Hace falta estar conectado a Firebase para usar Google Drive.");
+    if (historialRecortado() && !confirm(
+        `Esta copia solo llevará los eventos desde el ${fmt(FB.corte)}, que es lo que ` +
+        `tienes bajado.\n\nPara un respaldo completo, primero trae todo el historial.\n\n` +
+        `¿Guardar así de todos modos?`)) return;
+    avisar("Guardando en Drive…");
+    try {
+      const r = await subirCopiaADrive();
+      alert(`Guardado en tu Google Drive como:\n\n${r.name}\n\n` +
+            `${(r.tam / 1024).toFixed(0)} KB. Lo encuentras buscando ` +
+            `«control-ganadero» en Drive.`);
+    } catch (e) {
+      alert("No se pudo guardar en Drive.\n\n" + (e?.message || e) +
+        "\n\nComprueba que la API de Google Drive esté activada en tu proyecto de Firebase.");
+    }
+    return;
+  }
+
+  if (a === "drive-restaurar") {
+    if (!FB.db) return alert("Hace falta estar conectado a Firebase para usar Google Drive.");
+    let lista;
+    try { lista = await listarCopiasDrive(); }
+    catch (e) { return alert("No se pudo leer Drive.\n\n" + (e?.message || e)); }
+    if (!lista.length) return alert("No hay ninguna copia en tu Drive todavía.");
+
+    const opciones = lista.map((f, i) =>
+      `${i + 1}. ${f.name}${f.size ? `  (${Math.round(f.size / 1024)} KB)` : ""}`).join("\n");
+    const cual = prompt(
+      `Copias en tu Drive, de la más nueva a la más vieja:\n\n${opciones}\n\n` +
+      `Escribe el número de la que quieres restaurar:`, "1");
+    const i = Number(cual) - 1;
+    if (!(i >= 0 && i < lista.length)) return;
+    try { restaurarCopia(await bajarCopiaDrive(lista[i].id), "Google Drive"); }
+    catch (e) { alert("No se pudo bajar esa copia.\n\n" + (e?.message || e)); }
+    return;
+  }
+
   if (a === "reiniciar") {
     if (!confirm("Esto borra todos los animales, fincas, personas y eventos de este equipo.\n\n" +
                  "Si tienes Firebase conectado, los datos de la nube NO se borran.\n\n¿Seguro?")) return;
