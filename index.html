@@ -169,8 +169,22 @@ tbody td.num{text-align:right;font-family:var(--dato);font-size:12.5px}
 tbody tr:last-child td{border-bottom:0}
 tbody tr.fila{cursor:pointer}
 tbody tr.fila:hover td{background:rgba(var(--tinta-rgb),.035)}
-tr.grupo td{background:rgba(var(--tinta-rgb),.05);font-family:var(--dato);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tinta2);padding:7px 13px;font-weight:500;border-bottom:1px solid var(--linea)}
-tr.grupo .n{opacity:.55;margin-left:6px}
+/* La cabecera de finca era del tamaño de una etiqueta y se perdía entre las
+   filas. Ahora es una barra con su color, se puede pulsar para plegarla y
+   dice cuántos animales esconde. */
+tr.grupo td{background:rgba(var(--chapeta-rgb),.11);border-top:1px solid rgba(var(--chapeta-rgb),.3);
+  border-bottom:1px solid rgba(var(--chapeta-rgb),.3);border-left:4px solid var(--chapeta);
+  padding:10px 13px;cursor:pointer;user-select:none}
+tr.grupo:hover td{background:rgba(var(--chapeta-rgb),.17)}
+tr.grupo .nom-finca{font-family:var(--display);font-size:15px;font-weight:700;
+  letter-spacing:-.01em;color:var(--tinta);vertical-align:middle}
+tr.grupo .n{font-family:var(--dato);font-size:11px;margin-left:8px;padding:1px 8px;
+  border-radius:9px;background:rgba(var(--tinta-rgb),.1);color:var(--tinta2);vertical-align:middle}
+tr.grupo .chevron{display:inline-block;margin-right:8px;color:var(--chapeta);
+  transition:transform .15s;vertical-align:middle;font-size:13px}
+tr.grupo.plegada .chevron{transform:rotate(-90deg)}
+tr.grupo .oculta{font-family:var(--dato);font-size:10px;color:var(--tenue);margin-left:10px;
+  letter-spacing:.06em;vertical-align:middle}
 .apilado{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1.25}
 .apilado em{font-style:normal;font-family:var(--texto);font-size:11px;color:var(--tenue)}
 .chap{font-family:var(--dato);font-weight:600;font-size:13px;background:var(--chapeta);border:1px solid var(--chapeta-b);border-radius:3px 3px 5px 5px;padding:2px 7px;display:inline-block;color:var(--sobre-chapeta);letter-spacing:-.02em}
@@ -816,7 +830,9 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
     border:1px solid var(--linea);border-radius:10px;margin-bottom:7px;
     padding:9px 12px}
   .tabla-caja tbody tr.grupo,.sub-tabla tbody tr.grupo{background:transparent;border:0;
-    margin:15px 0 7px;padding:0}
+    margin:14px 0 8px;padding:0}
+  tr.grupo td{border-radius:9px;padding:11px 13px}
+  tr.grupo .nom-finca{font-size:16px}
   .tabla-caja tbody tr.grupo:first-child{margin-top:0}
   tr.grupo td{display:block;padding:0;border:0;background:transparent}
 
@@ -905,11 +921,27 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.38.0";
+const VERSION = "2.40.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.40.0", "6 sep 2026", [
+    "Al buscar no se pliega nada: si el animal que buscas est\u00e1 en una finca cerrada, sale " +
+      "igual, y su cabecera avisa de que se abri\u00f3 por la b\u00fasqueda. Al borrar la b\u00fasqueda " +
+      "vuelven a quedar como estaban.",
+    "Las fincas sin ning\u00fan resultado no aparecen, as\u00ed que la pantalla queda solo con lo " +
+      "que se busc\u00f3.",
+  ]],
+  ["2.39.0", "6 sep 2026", [
+    "Las fincas se pliegan. Se toca el título y se cierra esa finca entera; se vuelve a tocar " +
+      "y se abre. Con cuarenta animales en cuatro fincas, bajar hasta la siguiente era un " +
+      "viaje, y el filtro de finca obligaba a ir de una en una.",
+    "Cuáles quedan plegadas se recuerda mientras dure la sesión, y vale en todas las tablas: " +
+      "animales, servicios, partos, palpaciones, leche, lo que sea.",
+    "Y la cabecera de finca deja de ser una etiqueta minúscula: ahora es una barra ámbar con " +
+      "el nombre en grande, la cuenta de registros y una flecha que dice si está abierta.",
+  ]],
   ["2.38.0", "6 sep 2026", [
     "Columna nueva en Activos: <strong>Tiempo abierto</strong>. Cuántos días lleva la vaca " +
       "ordeñándose seguido, sin un solo día de descanso.",
@@ -5377,13 +5409,35 @@ function activarOrden() {
   });
 }
 /** Agrupa filas por finca como en AppSheet. */
+/* Qué fincas están plegadas. Se recuerda mientras dure la sesión: con
+   cuarenta animales en cuatro fincas, bajar hasta la siguiente era un viaje. */
+const FINCAS_PLEGADAS = (window.FINCAS_PLEGADAS ||= new Set());
+
 function agrupado(items, fn) {
   const por = {};
   items.forEach(i => { (por[i._finca] ||= []).push(i); });
-  return Object.entries(por).map(([f, arr]) =>
-    `<tr class="grupo"><td colspan="9">${esc(f)}<span class="n">${arr.length}</span></td></tr>` +
-    arr.map(fn).join("")
-  ).join("");
+  const nombres = Object.keys(por);
+
+  /* Buscando no se pliega nada: si el animal que se busca está en una finca
+     cerrada, tiene que salir igual. Al borrar la búsqueda vuelven a quedar
+     como estaban. */
+  const buscando = !!String(V.busca || "").trim();
+
+  return nombres.map((f) => {
+    const arr = por[f];
+    const cerrada = !buscando && FINCAS_PLEGADAS.has(f);
+    return `<tr class="grupo ${cerrada ? "plegada" : ""}" data-finca-grupo="${esc(f)}">
+      <td colspan="10">
+        <span class="chevron">▾</span>
+        <span class="nom-finca">${esc(f)}</span>
+        <span class="n">${arr.length}</span>
+        ${cerrada ? '<span class="oculta">toca para abrir</span>'
+          : buscando && FINCAS_PLEGADAS.has(f)
+            ? '<span class="oculta">abierta por la b\u00fasqueda</span>' : ""}
+      </td></tr>` +
+      arr.map(x => fn(x).replace(/^(\s*)<tr /,
+        `$1<tr data-de-finca="${esc(f)}" ${cerrada ? "hidden" : ""} `)).join("");
+  }).join("");
 }
 const persona = (id) => D.personas.find(p => p.id === id);
 const personasDe = (fincaId) => (finca(fincaId)?.personas || []).map(persona).filter(Boolean);
@@ -13212,6 +13266,21 @@ function conectar() {
       ? `Se avisará ${D.config.avisoSecadoDias} días antes del secado`
       : "Sin aviso anticipado del secado");
   };
+
+  document.querySelectorAll("[data-finca-grupo]").forEach(tr => {
+    tr.onclick = () => {
+      const f = tr.dataset.fincaGrupo;
+      const cerrar = !FINCAS_PLEGADAS.has(f);
+      if (cerrar) FINCAS_PLEGADAS.add(f); else FINCAS_PLEGADAS.delete(f);
+      tr.classList.toggle("plegada", cerrar);
+      document.querySelectorAll(`[data-de-finca="${CSS.escape(f)}"]`)
+        .forEach(x => { x.hidden = cerrar; });
+      const av = tr.querySelector(".oculta");
+      if (cerrar && !av) tr.querySelector("td")
+        .insertAdjacentHTML("beforeend", '<span class="oculta">toca para abrir</span>');
+      if (!cerrar && av) av.remove();
+    };
+  });
 
   activarOrden();
 
