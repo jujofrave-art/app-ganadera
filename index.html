@@ -905,11 +905,16 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.35.0";
+const VERSION = "2.36.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.36.0", "5 sep 2026", [
+    "ARREGLO: la nota \u00abDel cuaderno\u00bb que se le pon\u00eda a la leche pegada del cuaderno se " +
+      "guardaba en un campo que el formulario de leche no ense\u00f1a y el buscador no mira. " +
+      "Ahora va en Observaciones, como el resto: se ve al abrir el registro y se puede buscar.",
+  ]],
   ["2.35.0", "5 sep 2026", [
     "ARREGLO: la alerta de «ya debería haber parido» necesitaba la fecha de nacimiento, y " +
       "muchas terneras entran sin ella —compradas, o nadie la apuntó—. Sin edad, la alerta " +
@@ -7223,7 +7228,7 @@ function formLecheRapida(fincaPre) {
     for (const x of filas) {
       D.leche.push(nuevoRegistro({
         fecha: x.fecha, litros: x.litros, dias: x.dias, fincaId,
-        animalId: null, momento: "", precio: 0, detalles: "Del cuaderno",
+                animalId: null, momento: "", precio: 0, observaciones: "Del cuaderno",
       }));
     }
     guardar(); cerrarHoja(); pintar();
