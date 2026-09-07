@@ -905,11 +905,34 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.36.0";
+const VERSION = "2.38.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.38.0", "6 sep 2026", [
+    "Columna nueva en Activos: <strong>Tiempo abierto</strong>. Cuántos días lleva la vaca " +
+      "ordeñándose seguido, sin un solo día de descanso.",
+    "Sirve para el caso que no se veía en ninguna parte: la vaca que aborta ANTES del punto " +
+      "de secado no llega a secarse y sigue ordeñándose. Si vuelve a abortar, otra vez. Así " +
+      "puede encadenar año y medio de leche sin parar, y eso se le nota en la cría siguiente.",
+    "Un parto siempre reinicia la cuenta. Un aborto solo si la vaca ya estaba seca: porque " +
+      "hay un secado registrado o porque la agarró pasado el punto de secado.",
+    "Debajo del número dice cuántos abortos van sin secarla. Y al secarla la cuenta se " +
+      "congela: de ahí en adelante está descansando.",
+    "En la ficha sale con su valoración y una interrogación que explica en qué se diferencia " +
+      "del intervalo entre partos.",
+  ]],
+  ["2.37.0", "6 sep 2026", [
+    "Las alertas de <strong>secar</strong> y de <strong>cuido preparto</strong> se apagan " +
+      "solas. Si ya se llevó a cabo, tenerlas ahí una semana más solo tapa las nuevas, y la " +
+      "pantalla de Alertas se acaba llenando de cosas viejas que ya nadie mira.",
+    "La de secar dura hasta 4 días después de la fecha de secado; la de cuido, 15 días desde " +
+      "que empieza. Los dos números se cambian en Configuración → Parámetros → Secado, y " +
+      "con 0 se vuelve al comportamiento de antes.",
+    "Que la alerta se apague no cambia nada de los cálculos: la vaca pasa a Seca igual, " +
+      "porque eso lo decide la ventana de secado, no la alerta.",
+  ]],
   ["2.36.0", "5 sep 2026", [
     "ARREGLO: la nota \u00abDel cuaderno\u00bb que se le pon\u00eda a la leche pegada del cuaderno se " +
       "guardaba en un campo que el formulario de leche no ense\u00f1a y el buscador no mira. " +
@@ -2908,6 +2931,8 @@ function migrar(d) {
   d.config.palpaSegun ??= "todas";   // a quién se le pide palpación
   d.config.avisarSecadoSinRegistrar ??= false;
   d.config.avisoSecadoDias ??= 7;    // días de antelación del aviso de secado
+  d.config.diasAvisoSecar ??= 4;     // y cuándo se apaga, pasada la fecha
+  d.config.diasAvisoPreparto ??= 15; // cuánto dura el aviso de cuido preparto
   d.config.borrar ??= {};            // quién puede eliminar, por puesto
   d.config.fichaPropia ??= {};       // quién puede abrir su propia ficha
   d.config.vistasRol ??= {};         // qué secciones ve cada puesto
@@ -3133,6 +3158,54 @@ function palpaPorServicio(insem) {
   return (insem.tipo || "inseminacion") === "monta";
 }
 
+/**
+ * TIEMPO ABIERTO: cuántos días lleva la vaca ordeñándose seguido, sin haber
+ * tenido descanso.
+ *
+ * Lo normal es parto, lactancia, secado, descanso, parto. Pero si la vaca
+ * aborta ANTES del punto de secado, no llega a secarse: sigue ordeñándose
+ * como si nada, y otra vez, y otra. Puede encadenar año y medio de leche sin
+ * un solo día de descanso, y eso se le nota en la cría siguiente y en la
+ * lactancia siguiente. La columna existe para verlo antes de que sea tarde.
+ *
+ * Un aborto solo corta la cuenta si la vaca YA estaba seca: porque hay un
+ * secado registrado, o porque el aborto la agarró pasado el punto de secado.
+ */
+function tiempoAbierto(a) {
+  if (!a) return null;
+  const P = par(a);
+  if (!P.lechero || !P.sirve) return null;
+
+  const evs = partosDe(a.id).slice().sort((x, y) => x.fecha.localeCompare(y.fecha));
+  const secas = secadosDe(a.id);
+  const servicios = insemDe(a.id);
+
+  let inicio = null, abortos = 0;
+  for (const ev of evs) {
+    if (ev.tipo !== "aborto") { inicio = ev; abortos = 0; continue; }
+    if (!inicio) { inicio = ev; abortos = 0; continue; }
+
+    // ¿Hubo descanso antes de este aborto?
+    const secoAntes = secas.some(x => x.fecha > inicio.fecha && x.fecha <= ev.fecha);
+    const srv = servicios.find(i => i.fecha <= ev.fecha && i.fecha > inicio.fecha);
+    const gestAborto = srv ? dias(srv.fecha, aFecha(ev.fecha)) : null;
+    const yaSeca = gestAborto !== null && gestAborto >= diasSecado(P, srv.fecha).desde;
+
+    if (secoAntes || yaSeca) { inicio = ev; abortos = 0; }
+    else abortos++;                       // siguió dando leche sin parar
+  }
+  if (!inicio) return null;
+
+  /* Si ya está seca, la cuenta se congela el día que se secó: a partir de
+     ahí está descansando y no suma. */
+  const sec = secas.find(x => x.fecha > inicio.fecha);
+  const hasta = sec ? sec.fecha : hoyISO();
+  const d = dias(inicio.fecha, aFecha(hasta));
+  if (d === null || d < 0) return null;
+  return { dias: d, desde: inicio.fecha, hasta, abortos, cerrada: !!sec,
+           tipo: inicio.tipo || "parto" };
+}
+
 function estado(a) {
   const P = par(a);
   const partos = partosDe(a.id);
@@ -3287,7 +3360,7 @@ function estado(a) {
   return {
     prenada, diasGest, servicioValido, ultParto, ultInsem, ultPalp,
     mesesVacia, diasVacia, gestacion, partoAServicio, primerServicio,
-    diasEntreInsem, motivoDias, abortosTrasParto,
+    diasEntreInsem, motivoDias, abortosTrasParto, abierto: tiempoAbierto(a),
     alertaCelo, diasDesdeServicio, secadoActual,
     diasSeca: secadoActual ? dias(secadoActual.fecha) : null,
     ultParto, ultPartoReal, totalInsemCiclo: insemCiclo.length,
@@ -3372,8 +3445,12 @@ function alertas(incluirHechas) {
         `Toca volver a servirla.`, 900 + d, `vacia:${e.ultPalp.fecha}`);
     }
 
-    // 3. Cuido preparto: arranca 15 días antes de los nueve meses
-    if (P.preparto && e.prenada && e.diasGest >= P.preparto) {
+    /* 3. Cuido preparto. Se apaga sola pasados unos días: si lleva dos
+       semanas ahí, o ya se echó el cuido o nadie lo va a echar, y lo único
+       que consigue es tapar las alertas nuevas. */
+    const diasCuido = Math.max(0, Number(D.config.diasAvisoPreparto ?? 15));
+    if (P.preparto && e.prenada && e.diasGest >= P.preparto
+        && (!diasCuido || e.diasGest <= P.preparto + diasCuido)) {
       const faltan = Math.max(0, P.gestacion - e.diasGest);
       push(faltan <= 10 ? "alta" : "media", "Echar cuido preparto",
         `${e.gestacion} de gestación. Faltan ${faltan} días para el parto ` +
@@ -3398,10 +3475,15 @@ function alertas(incluirHechas) {
         790 + e.diasGest, `presecar:${srv}`);
     }
 
-    // 4. Secar: solo dentro de la ventana y si no la han secado
+    /* 4. Secar. La alerta se apaga unos días después de la fecha: si ya se
+       llevó a cabo, tenerla ahí una semana más solo tapa las nuevas. Que se
+       apague no cambia nada: la vaca pasa a Seca igual, porque eso lo decide
+       la ventana de secado, no la alerta. */
+    const cierraSecar = Math.max(0, Number(D.config.diasAvisoSecar ?? 4));
+    const topeSecar = cierraSecar ? e.secarDesdeD + cierraSecar : e.secarHastaD;
     if (P.lechero && !e.secadoActual && e.prenada &&
-        e.diasGest >= e.secarDesdeD && e.diasGest <= e.secarHastaD) {
-      const quedan = e.secarHastaD - e.diasGest;
+        e.diasGest >= e.secarDesdeD && e.diasGest <= topeSecar) {
+      const quedan = topeSecar - e.diasGest;
       push("alta", `Secar la ${P.et.toLowerCase()}`,
         `${e.diasGest} días de gestación. Parto probable ${fmt(e.fechaProbableParto)}. ` +
         `${quedan === 0 ? "Último día de la ventana." :
@@ -5387,7 +5469,8 @@ function vActivos() {
   L.sort((x, y) => x.a.nombre.localeCompare(y.a.nombre));
 
   const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Etapa"},{et:"Meses vacía"},
-                {et:"Meses gestación"},{et:"Alerta celo"},{et:"Días entre servicios",num:1},{et:"Total partos",num:1}];
+                {et:"Meses gestación"},{et:"Tiempo abierto",num:1},{et:"Alerta celo"},
+                {et:"Días entre servicios",num:1},{et:"Total partos",num:1}];
 
   return `
   <header class="cab"><div><h1>Activos</h1>
@@ -5405,6 +5488,14 @@ function vActivos() {
       <td><span class="p ${et.cl}">${et.et}</span></td>
       <td>${e.mesesVacia}</td>
       <td>${e.gestacion}</td>
+      <td class="num">${(() => {
+        const t = e.abierto;
+        if (!t) return '<span class="sub">—</span>';
+        const j = juzgarAbierto(t.dias, par(a));
+        return `<span class="apilado"><span class="p ${j.cl}">${t.dias}</span><em>${
+          t.abortos ? `${t.abortos} aborto${t.abortos === 1 ? "" : "s"} sin secar`
+          : t.cerrada ? "cerrado" : j.et}</em></span>`;
+      })()}</td>
       <td>${e.alertaCelo
             ? `<span class="p ${e.alertaCelo.nivel === "alta" ? "roja" : "ambar"}">${e.alertaCelo.texto}</span>`
             : '<span class="sub">—</span>'}</td>
@@ -6072,6 +6163,15 @@ function seg(nombre, ops, valor) {
  * que gesta 150, el mismo criterio da otra escala muy distinta. Por eso se
  * calcula y no se deja escrito a mano.
  */
+/** ¿Es mucho tiempo ordeñándose seguido? La referencia es la lactancia
+    normal: gestación menos el descanso, más los días vacía de rigor. */
+function juzgarAbierto(dias, P) {
+  const normal = (P?.gestacion || 283) - 60 + 115;      // ~338 en bovinos
+  if (dias <= normal)       return { cl: "verde", et: "normal", meta: normal };
+  if (dias <= normal + 120) return { cl: "ambar", et: "largo",  meta: normal };
+  return { cl: "roja", et: "sin descanso", meta: normal };
+}
+
 function juzgarIntervalo(dias, P) {
   const g = P?.gestacion || 283;
   const bueno = g + 115, aceptable = g + 165;
@@ -6079,6 +6179,49 @@ function juzgarIntervalo(dias, P) {
   if (dias <= bueno)     return { cl: "verde", et: "al año", meta: `hasta ${bueno}` };
   if (dias <= aceptable) return { cl: "ambar", et: "aceptable", meta: `hasta ${aceptable}` };
   return { cl: "roja", et: "largo", meta: `más de ${aceptable}` };
+}
+
+function ayudaAbierto(P) {
+  const g = P?.gestacion || 283;
+  const normal = g - 60 + 115;
+  abrirHoja(`
+    <div class="hoja-cab"><div><h2>Tiempo abierto</h2>
+      <div class="sub">${P?.plural || "Bovinos"} · gestación de ${g} días</div></div>
+      <button class="cerrar" data-cerrar>×</button></div>
+    <div style="padding:2px 0 6px">
+      <p class="expl">Cuántos días lleva la vaca <strong>ordeñándose seguido</strong>, sin
+      haber tenido un solo día de descanso.</p>
+
+      <p class="expl">Lo normal es parto, lactancia, secado, descanso, parto. Pero si la vaca
+      <strong>aborta antes del punto de secado</strong> no llega a secarse: sigue ordeñándose
+      como si nada. Y si vuelve a abortar, otra vez. Así puede encadenar año y medio de leche
+      sin parar, y eso se le nota en la cría que viene y en la lactancia siguiente.</p>
+
+      <div class="sub-tabla"><table>
+        <thead><tr><th>Tiempo abierto</th><th>Qué significa</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p verde">hasta ${normal} días</span></td>
+            <td>Una lactancia normal</td></tr>
+          <tr><td><span class="p ambar">${normal + 1} a ${normal + 120}</span></td>
+            <td>Largo: revisa por qué no ha descansado</td></tr>
+          <tr><td><span class="p roja">más de ${normal + 120}</span></td>
+            <td>Sin descanso. Conviene secarla aunque no esté preñada</td></tr>
+        </tbody></table></div>
+
+      <h4 class="sub-titulo">Cuándo se reinicia</h4>
+      <p class="expl">Con un <strong>parto</strong>, siempre. Y con un <strong>aborto</strong>
+      solo si la vaca ya estaba seca: porque hay un secado registrado, o porque el aborto la
+      agarró pasado el punto de secado y por tanto ya estaba descansando. Un aborto temprano
+      NO reinicia la cuenta, porque la vaca siguió dando leche sin parar.</p>
+
+      <h4 class="sub-titulo">En qué se diferencia del intervalo entre partos</h4>
+      <p class="expl">El intervalo mide de cría a cría: cuánto se tardó en volver a producir.
+      El tiempo abierto mide de descanso a descanso: cuánto lleva la ubre trabajando. Una vaca
+      puede tener buen intervalo y un tiempo abierto malo, y al revés.</p>
+
+      <p class="expl">Al secarla, la cuenta se congela: a partir de ahí está descansando.</p>
+    </div>
+    <div class="hoja-pie"><button class="btn btn-firme" data-cerrar>Entendido</button></div>`);
 }
 
 /** La tablita de referencia, para cuando surja la duda. */
@@ -6217,6 +6360,18 @@ function fichaAnimal(id) {
           <dt>Fecha inseminación</dt><dd>${e.ultInsem ? fmt(e.ultInsem.fecha) : "—"}</dd></li>
         <li><dt>${e.motivoDias === "repeticion" ? "Días entre servicios" : "Días parto → servicio"}</dt>
           <dd>${e.diasEntreInsem !== null ? e.diasEntreInsem + " días" : "—"}</dd></li>
+        ${(() => {
+          const t = e.abierto;
+          if (!t) return "";
+          const j = juzgarAbierto(t.dias, P);
+          return `<li><dt>Tiempo abierto
+            <button class="ayuda-btn" data-ayuda-abierto title="¿Qué es esto?">?</button></dt>
+            <dd>${t.dias} días <span class="p ${j.cl}" style="margin-left:6px">${j.et}</span></dd>
+            <span class="sub">ordeñándose seguido desde el ${
+              t.tipo === "aborto" ? "aborto" : "parto"} del ${fmtCorto(t.desde)}${
+              t.abortos ? `, con ${t.abortos} aborto${t.abortos === 1 ? "" : "s"} por el medio que no la dejaron secar` : ""}${
+              t.cerrada ? `, cerrado al secarla el ${fmtCorto(t.hasta)}` : ""}</span></li>`;
+        })()}
         ${(() => {
           const j = juzgarIntervalo(e.intervaloPartos, P);
           return `<li><dt>Intervalo partos
@@ -9601,7 +9756,8 @@ const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
    ========================================================== */
 const AJUSTES = {
   // Reglas de manejo. Las cambia quien manda en la finca.
-  finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar", "avisoSecadoDias"],
+  finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar", "avisoSecadoDias",
+          "diasAvisoSecar", "diasAvisoPreparto"],
   // Permisos y propiedad de la base. Solo dueño o superadministrador.
   mando: ["permisos", "accesoConfig", "limites", "maestro",
           "borrar", "vistasRol", "panelesRol", "fichaPropia"],
@@ -12459,6 +12615,21 @@ function vConfiguracion() {
 
       <h4 class="sub-titulo">Secado</h4>
       <div class="rej">
+        <div class="campo"><label>Dejar de avisar del secado … días después</label>
+          <input type="number" name="diasAvisoSecar" min="0" max="30"
+            value="${D.config.diasAvisoSecar ?? 4}" data-aviso-cierre="diasAvisoSecar">
+          <span class="ayuda">${Number(D.config.diasAvisoSecar ?? 4)
+            ? `Pasados ${D.config.diasAvisoSecar ?? 4} días de la fecha de secado, la alerta
+               se apaga. Si ya la secaste, tenerla ahí solo tapa las nuevas. La vaca pasa a
+               Seca igual: eso lo decide la ventana, no la alerta.`
+            : "Sin apagado: la alerta dura toda la ventana de secado."}</span></div>
+        <div class="campo"><label>Dejar de avisar del cuido preparto a los … días</label>
+          <input type="number" name="diasAvisoPreparto" min="0" max="60"
+            value="${D.config.diasAvisoPreparto ?? 15}" data-aviso-cierre="diasAvisoPreparto">
+          <span class="ayuda">${Number(D.config.diasAvisoPreparto ?? 15)
+            ? `A los ${D.config.diasAvisoPreparto ?? 15} días de empezar, la alerta se apaga:
+               o ya se echó el cuido o nadie lo va a echar.`
+            : "Sin apagado: avisa hasta el parto."}</span></div>
         <div class="campo"><label>Avisar del secado con … días</label>
           <input type="number" name="avisoSecadoDias" min="0" max="60"
             value="${D.config.avisoSecadoDias ?? 7}" data-aviso-secado>
@@ -13025,6 +13196,14 @@ function conectar() {
     };
   });
 
+  document.querySelectorAll("[data-aviso-cierre]").forEach(el => {
+    el.onchange = () => {
+      const k = el.dataset.avisoCierre;
+      D.config[k] = Math.max(0, Math.min(60, Number(el.value) || 0));
+      guardar(); pintar(); avisar("Guardado");
+    };
+  });
+
   const av = document.querySelector("[data-aviso-secado]");
   if (av) av.onchange = () => {
     D.config.avisoSecadoDias = Math.max(0, Math.min(60, Number(av.value) || 0));
@@ -13321,6 +13500,13 @@ function conectarHoja(d) {
       else ABIERTAS.delete(el.dataset.plegable);
     });
   });
+
+  const ba2 = d.querySelector("[data-ayuda-abierto]");
+  if (ba2) ba2.onclick = (ev) => {
+    ev.stopPropagation();
+    const a = animal(d.querySelector("[data-ficha-animal]")?.dataset.fichaAnimal || "");
+    ayudaAbierto(a ? par(a) : null);
+  };
 
   const bi2 = d.querySelector("[data-ayuda-intervalo]");
   if (bi2) bi2.onclick = (ev) => {
