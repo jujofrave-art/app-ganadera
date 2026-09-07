@@ -921,11 +921,48 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.40.0";
+const VERSION = "2.44.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.44.0", "7 sep 2026", [
+    "Cualquier filtro abre las fincas, no solo el buscador. Si pides ver solo las secas, o " +
+      "solo los caprinos, lo que quieres es VER el resultado, no encontrarte tres barras " +
+      "cerradas y tener que abrirlas una por una.",
+    "Lo cerrado queda para la lista completa, que es donde de verdad estorba. Al quitar el " +
+      "filtro vuelven a cerrarse.",
+    "La cabecera dice por qué está abierta: «por la búsqueda» o «por el filtro».",
+    "Y las cuentas de cada finca son siempre las del filtro puesto: si Buenos Aires dice 6 " +
+      "con la pestaña de secas, es que tiene 6 secas.",
+  ]],
+  ["2.43.0", "7 sep 2026", [
+    "Las tablas abren con <strong>todas las fincas cerradas</strong>. Lo primero que se ve es " +
+      "la lista de fincas con cuántos registros tiene cada una, y se abre la que interese. " +
+      "Antes salían todas abiertas y había que recorrer un muro de filas.",
+    "Lo que abras se queda abierto mientras estés en esa sección, y al cambiar de sección " +
+      "vuelve a empezar cerrado.",
+    "Si solo hay una finca no se esconde nada: la tabla saldría vacía y no tendría sentido.",
+    "Buscando se sigue abriendo todo, como antes.",
+  ]],
+  ["2.42.0", "6 sep 2026", [
+    "MÁS VELOCIDAD. Buscar un animal por su id recorría la lista entera, y eso se hace " +
+      "dentro de filtros que a su vez recorren miles de registros. Ahora hay un índice.",
+    "Con 500 animales y 15.000 registros, abrir la lista pasa de más de un segundo a una " +
+      "décima, y volver a pintarla —al buscar, al ordenar, al plegar una finca— es " +
+      "prácticamente instantáneo.",
+  ]],
+  ["2.41.0", "6 sep 2026", [
+    "VELOCIDAD. Pedir los partos de una vaca recorría la tabla ENTERA de partos y la " +
+      "ordenaba, y eso se hacía cuatro veces por animal, para cada animal, en cada " +
+      "repintado. Con hatos pequeños no se nota; con mil animales la pantalla tardaba más " +
+      "de un segundo en aparecer, y en un celular bastante más.",
+    "Ahora los eventos se reparten una sola vez en cajas por animal, y el estado de cada uno " +
+      "—gestación, etapa, intervalos, tiempo abierto— se calcula una vez y se reaprovecha " +
+      "hasta que los datos cambien.",
+    "ARREGLO relacionado: al llegar datos nuevos de Firebase, las cachés no caducaban hasta " +
+      "medio segundo después, y el primer repintado podía salir con las cuentas viejas.",
+  ]],
   ["2.40.0", "6 sep 2026", [
     "Al buscar no se pliega nada: si el animal que buscas est\u00e1 en una finca cerrada, sale " +
       "igual, y su cabecera avisa de que se abri\u00f3 por la b\u00fasqueda. Al borrar la b\u00fasqueda " +
@@ -3136,16 +3173,71 @@ function revisarVersion() {
    Nada de esto se digita a mano.
    ========================================================== */
 
-const finca = (id) => D.fincas.find(f => f.id === id);
-const animal = (id) => D.animales.find(a => a.id === id);
+const finca = (id) => { rehacerMapas(); return _idFinca.get(id) || null; };
+/* Buscar un animal por su id recorría la lista entera. Parece poca cosa,
+   pero se hace dentro de filtros que a su vez recorren miles de registros:
+   con quinientos animales y quince mil eventos eso son millones de vueltas
+   por repintado. Ahora hay un índice que se rehace cuando cambian los datos. */
+const _idAnimal = new Map();
+const _idFinca = new Map();
+let _mapaVer = -1;
+
+function rehacerMapas() {
+  if (_mapaVer === VERSION_DATOS) return;
+  _mapaVer = VERSION_DATOS;
+  _idAnimal.clear(); _idFinca.clear();
+  for (const a of (D.animales || [])) _idAnimal.set(a.id, a);
+  for (const f of (D.fincas || [])) _idFinca.set(f.id, f);
+}
+
+const animal = (id) => { rehacerMapas(); return _idAnimal.get(id) || null; };
 const nombreFinca = (id) => finca(id)?.nombre || "Sin finca";
 const porFecha = (a, b) => (b.fecha || "").localeCompare(a.fecha || "");
 
-function partosDe(id) { return D.partos.filter(p => p.animalId === id).sort(porFecha); }
-function insemDe(id) { return D.inseminaciones.filter(i => i.animalId === id).sort(porFecha); }
-function palpDe(id) { return D.palpaciones.filter(p => p.animalId === id).sort(porFecha); }
-function secadosDe(id) { return D.secados.filter(s => s.animalId === id).sort(porFecha); }
-function tratDe(id) { return D.tratamientos.filter(t => t.animalId === id).sort((a,b)=>(b.inicio||"").localeCompare(a.inicio||"")); }
+/* ==========================================================
+   LOS EVENTOS DE CADA ANIMAL, YA REPARTIDOS
+
+   Antes, pedir los partos de una vaca recorría la tabla ENTERA de partos y la
+   ordenaba. Y eso se hace cuatro veces por animal, para cada animal, en cada
+   repintado: con mil animales y veintiséis mil registros, la pantalla tardaba
+   más de un segundo en aparecer.
+
+   Ahora se reparten una sola vez en cajas por animal y se reaprovechan hasta
+   que los datos cambien.
+   ========================================================== */
+const _EV_VACIO = [];
+const _porAnimal = {};
+let _evVer = -1;
+
+function repartirEventos() {
+  if (_evVer === VERSION_DATOS) return;
+  _evVer = VERSION_DATOS;
+  for (const col of ["partos", "inseminaciones", "palpaciones", "secados",
+                     "tratamientos", "leche"]) {
+    const m = new Map();
+    for (const x of (D[col] || [])) {
+      if (!x.animalId) continue;
+      const l = m.get(x.animalId);
+      if (l) l.push(x); else m.set(x.animalId, [x]);
+    }
+    for (const l of m.values()) l.sort(porFecha);
+    _porAnimal[col] = m;
+  }
+}
+function eventosDe(col, id) {
+  repartirEventos();
+  return _porAnimal[col]?.get(id) || _EV_VACIO;
+}
+
+function partosDe(id)  { return eventosDe("partos", id); }
+function insemDe(id)   { return eventosDe("inseminaciones", id); }
+function palpDe(id)    { return eventosDe("palpaciones", id); }
+function secadosDe(id) { return eventosDe("secados", id); }
+function tratDe(id) {
+  // Los tratamientos van por fecha de inicio, no por «fecha».
+  return eventosDe("tratamientos", id).slice()
+    .sort((a, b) => (b.inicio || "").localeCompare(a.inicio || ""));
+}
 
 /**
  * Calcula todo el estado reproductivo de un animal.
@@ -3238,7 +3330,21 @@ function tiempoAbierto(a) {
            tipo: inicio.tipo || "parto" };
 }
 
+/* El estado de un animal sale de docenas de cuentas y se pide muchas veces
+   por repintado: en la tabla, en las alertas, en la ficha, en los promedios.
+   Se guarda hasta que los datos cambien. */
+const _estCache = new Map();
+let _estVer = -1;
+
 function estado(a) {
+  if (!a) return calcularEstado(a);
+  if (_estVer !== VERSION_DATOS) { _estCache.clear(); _estVer = VERSION_DATOS; }
+  let v = _estCache.get(a.id);
+  if (v === undefined) { v = calcularEstado(a); _estCache.set(a.id, v); }
+  return v;
+}
+
+function calcularEstado(a) {
   const P = par(a);
   const partos = partosDe(a.id);
   const insems = insemDe(a.id);
@@ -4224,8 +4330,13 @@ const puedoBorrarFinca = (f) => {
   return rolActual() === "dueno" && f.creadoPor === S.persona.id;
 };
 const misEventos = (col) => {
-  const mias = misFincas();
-  return (D[col] || []).filter(e => mias.includes(e.fincaId ?? animal(e.animalId)?.fincaId));
+  // Un Set en vez de un array: con muchas fincas, «incluye» también costaba.
+  const mias = new Set(misFincas());
+  rehacerMapas();
+  return (D[col] || []).filter(e => {
+    const f = e.fincaId ?? _idAnimal.get(e.animalId)?.fincaId;
+    return mias.has(f);
+  });
 };
 
 /* ==========================================================
@@ -5409,31 +5520,50 @@ function activarOrden() {
   });
 }
 /** Agrupa filas por finca como en AppSheet. */
-/* Qué fincas están plegadas. Se recuerda mientras dure la sesión: con
-   cuarenta animales en cuatro fincas, bajar hasta la siguiente era un viaje. */
-const FINCAS_PLEGADAS = (window.FINCAS_PLEGADAS ||= new Set());
+/* Qué fincas ha abierto la persona. Las tablas abren TODAS CERRADAS: con
+   cuatro fincas y cuarenta animales, lo primero que se ve es la lista de
+   fincas, no un muro de filas. Se abre la que interese.
+
+   Se guarda lo abierto, no lo cerrado, y se olvida al cambiar de sección:
+   entrar a una tabla siempre empieza limpio. */
+const ABIERTAS_FINCA = (window.ABIERTAS_FINCA ||= { vista: null, set: new Set() });
 
 function agrupado(items, fn) {
   const por = {};
   items.forEach(i => { (por[i._finca] ||= []).push(i); });
   const nombres = Object.keys(por);
 
-  /* Buscando no se pliega nada: si el animal que se busca está en una finca
-     cerrada, tiene que salir igual. Al borrar la búsqueda vuelven a quedar
-     como estaban. */
+  if (ABIERTAS_FINCA.vista !== V.vista) {
+    ABIERTAS_FINCA.vista = V.vista;
+    ABIERTAS_FINCA.set.clear();
+  }
+
+  /* Filtrando no se pliega nada. Si alguien busca un animal, o pide ver solo
+     las secas, o solo los caprinos, lo que quiere es VER el resultado, no
+     encontrarse tres barras cerradas y tener que abrirlas una por una. Lo
+     cerrado es para la lista completa, que es donde estorba.
+
+     Al quitar el filtro vuelven a quedar como estaban. */
   const buscando = !!String(V.busca || "").trim();
+  const enPestana = !["todos", "todas", "pendientes", "", null, undefined]
+    .includes(V.sub);
+  const porEspecie = !!V.especie && V.especie !== "todas";
+  const filtrando = buscando || enPestana || porEspecie;
+
+  // Con una sola finca no tiene sentido esconderla: la tabla saldría vacía.
+  const unaSola = nombres.length === 1;
 
   return nombres.map((f) => {
     const arr = por[f];
-    const cerrada = !buscando && FINCAS_PLEGADAS.has(f);
+    const cerrada = !filtrando && !unaSola && !ABIERTAS_FINCA.set.has(f);
     return `<tr class="grupo ${cerrada ? "plegada" : ""}" data-finca-grupo="${esc(f)}">
       <td colspan="10">
         <span class="chevron">▾</span>
         <span class="nom-finca">${esc(f)}</span>
         <span class="n">${arr.length}</span>
         ${cerrada ? '<span class="oculta">toca para abrir</span>'
-          : buscando && FINCAS_PLEGADAS.has(f)
-            ? '<span class="oculta">abierta por la b\u00fasqueda</span>' : ""}
+          : filtrando && !unaSola && !ABIERTAS_FINCA.set.has(f)
+            ? `<span class="oculta">abierta por ${buscando ? "la b\u00fasqueda" : "el filtro"}</span>` : ""}
       </td></tr>` +
       arr.map(x => fn(x).replace(/^(\s*)<tr /,
         `$1<tr data-de-finca="${esc(f)}" ${cerrada ? "hidden" : ""} `)).join("");
@@ -10111,6 +10241,11 @@ function escucharColecciones(mias) {
         FB.espejo[nombre] = {};
         docs.forEach(d => { FB.espejo[nombre][d.id] = firmaRemota(nombre, d); });
         D[nombre] = docs;
+        /* Los datos cambiaron: las cachés de búsqueda, de estado y de vacas en
+           producción tienen que caducar YA. Antes esperaban a que se guardara
+           en el equipo, casi medio segundo después, y el primer repintado salía
+           con las cuentas viejas. */
+        VERSION_DATOS++;
 
         // Lo que el servidor ya confirmó deja de estar pendiente.
         if (!snap.metadata.hasPendingWrites) {
@@ -13270,8 +13405,8 @@ function conectar() {
   document.querySelectorAll("[data-finca-grupo]").forEach(tr => {
     tr.onclick = () => {
       const f = tr.dataset.fincaGrupo;
-      const cerrar = !FINCAS_PLEGADAS.has(f);
-      if (cerrar) FINCAS_PLEGADAS.add(f); else FINCAS_PLEGADAS.delete(f);
+      const cerrar = ABIERTAS_FINCA.set.has(f);
+      if (cerrar) ABIERTAS_FINCA.set.delete(f); else ABIERTAS_FINCA.set.add(f);
       tr.classList.toggle("plegada", cerrar);
       document.querySelectorAll(`[data-de-finca="${CSS.escape(f)}"]`)
         .forEach(x => { x.hidden = cerrar; });
