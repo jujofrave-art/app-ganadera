@@ -924,11 +924,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.55.0";
+const VERSION = "2.56.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.56.0", "7 sep 2026", [
+    "ENTRADA MÁS RÁPIDA. Antes la app pedía el permiso a Firebase, esperaba la respuesta, y " +
+      "solo entonces empezaba a bajar los animales. Dos viajes al servidor, uno detrás de " +
+      "otro, y en el campo con mala señal eso se nota.",
+    "Ahora, si este equipo ya sabe qué podía hacer esa cuenta de la última vez, empieza a " +
+      "bajar de una vez y comprueba el permiso en paralelo. Si el servidor dice otra cosa " +
+      "—le cambiaron el puesto o las fincas— se rehace con lo nuevo.",
+    "La primera vez de una cuenta en un aparato sigue igual: no hay nada que recordar.",
+    "Si a alguien le quitan el acceso, ese recuerdo se borra.",
+  ]],
   ["2.55.0", "7 sep 2026", [
     "ARREGLO: un empleado sal\u00eda siempre con \u00abError de conexi\u00f3n\u00bb aunque todo lo dem\u00e1s " +
       "hubiera bajado bien. La app le ped\u00eda a Firestore las fichas de todas las personas de " +
@@ -10472,6 +10482,26 @@ function pararTodo() {
 
 /** Observa mi propio documento de usuario. Cuando cambian mis fincas
     —por ejemplo al crear la primera— vuelve a suscribir las colecciones. */
+/* El último permiso conocido de cada correo, guardado en el equipo. Sirve
+   para empezar a bajar los datos sin esperar el viaje al servidor: en una
+   entrada repetida ahorra un ida y vuelta entero, que en el campo con mala
+   señal puede ser un segundo largo. Si el servidor luego dice otra cosa, se
+   rehace la suscripción con lo nuevo. */
+const CLAVE_PERMISO = (c) => CLAVE + "-permiso-" + c;
+
+function permisoGuardado(correo) {
+  try { return JSON.parse(localStorage.getItem(CLAVE_PERMISO(correo)) || "null"); }
+  catch { return null; }
+}
+function apuntarPermiso(correo, datos) {
+  try {
+    localStorage.setItem(CLAVE_PERMISO(correo), JSON.stringify({
+      rol: datos.rol || null, persona: datos.persona || null,
+      fincas: datos.fincas || [], nombre: datos.nombre || "",
+    }));
+  } catch {}
+}
+
 function escucharTodo() {
   const { fs } = FB.mods;
   const correo = FB.user.email.toLowerCase();
@@ -10486,6 +10516,18 @@ function escucharTodo() {
   if (FB.escuchaUsuario && FB.correoEscuchado === correo) return;
   if (FB.escuchaUsuario) pararTodo();
   FB.correoEscuchado = correo;
+
+  /* Arranque en caliente: si este equipo ya sabe qué podía hacer esta
+     cuenta, se empieza a bajar de una vez. Lo que diga el servidor manda, y
+     si difiere se rehace; pero mientras tanto ya se está trabajando. */
+  const previo = permisoGuardado(correo);
+  if (previo && (previo.fincas || []).length) {
+    FB.rolRemoto = previo.rol;
+    FB.personaRemota = previo.persona;
+    FB.fincasRemotas = previo.fincas;
+    FB.claveFincas = (previo.fincas || []).join(",") + "|" + previo.rol;
+    try { escucharColecciones(previo.fincas); } catch {}
+  }
 
   FB.escuchaUsuario = fs.onSnapshot(fs.doc(FB.db, "usuarios", correo),
     { includeMetadataChanges: true },
@@ -10514,6 +10556,7 @@ function escucharTodo() {
       FB.rolRemoto = datos.rol || null;
       FB.personaRemota = datos.persona || null;
       FB.fincasRemotas = datos.fincas || [];
+      if (!snap.metadata.fromCache) apuntarPermiso(correo, datos);
 
       /* ENTRAR DE UNA VEZ.
 
@@ -11720,6 +11763,7 @@ async function rechazarAcceso(correo) {
   try { await salirFirebase(); } catch {}
   S.persona = null; S.modo = null; S.modoAcceso = "entrar"; S.aviso = "";
   S.entrando = null; S.cargando = false;
+  try { localStorage.removeItem(CLAVE_PERMISO(correo)); } catch {}
   S.error = `La cuenta ${correo} existe, pero no está autorizada en esta finca. ` +
             `Pídele al dueño que te registre con ese mismo correo y te asigne a una finca.`;
   FB.estado = "listo"; FB.error = "";
