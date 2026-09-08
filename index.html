@@ -924,11 +924,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.54.0";
+const VERSION = "2.55.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.55.0", "7 sep 2026", [
+    "ARREGLO: un empleado sal\u00eda siempre con \u00abError de conexi\u00f3n\u00bb aunque todo lo dem\u00e1s " +
+      "hubiera bajado bien. La app le ped\u00eda a Firestore las fichas de todas las personas de " +
+      "la finca, y las reglas se lo niegan, con raz\u00f3n: un empleado no tiene por qu\u00e9 ver " +
+      "los correos y tel\u00e9fonos de los dem\u00e1s.",
+    "Esa petici\u00f3n ni se hace ya cuando el puesto no da para verlas. Se pide solo la ficha " +
+      "propia, que s\u00ed puede leer cualquiera.",
+    "No eran las reglas: estaban bien puestas. Era la app pidiendo algo que no le " +
+      "corresponde.",
+  ]],
   ["2.54.0", "7 sep 2026", [
     "ENCONTRADO EL \u00abNO EST\u00c1S AUTORIZADO\u00bb EN UN APARATO NUEVO. En un equipo que nunca ha " +
       "entrado con esa cuenta, la primera respuesta de Firestore sale de su cach\u00e9 local, " +
@@ -10742,13 +10752,22 @@ function escucharColecciones(mias) {
   if (todo) {
     escuchar("personas", col("personas"));
   } else {
-    escuchar("personas", fs.query(col("personas"),
-      fs.where("fincas", "array-contains-any", trozo)), "misFincas");
-    // Las que nadie ha asignado: quedan disponibles para cualquier dueño.
-    escuchar("personas", fs.query(col("personas"),
-      fs.where("sinFinca", "==", true)), "sueltas");
-    // Y las mías, estén en la finca que estén. Sin esto no se pueden
-    // detectar las fichas duplicadas del mismo correo.
+    /* Quien no manda solo puede leer SU PROPIA ficha: así lo dicen las
+       reglas, y con razón —un empleado no tiene por qué ver los correos y
+       teléfonos de los demás—. Pedir las de toda la finca le devolvía
+       «permission denied» y dejaba la app en error permanente aunque el resto
+       hubiera bajado bien. Ahora ni se pide. */
+    // Se mira el rol del PERMISO, no el de la ficha: cuando esto corre, la
+    // ficha puede no haber llegado todavía.
+    const mandaRemoto = ["superadmin", "dueno", "administrador"].includes(FB.rolRemoto);
+    if (mandaRemoto) {
+      escuchar("personas", fs.query(col("personas"),
+        fs.where("fincas", "array-contains-any", trozo)), "misFincas");
+      // Las que nadie ha asignado: quedan disponibles para cualquier dueño.
+      escuchar("personas", fs.query(col("personas"),
+        fs.where("sinFinca", "==", true)), "sueltas");
+    }
+    // Y la mía, esté en la finca que esté. Esta la puede leer cualquiera.
     if (FB.user?.email) {
       escuchar("personas", fs.query(col("personas"),
         fs.where("correo", "==", FB.user.email.toLowerCase())), "mias");
