@@ -426,10 +426,14 @@ tr.grupo .oculta{font-family:var(--dato);font-size:10px;color:var(--tenue);margi
   padding-top:14px;border-top:1px solid var(--linea)}
 .solo-movil{display:none}
 
-.pie button.quien{display:flex;flex-direction:column;gap:3px;margin-bottom:9px;background:none;
+/* Esto apuntaba solo a «button.quien». Cuando el bloque deja de ser botón
+   —a un empleado no se le abre la ficha— se quedaba sin ninguna de estas
+   reglas, y el nombre salía del color del fondo: invisible. Ahora vale para
+   los dos. */
+.pie .quien{display:flex;flex-direction:column;gap:3px;margin-bottom:9px;background:none;
   border:0;padding:7px 8px;border-radius:8px;text-align:left;width:100%;color:var(--rail-fg)}
-.pie button.quien strong{color:var(--rail-fg)}
-.pie button.quien em{color:rgba(var(--papel-rgb),.5)}
+.pie .quien strong{color:var(--rail-fg)}
+.pie .quien em{color:rgba(var(--papel-rgb),.5)}
 .pie button.quien:hover{background:rgba(var(--papel-rgb),.08)}
 .quien strong{font-size:13px;color:var(--papel)}
 .quien em{font-style:normal;font-family:var(--dato);font-size:10.5px;color:rgba(var(--papel-rgb),.45)}
@@ -924,11 +928,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.56.0";
+const VERSION = "2.57.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.57.0", "7 sep 2026", [
+    "ARREGLO: a un empleado no le sal\u00eda su nombre abajo en el men\u00fa. Desde la 2.23 ese " +
+      "bloque deja de ser bot\u00f3n cuando el puesto no puede abrir su propia ficha, y todo el " +
+      "estilo apuntaba solo al bot\u00f3n: el nombre quedaba del color del fondo, invisible. " +
+      "Ahora vale para los dos casos.",
+    "Y el indicador de conexi\u00f3n dice de qui\u00e9n es la sesi\u00f3n: \u00abTodo guardado \u00b7 Luis\u00bb. Con " +
+      "varias personas usando el mismo equipo, saber con qu\u00e9 cuenta se est\u00e1 trabajando " +
+      "importa antes de registrar nada.",
+  ]],
   ["2.56.0", "7 sep 2026", [
     "ENTRADA MÁS RÁPIDA. Antes la app pedía el permiso a Firebase, esperaba la respuesta, y " +
       "solo entonces empezaba a bajar los animales. Dos viajes al servidor, uno detrás de " +
@@ -5510,7 +5523,8 @@ function pintar() {
       </nav>
       <div class="pie">
         <button class="sync ${estadoSync().clase}" data-acc="ver-estado"
-          title="Ver qué está pasando con la conexión">${estadoSync().texto}</button>
+          title="Ver qué está pasando con la conexión">${estadoSync().texto}${
+          S.persona?.nombre ? ` · ${esc(S.persona.nombre)}` : ""}</button>
         ${puedeFichaPropia() ? `
         <button class="quien" data-perfil title="Editar mis datos">
           <span class="p ${ROLES[S.persona.rol].cl}">${ROLES[S.persona.rol].et}</span>
