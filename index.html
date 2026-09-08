@@ -924,11 +924,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.53.0";
+const VERSION = "2.54.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.54.0", "7 sep 2026", [
+    "ENCONTRADO EL \u00abNO EST\u00c1S AUTORIZADO\u00bb EN UN APARATO NUEVO. En un equipo que nunca ha " +
+      "entrado con esa cuenta, la primera respuesta de Firestore sale de su cach\u00e9 local, " +
+      "que est\u00e1 vac\u00eda, y dice que el permiso \u00abno existe\u00bb. La app se lo cre\u00eda y cerraba la " +
+      "sesi\u00f3n en el acto, con lo cual la respuesta del servidor \u2014que s\u00ed tra\u00eda el " +
+      "permiso\u2014 no llegaba nunca.",
+    "Por eso la misma cuenta entraba en el celular y no en el computador: en el celular ya " +
+      "estaba en cach\u00e9 de una entrada anterior.",
+    "Ahora solo se rechaza cuando lo dice el servidor, no la cach\u00e9 vac\u00eda del propio equipo. " +
+      "Es el mismo fallo que ten\u00edan los ajustes en la 2.15.0, en otro sitio.",
+  ]],
   ["2.53.0", "7 sep 2026", [
     "Tocando el indicador de conexión —abajo en el menú, donde dice «Todo guardado»— se " +
       "abre una pantalla que cuenta qué está pasando: tu puesto, cuántas fincas te " +
@@ -10467,8 +10478,24 @@ function escucharTodo() {
   FB.correoEscuchado = correo;
 
   FB.escuchaUsuario = fs.onSnapshot(fs.doc(FB.db, "usuarios", correo),
+    { includeMetadataChanges: true },
     (snap) => {
       if (!snap.exists()) {
+        /* AQUÍ ESTABA EL «NO ESTÁS AUTORIZADO» EN UN APARATO NUEVO.
+
+           En un equipo que nunca ha entrado con esta cuenta, la primera
+           respuesta de Firestore sale de su caché local, que está vacía, y
+           dice «no existe». La app se lo creía y cerraba la sesión en el
+           acto, así que la respuesta del servidor —que sí traería el
+           permiso— no llegaba nunca. En el celular funcionaba porque ahí ya
+           estaba en caché.
+
+           Solo se rechaza cuando lo dice el SERVIDOR. */
+        if (snap.metadata.fromCache) {
+          S.entrando = correo;
+          pintarPronto();
+          return;
+        }
         // El correo entró bien pero nadie lo autorizó: fuera.
         return rechazarAcceso(correo);
       }
