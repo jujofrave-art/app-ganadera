@@ -928,11 +928,25 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.64.0";
+const VERSION = "2.65.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.65.0", "8 sep 2026", [
+    "ENCONTRADO POR QU\u00c9 LA APP SE QUEDABA EN CERO CON TODO INTACTO EN FIREBASE. La columna " +
+      "\u00ab\u00faltima respuesta\u00bb de la 2.64 lo dej\u00f3 ver: Firebase contestaba con las 4 fincas, " +
+      "los 59 animales y los 117 partos, y aun as\u00ed la pantalla marcaba 0.",
+    "Firebase avisa del estado de la sesi\u00f3n cada vez que renueva el permiso, no solo al " +
+      "entrar. Y la app, en cada aviso, volv\u00eda a leer del equipo lo que tuviera guardado de " +
+      "esa cuenta. Si la renovaci\u00f3n ca\u00eda antes de que se guardara lo reci\u00e9n bajado \u2014y el " +
+      "guardado espera cuatro d\u00e9cimas\u2014 se le\u00eda un archivo vac\u00edo, y esa lectura borraba de " +
+      "la pantalla lo que ya hab\u00eda llegado. Las escuchas ya hab\u00edan entregado lo suyo, as\u00ed " +
+      "que no volv\u00eda a llegar nada.",
+    "Ahora solo se relee del equipo cuando de verdad cambia la cuenta. Y por si acaso, esa " +
+      "lectura nunca pisa lo que ya est\u00e1 en pantalla con un archivo m\u00e1s pobre: si en memoria " +
+      "hay m\u00e1s de lo que hay guardado, se escribe eso y no se relee nada.",
+  ]],
   ["2.64.0", "8 sep 2026", [
     "La pantalla de estado dice ahora <strong>qué contestó cada consulta y de dónde vino</strong>: " +
       "«44 de servidor», «0 de caché», o «sin respuesta todavía».",
@@ -3058,6 +3072,15 @@ function cargarConfig() {
 
 /** Abre los datos de una persona. "local" cuando no hay Firebase. */
 function abrirDatosDe(quien) {
+  /* Nunca se pisa lo que ya está en pantalla con un archivo más pobre. Si en
+     memoria hay más de lo que hay guardado, es que acaba de bajar de Firebase
+     y todavía no se ha escrito en el equipo: se escribe eso y no se relee. */
+  const enPantalla = (D?.animales || []).length + (D?.fincas || []).length;
+  if (enPantalla > 0 && CLAVE_DATOS === CLAVE + "::" + (quien || "local")) {
+    guardarLocal();
+    return;
+  }
+
   CLAVE_DATOS = CLAVE + "::" + (quien || "local");
   _fotosEnDisco = new Map();
   // El espejo de fotos ya subidas es de cada quien: se vuelve a leer.
@@ -10571,9 +10594,26 @@ async function conectarFirebase(silencioso) {
       completarEnlace().catch(() => {});
 
       auth.onAuthStateChanged(FB.auth, (u) => {
+        const antes = (FB.user?.email || "").toLowerCase();
         FB.user = u;
         if (u) {
-          abrirDatosDe(u.email.toLowerCase());   // cada quien su caché
+          const c = u.email.toLowerCase();
+
+          /* AQUÍ SE PERDÍAN LOS DATOS.
+
+             Firebase llama a esto cada vez que renueva el permiso de la
+             sesión, no solo al entrar. Y «abrirDatosDe» vuelve a leer del
+             equipo lo que hubiera guardado de esa cuenta.
+
+             Si la renovación cae antes de que se guarde lo recién bajado —y
+             el guardado espera cuatro décimas—, lo que se lee es un archivo
+             vacío, y esa lectura BORRA de la pantalla los animales que ya
+             habían llegado. Como las escuchas ya habían entregado lo suyo, no
+             volvía a llegar nada: la app se quedaba en cero con todo intacto
+             en Firebase.
+
+             Solo se relee cuando de verdad cambia la cuenta. */
+          if (c !== antes) abrirDatosDe(c);
           vincularUsuario(u.email);
           escucharTodo();
         }
