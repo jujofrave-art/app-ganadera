@@ -928,11 +928,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.62.0";
+const VERSION = "2.63.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.63.0", "8 sep 2026", [
+    "RED DE SEGURIDAD: una respuesta vacía ya no borra de la pantalla lo que se tiene. Si la " +
+      "app lleva 44 animales y de pronto llega una consulta sin ninguno, casi nunca es que " +
+      "se hayan borrado los 44: es una consulta a medias, una escucha vieja que contestó " +
+      "tarde o una caché enredada.",
+    "Ahora se conserva lo que hay, se apunta el aviso y se dice en la pantalla de estado " +
+      "qué tablas se protegieron. En vez de quedarse mirando una app en blanco con todo " +
+      "intacto en Firebase.",
+    "Se deja pasar cuando de verdad no había nada antes, o cuando el borrado lo hizo este " +
+      "mismo equipo: vaciar una finca a propósito sigue funcionando.",
+  ]],
   ["2.62.0", "8 sep 2026", [
     "QUITADO EL «ARRANQUE EN CALIENTE» DE LA 2.56. Suscribirse a los datos con el permiso " +
       "de la última vez ahorraba un ida y vuelta, pero dejaba dos suscripciones peleando " +
@@ -5720,6 +5731,12 @@ function hojaEstado() {
       ${!(FB.fincasRemotas || []).length ? `<div class="aviso">Tu permiso no tiene ninguna
         finca asignada, así que no hay nada que mostrar. Pídele al dueño que te asigne
         al menos una en tu ficha.</div>` : ""}
+
+      ${Object.keys(FB.vacios || {}).length ? `<div class="aviso">
+        <strong>Se protegieron datos.</strong> Estas tablas contestaron vacías teniendo
+        registros, así que se conservó lo que había:
+        ${Object.entries(FB.vacios).map(([c, n]) => `${c} (${n})`).join(", ")}.
+        Pulsa «Volver a bajar todo» aquí abajo para reintentar.</div>` : ""}
 
       ${pareceVaciada() ? `<div class="aviso"><strong>Ojo.</strong> Tu permiso dice que
         alcanzas ${(FB.fincasRemotas || []).length} finca(s), pero no llegó ninguna. Eso no
@@ -10761,6 +10778,7 @@ function escucharColecciones(mias) {
   FB.cajones = {};
   FB.fallos = {};
   FB.sinPermiso = false;
+  FB.vacios = {};
   FB.fincasCargadas = false;
   FB.espejoUsuarios = {};
   FB.usuariosRemotos = {};
@@ -10840,6 +10858,29 @@ function escucharColecciones(mias) {
         for (const local of (D[nombre] || [])) {
           if (!vistos.has(local.id) && propios.has(local.id)) docs.push(local);
         }
+
+        /* RED DE SEGURIDAD.
+
+           Una respuesta vacía no borra lo que ya se tiene. Si la app lleva 44
+           animales y de pronto llega una consulta sin ninguno, casi nunca es
+           que se hayan borrado los 44: es una consulta que se quedó a medias,
+           una escucha vieja que contestó tarde o una caché que se enredó. Se
+           conserva lo que hay y se apunta el aviso, en vez de dejar al
+           ganadero mirando una app en blanco con todo intacto en Firebase.
+
+           Se deja pasar cuando de verdad no había nada antes, y cuando el
+           borrado lo hizo este mismo equipo. */
+        const teniamos = (D[nombre] || []).length;
+        const borroTodo = teniamos > 2 && docs.length === 0
+          && !(FB.borrados?.[nombre]?.size);
+        if (borroTodo) {
+          (FB.vacios ||= {})[nombre] = teniamos;
+          console.warn(`${nombre}: la consulta volvió vacía teniendo ${teniamos}. Se conserva.`);
+          FB.aplicando = false;
+          pintarPronto();
+          return;
+        }
+        if (FB.vacios?.[nombre] && docs.length) delete FB.vacios[nombre];
 
         FB.espejo[nombre] = {};
         docs.forEach(d => { FB.espejo[nombre][d.id] = firmaRemota(nombre, d); });
@@ -15433,7 +15474,7 @@ async function acciones(a) {
     try {
       pararEscuchas();
       FB.cajones = {}; FB.espejo = {}; FB.leidas = new Set();
-      FB.fallos = {}; FB.sinPermiso = false; FB.claveFincas = null;
+      FB.fallos = {}; FB.sinPermiso = false; FB.claveFincas = null; FB.vacios = {};
       escucharColecciones(FB.fincasRemotas || []);
     } catch (e) { alert("No se pudo: " + (e?.message || e)); }
     return;
