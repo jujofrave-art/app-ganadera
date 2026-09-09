@@ -928,11 +928,30 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.68.2";
+const VERSION = "2.70.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.70.0", "9 sep 2026", [
+    "LA CARGA INICIAL YA NO DEPENDE DE LAS ESCUCHAS. Ahora al entrar se trae todo de una " +
+      "vez con una lectura directa \u2014la misma que funcionaba con el bot\u00f3n\u2014 y solo despu\u00e9s " +
+      "se escuchan los cambios.",
+    "Las escuchas est\u00e1n pensadas para enterarse de lo que va pasando, no para la carga " +
+      "inicial. Hac\u00edan las dos cosas, y cuando algo se atascaba por el camino la app se " +
+      "quedaba en cero con todo intacto en Firebase, sin dar ning\u00fan error.",
+    "Nadie tiene que pulsar nada, ni el due\u00f1o ni un empleado. El bot\u00f3n \u00abTraer todo de " +
+      "Firebase\u00bb se queda por si alguna vez hace falta forzarlo, y el rescate autom\u00e1tico " +
+      "sigue de red por debajo.",
+  ]],
+  ["2.69.0", "9 sep 2026", [
+    "RESCATE AUTOM\u00c1TICO. Si a los cinco segundos de entrar la app sigue en blanco teniendo " +
+      "fincas autorizadas, se trae todo por la v\u00eda directa sola, sin preguntar y sin que " +
+      "haya que acordarse de ning\u00fan bot\u00f3n.",
+    "Vale m\u00e1s una lectura de m\u00e1s que dejar al ganadero mirando una app vac\u00eda con todo en " +
+      "Firebase. Se hace una sola vez por sesi\u00f3n: si aun as\u00ed no llega nada, no se insiste.",
+    "El bot\u00f3n \u00abTraer todo de Firebase\u00bb sigue ah\u00ed para forzarlo cuando se quiera.",
+  ]],
   ["2.68.0", "9 sep 2026", [
     "Botón nuevo <strong>«Traer todo de Firebase»</strong> en la pantalla de estado. Las " +
       "escuchas normales son un mecanismo con muchas piezas —cajones por consulta, espejos, " +
@@ -5784,12 +5803,12 @@ function pareceVaciada() {
  * pregunta a Firestore, se mete lo que venga y se guarda. Si los datos están
  * en la nube, aquí aparecen.
  */
-async function bajarDirecto() {
-  if (!FB.db || !FB.user) { alert("No hay conexión con Firebase."); return; }
+async function bajarDirecto(callado) {
+  if (!FB.db || !FB.user) { if (!callado) alert("No hay conexión con Firebase."); return; }
   const { fs } = FB.mods;
   const mias = (FB.fincasRemotas || []).filter(Boolean);
   const todo = FB.rolRemoto === "superadmin";
-  if (!todo && !mias.length) { alert("Tu permiso no alcanza ninguna finca."); return; }
+  if (!todo && !mias.length) { if (!callado) alert("Tu permiso no alcanza ninguna finca."); return; }
 
   const trozo = mias.slice(0, 30);
   const cuentas = [], problemas = [];
@@ -5839,8 +5858,30 @@ async function bajarDirecto() {
   asegurarPersona(FB.user.email);
   pintar();
 
+  if (callado) return;      // carga normal: sin avisos ni ventanas
   alert(`Bajado de Firebase:\n\n${cuentas.join("\n")}` +
     (problemas.length ? `\n\nCon problemas:\n${problemas.join("\n")}` : ""));
+}
+
+/**
+ * RESCATE AUTOMÁTICO.
+ *
+ * Si a los pocos segundos de entrar el equipo sigue en blanco teniendo fincas
+ * autorizadas, se trae todo por la vía directa sin preguntar. Vale más una
+ * lectura de más que dejar al ganadero mirando una app vacía y teniendo que
+ * acordarse de un botón escondido.
+ *
+ * Una sola vez por sesión: si aun así no llega nada, no se insiste.
+ */
+function programarRescate() {
+  if (FB.rescateHecho) return;
+  clearTimeout(FB.tRescate);
+  FB.tRescate = setTimeout(async () => {
+    if (FB.rescateHecho || !equipoEnBlanco()) return;
+    FB.rescateHecho = true;
+    console.warn("Rescate: el equipo sigue en blanco. Bajando por la vía directa.");
+    try { await bajarDirecto(true); } catch (e) { console.warn("rescate:", e); }
+  }, 8000);
 }
 
 function hojaEstado() {
@@ -10952,11 +10993,12 @@ function escucharTodo() {
     (e) => { FB.estado = "error"; FB.error = errorFB(e); pintar(); });
 }
 
-function escucharColecciones(mias) {
+async function escucharColecciones(mias) {
   pararEscuchas();
   FB.cajones = {};
   FB.fallos = {};
   FB.sinPermiso = false;
+  programarRescate();
   FB.vacios = {};
   FB.ultimaResp = {};
   FB.fincasCargadas = false;
@@ -11142,6 +11184,18 @@ function escucharColecciones(mias) {
       });
     FB.escuchas.push(u);
   };
+
+  /* PRIMERO SE TRAE TODO DE UNA VEZ, Y DESPUÉS SE ESCUCHAN LOS CAMBIOS.
+
+     Las escuchas están pensadas para enterarse de lo que va pasando, no para
+     la carga inicial. Hacían las dos cosas, y cuando algo se atascaba en el
+     camino —cajones por consulta, espejos, mezclas— la app se quedaba en cero
+     con todo intacto en Firebase, sin dar ningún error.
+
+     Una lectura directa no tiene ninguna de esas piezas: se pide, llega y se
+     guarda. Se hace primero, siempre, y las escuchas quedan solo para lo que
+     saben hacer bien. Nadie tiene que pulsar nada. */
+  try { await bajarDirecto(true); } catch (e) { console.warn("carga inicial:", e); }
 
   const col = (n) => fs.collection(FB.db, n);
   // El superadministrador no filtra: las reglas le permiten leerlo todo.
@@ -15703,7 +15757,7 @@ async function acciones(a) {
     return;
   }
   if (a === "ver-estado") { hojaEstado(); return; }
-  if (a === "bajar-directo") { cerrarHoja(); await bajarDirecto(); return; }
+  if (a === "bajar-directo") { cerrarHoja(); FB.rescateHecho = true; await bajarDirecto(); return; }
   if (a === "rebajar-todo") {
     /* Suelta todas las escuchas y las rehace desde cero, olvidando las cajas
        intermedias. Es la salida cuando la app se quedó sin datos que sí
