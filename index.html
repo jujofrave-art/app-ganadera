@@ -928,11 +928,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.65.0";
+const VERSION = "2.66.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.66.0", "9 sep 2026", [
+    "EL BORRADO QUE FALTABA. La app guarda una marca de \u00abestos datos son de tal cuenta\u00bb " +
+      "para no mezclar los de dos personas en un mismo equipo. Esa marca viv\u00eda dentro de la " +
+      "configuraci\u00f3n, y la configuraci\u00f3n se rehace cada vez que se vuelven a abrir los " +
+      "datos o llegan los ajustes de Firebase. Si en alguno de esos pasos se perd\u00eda, la app " +
+      "cre\u00eda que hab\u00eda cambiado de usuario y VACIABA todas las tablas.",
+    "Eso encaja con lo que se ve\u00eda: Firebase contestando con las 4 fincas y los 59 animales, " +
+      "y la pantalla en cero. Y con que partos quedara con sus 117: su respuesta lleg\u00f3 " +
+      "despu\u00e9s del vaciado.",
+    "Ahora la marca vive aparte, donde nada la pisa. Y aunque se perdiera, no se vac\u00eda nada " +
+      "si lo que hay en pantalla ya es de esa misma cuenta: vaciar es irreversible, " +
+      "equivocarse hacia el otro lado solo mezcla un momento.",
+  ]],
   ["2.65.0", "8 sep 2026", [
     "ENCONTRADO POR QU\u00c9 LA APP SE QUEDABA EN CERO CON TODO INTACTO EN FIREBASE. La columna " +
       "\u00ab\u00faltima respuesta\u00bb de la 2.64 lo dej\u00f3 ver: Firebase contestaba con las 4 fincas, " +
@@ -11891,12 +11904,38 @@ function descargarSW() {
    ========================================================== */
 
 /** Si en este equipo estuvo otra persona, se borra su caché antes de sincronizar. */
+/* De quién son los datos que hay en este equipo.
+
+   Antes esto vivía dentro de D.config, y D.config se rehace cada vez que se
+   vuelven a abrir los datos o llegan los ajustes de Firebase. Si en alguno de
+   esos pasos se perdía la marca, la app creía que había cambiado de usuario y
+   VACIABA las tablas. Ese es el borrado que dejaba la app en cero con todo
+   intacto en Firebase. Ahora vive aparte, donde nada lo pisa. */
+const CLAVE_SESION_DE = CLAVE + "-sesion-de";
+
 function limpiarSiCambioDeUsuario(correo) {
   const c = (correo || "").toLowerCase();
-  if ((D.config.sesionDe || "") === c) return;
+  let antes = "";
+  try { antes = (localStorage.getItem(CLAVE_SESION_DE) || "").toLowerCase(); } catch {}
+  // Compatibilidad con lo guardado por versiones anteriores.
+  if (!antes) antes = (D.config.sesionDe || "").toLowerCase();
+
+  if (antes === c) return;
+
+  /* Y aunque la marca diga otra cosa, no se vacía nada si lo que hay en
+     pantalla ya es de esta misma cuenta. Vaciar es irreversible en la
+     pantalla; equivocarse hacia el otro lado solo mezcla un momento. */
+  const hay = COLECCIONES.reduce((t, col) => t + (D[col] || []).length, 0);
+  if (hay > 0 && antes && FB.user && (FB.user.email || "").toLowerCase() === c) {
+    try { localStorage.setItem(CLAVE_SESION_DE, c); } catch {}
+    D.config.sesionDe = c;
+    return;
+  }
+
   for (const col of COLECCIONES) D[col] = [];
   FB.espejo = {};
   D.config.sesionDe = c;
+  try { localStorage.setItem(CLAVE_SESION_DE, c); } catch {}
   guardarLocal();
 }
 
