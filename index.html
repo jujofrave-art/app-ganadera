@@ -928,7 +928,7 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.68.0";
+const VERSION = "2.68.2";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
@@ -5852,7 +5852,13 @@ function hojaEstado() {
     <div class="hoja-cab"><div><h2>Estado de la conexión</h2>
       <div class="sub">${esc(FB.user?.email || "sin sesión")}</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
-    <div style="padding:2px 0 6px">
+    <div class="hoja-cuerpo" style="padding:16px 22px">
+
+      <!-- Arriba del todo: en una pantalla corta, lo de abajo no se alcanza. -->
+      <div class="fila-btn" style="margin:0 0 12px">
+        <button class="btn btn-firme" data-acc="bajar-directo">Traer todo de Firebase</button>
+        <button class="btn" data-acc="rebajar-todo">Volver a bajar todo</button>
+      </div>
 
       <dl class="plan">
         <div><dt>Puesto</dt><dd>${ROLES[rolActual()]?.et || rolActual() || "—"}</dd></div>
@@ -5924,8 +5930,6 @@ function hojaEstado() {
       terminado de bajar o que tu permiso no alcanza ninguna finca.</p>
     </div>
     <div class="hoja-pie">
-      <button class="btn btn-firme" data-acc="bajar-directo">Traer todo de Firebase</button>
-      <button class="btn" data-acc="rebajar-todo">Volver a bajar todo</button>
       <button class="btn" data-acc="reconectar">Volver a conectar</button>
       <button class="btn btn-firme" data-cerrar>Cerrar</button>
     </div>`);
@@ -6977,7 +6981,7 @@ function ayudaAbierto(P) {
     <div class="hoja-cab"><div><h2>Tiempo abierto</h2>
       <div class="sub">${P?.plural || "Bovinos"} · gestación de ${g} días</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
-    <div style="padding:2px 0 6px">
+    <div class="hoja-cuerpo" style="padding:16px 22px">
       <p class="expl">Cuántos días lleva la vaca <strong>ordeñándose seguido</strong>, sin
       haber tenido un solo día de descanso.</p>
 
@@ -7025,7 +7029,7 @@ function ayudaIntervalo(P) {
     <div class="hoja-cab"><div><h2>Intervalo entre partos</h2>
       <div class="sub">${P?.plural || "Bovinos"} · gestación de ${g} días</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
-    <div style="padding:2px 0 6px">
+    <div class="hoja-cuerpo" style="padding:16px 22px">
       <p class="expl">Son los días que pasaron entre los <strong>dos últimos partos</strong> de
       esa hembra. Es la medida más honesta de la reproducción, porque una vaca solo produce
       cuando pare: cuántas veces la sirvieron o si repitió se resume todo ahí.</p>
