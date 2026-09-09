@@ -928,11 +928,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.67.0";
+const VERSION = "2.68.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.68.0", "9 sep 2026", [
+    "Botón nuevo <strong>«Traer todo de Firebase»</strong> en la pantalla de estado. Las " +
+      "escuchas normales son un mecanismo con muchas piezas —cajones por consulta, espejos, " +
+      "filtros, mezclas— y cuando algo se atasca ahí dentro la app se queda en cero aunque " +
+      "Firebase conteste bien.",
+    "Esto es una lectura de una sola vez, sin ninguna de esas piezas: se le pregunta a " +
+      "Firestore, se mete lo que venga y se guarda. Al terminar dice cuántos registros trajo " +
+      "de cada tabla.",
+    "Si esto funciona y las escuchas no, ya sabemos dónde está el problema.",
+  ]],
   ["2.67.0", "9 sep 2026", [
     "REGLA DE ORO NUEVA: un equipo en blanco no escribe nada compartido. Si el permiso dice " +
       "que alcanzas fincas y aquí no hay ninguna, este aparato deja de tocar los permisos " +
@@ -5763,6 +5773,76 @@ function pareceVaciada() {
       && (FB.leidas?.has("fincas") || false);
 }
 
+/**
+ * BAJAR TODO POR LA VÍA DIRECTA.
+ *
+ * Las escuchas normales son un mecanismo con muchas piezas: cajones por
+ * consulta, espejos, filtros de borrados, mezclas. Cuando algo se atasca ahí
+ * dentro, la app se queda en cero aunque Firebase esté contestando bien.
+ *
+ * Esto es una lectura de una sola vez, sin ninguna de esas piezas: se le
+ * pregunta a Firestore, se mete lo que venga y se guarda. Si los datos están
+ * en la nube, aquí aparecen.
+ */
+async function bajarDirecto() {
+  if (!FB.db || !FB.user) { alert("No hay conexión con Firebase."); return; }
+  const { fs } = FB.mods;
+  const mias = (FB.fincasRemotas || []).filter(Boolean);
+  const todo = FB.rolRemoto === "superadmin";
+  if (!todo && !mias.length) { alert("Tu permiso no alcanza ninguna finca."); return; }
+
+  const trozo = mias.slice(0, 30);
+  const cuentas = [], problemas = [];
+
+  for (const col of COLECCIONES) {
+    try {
+      let q;
+      if (col === "fincas") {
+        q = todo ? fs.collection(FB.db, "fincas")
+                 : fs.query(fs.collection(FB.db, "fincas"), fs.where(fs.documentId(), "in", trozo));
+      } else if (col === "personas") {
+        q = todo ? fs.collection(FB.db, "personas")
+                 : fs.query(fs.collection(FB.db, "personas"),
+                            fs.where("correo", "==", FB.user.email.toLowerCase()));
+      } else {
+        q = todo ? fs.collection(FB.db, col)
+                 : fs.query(fs.collection(FB.db, col), fs.where("fincaId", "in", trozo));
+      }
+      const snap = await fs.getDocs(q);
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Las fotos que haya en este equipo se conservan.
+      if (col === "animales") {
+        const fotos = new Map((D.animales || []).map(a => [a.id, a.foto]));
+        docs.forEach(a => { a.foto = a.foto || fotos.get(a.id) || null; });
+      }
+      D[col] = docs;
+      cuentas.push(`${col}: ${docs.length}`);
+    } catch (e) {
+      problemas.push(`${col}: ${e?.code || e?.message || e}`);
+    }
+  }
+
+  // Se rehacen los espejos para que lo bajado no se vuelva a subir entero.
+  FB.espejo = {};
+  for (const col of COLECCIONES) {
+    FB.espejo[col] = {};
+    for (const d of (D[col] || [])) FB.espejo[col][d.id] = firmaRemota(col, d);
+    FB.leidas = (FB.leidas || new Set()).add(col);
+  }
+  FB.vacios = {};
+  try { localStorage.setItem(CLAVE_SESION_DE, FB.user.email.toLowerCase()); } catch {}
+  D.config.sesionDe = FB.user.email.toLowerCase();
+
+  guardarLocal();
+  VERSION_DATOS++;
+  asegurarPersona(FB.user.email);
+  pintar();
+
+  alert(`Bajado de Firebase:\n\n${cuentas.join("\n")}` +
+    (problemas.length ? `\n\nCon problemas:\n${problemas.join("\n")}` : ""));
+}
+
 function hojaEstado() {
   const fallos = FB.fallos || {};
   const conFallo = Object.keys(fallos);
@@ -5844,6 +5924,7 @@ function hojaEstado() {
       terminado de bajar o que tu permiso no alcanza ninguna finca.</p>
     </div>
     <div class="hoja-pie">
+      <button class="btn btn-firme" data-acc="bajar-directo">Traer todo de Firebase</button>
       <button class="btn" data-acc="rebajar-todo">Volver a bajar todo</button>
       <button class="btn" data-acc="reconectar">Volver a conectar</button>
       <button class="btn btn-firme" data-cerrar>Cerrar</button>
@@ -15618,6 +15699,7 @@ async function acciones(a) {
     return;
   }
   if (a === "ver-estado") { hojaEstado(); return; }
+  if (a === "bajar-directo") { cerrarHoja(); await bajarDirecto(); return; }
   if (a === "rebajar-todo") {
     /* Suelta todas las escuchas y las rehace desde cero, olvidando las cajas
        intermedias. Es la salida cuando la app se quedó sin datos que sí
