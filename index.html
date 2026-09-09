@@ -928,11 +928,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.66.0";
+const VERSION = "2.67.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.67.0", "9 sep 2026", [
+    "REGLA DE ORO NUEVA: un equipo en blanco no escribe nada compartido. Si el permiso dice " +
+      "que alcanzas fincas y aquí no hay ninguna, este aparato deja de tocar los permisos " +
+      "de la gente, la lista de correos autorizados y los datos, hasta que reciba algo.",
+    "Sin esto, un fallo en un computador podía convertirse en daño para todos: quitarle el " +
+      "acceso a alguien, o vaciar la lista de quién puede entrar. Eso explicaría que entrar " +
+      "en un aparato pareciera quitar el acceso en otro.",
+    "Y nunca se publica una lista de correos vacía: dejaría a todo el mundo sin poder pedir " +
+      "acceso, y una lista vacía casi siempre es un fallo local.",
+  ]],
   ["2.66.0", "9 sep 2026", [
     "EL BORRADO QUE FALTABA. La app guarda una marca de \u00abestos datos son de tal cuenta\u00bb " +
       "para no mezclar los de dos personas en un mismo equipo. Esa marca viv\u00eda dentro de la " +
@@ -5780,6 +5790,10 @@ function hojaEstado() {
         registros, así que se conservó lo que había:
         ${Object.entries(FB.vacios).map(([c, n]) => `${c} (${n})`).join(", ")}.
         Pulsa «Volver a bajar todo» aquí abajo para reintentar.</div>` : ""}
+
+      ${equipoEnBlanco() ? `<div class="nota">Mientras este equipo esté en blanco no
+        escribe nada en Firebase: ni permisos, ni datos. Así un fallo de aquí no se le
+        convierte en un problema a los demás.</div>` : ""}
 
       ${pareceVaciada() ? `<div class="aviso"><strong>Ojo.</strong> Tu permiso dice que
         alcanzas ${(FB.fincasRemotas || []).length} finca(s), pero no llegó ninguna. Eso no
@@ -11283,8 +11297,12 @@ async function huellaCorreo(c) {
 /** Publica las huellas de quien puede entrar. Solo lo hace quien manda. */
 async function publicarCorreos() {
   if (!FB.db || !FB.user || !manda() || !FB.fincasCargadas) return;
+  if (equipoEnBlanco()) return;
   const { fs } = FB.mods;
   const activos = D.personas.filter(p => p.correo && p.activo !== false);
+  // Nunca se publica una lista vacía: dejaría a todo el mundo sin poder
+  // pedir acceso, y una lista vacía casi siempre es un fallo de este equipo.
+  if (!activos.length) return;
   const huellas = (await Promise.all(activos.map(p => huellaCorreo(p.correo)))).filter(Boolean);
   const firma = huellas.slice().sort().join(",");
   if (FB.espejoCorreos === firma) return;
@@ -11326,7 +11344,24 @@ const NO_REGISTRADO = (c) =>
   `El correo ${c} no está registrado en esta finca, así que no se le puede dar acceso. ` +
   `Pídele a un dueño que te cree la ficha con ese mismo correo.`;
 
+/**
+ * ¿Este equipo está en blanco cuando NO debería estarlo?
+ *
+ * Si el permiso dice que se alcanzan fincas y aquí no hay ni una, algo va
+ * mal en este aparato. En ese estado no puede escribir nada compartido: ni
+ * permisos, ni la lista de correos, ni datos. Si lo hiciera, un fallo local
+ * se convertiría en un daño para todos —gente que pierde el acceso, listas
+ * que se vacían— y eso sí que no tiene vuelta atrás.
+ */
+function equipoEnBlanco() {
+  return !!FB.user
+      && (FB.fincasRemotas || []).length > 0
+      && (D.fincas || []).length === 0
+      && (D.animales || []).length === 0;
+}
+
 async function sincronizarUsuarios() {
+  if (equipoEnBlanco()) return;
   // Con una ficha provisional todavía no se sabe lo suficiente: no se tocan
   // los permisos de nadie hasta que llegue la de verdad.
   if (S.persona?._provisional) return;
@@ -11531,6 +11566,7 @@ let empujando = false;
 
 async function empujar() {
   if (!FB.db || !FB.user || empujando) return;
+  if (equipoEnBlanco()) return;      // en blanco no se sube nada
   const { fs } = FB.mods;
   const cambios = [];
 
