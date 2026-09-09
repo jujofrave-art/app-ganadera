@@ -928,11 +928,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.70.0";
+const VERSION = "2.71.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.71.0", "9 sep 2026", [
+    "La restricci\u00f3n de correos de la 2.58 no estaba actuando: necesita una lista publicada, " +
+      "y esa lista solo se creaba desde un equipo con los datos cargados. Con la app en " +
+      "blanco nunca se cre\u00f3, y sin lista se deja pasar a cualquiera a prop\u00f3sito, para no " +
+      "dejar fuera a todo el mundo por un fallo.",
+    "Ahora en Configuraci\u00f3n \u2192 Publicar la app se ve el estado: si la lista est\u00e1 publicada, " +
+      "con cu\u00e1ntos correos y de cu\u00e1ndo, y un bot\u00f3n para crearla o actualizarla al momento.",
+    "Nunca deja publicar una lista vac\u00eda: dejar\u00eda a todo el mundo sin poder pedir acceso.",
+  ]],
   ["2.70.0", "9 sep 2026", [
     "LA CARGA INICIAL YA NO DEPENDE DE LAS ESCUCHAS. Ahora al entrar se trae todo de una " +
       "vez con una lectura directa \u2014la misma que funcionaba con el bot\u00f3n\u2014 y solo despu\u00e9s " +
@@ -11449,6 +11458,7 @@ async function publicarCorreos() {
     await fs.setDoc(fs.doc(FB.db, "publico", "correos"),
       { h: huellas.sort(), n: huellas.length, tocado: new Date().toISOString() });
     FB.espejoCorreos = firma;
+    FB.correosPublicados = { n: huellas.length, cuando: hoyISO() };
   } catch (e) { console.warn("publicar correos:", errorFB(e)); }
 }
 
@@ -14152,6 +14162,28 @@ function vConfiguracion() {
           <button class="btn btn-firme" data-acc="publicar">Generar archivo para publicar</button>
         </div>
 
+        <h4 class="sub-titulo">Quién puede pedir acceso</h4>
+        <p class="expl">En la pantalla de inicio, la app comprueba que el correo escrito
+        tenga ficha en la finca antes de mandar nada. Esa comprobación necesita una lista
+        publicada, porque antes de entrar no se puede leer la base de datos.</p>
+        ${(() => {
+          const activos = (D.personas || []).filter(p => p.correo && p.activo !== false).length;
+          const pub = FB.correosPublicados;
+          return `<div class="${pub ? "nota" : "aviso"}">
+            ${pub
+              ? `Lista publicada con <strong>${pub.n} correo(s)</strong>, actualizada
+                 ${fmtCorto(pub.cuando)}. Cualquier otro correo queda fuera.`
+              : `<strong>Sin publicar todavía.</strong> Mientras no exista la lista, la app
+                 deja pedir el enlace a cualquier correo, para no dejar fuera a todo el
+                 mundo por un fallo. Púlsalo aquí y queda hecho.`}
+            <div class="fila-btn" style="margin-top:9px">
+              <button class="btn" data-acc="publicar-correos">
+                ${pub ? "Actualizar la lista" : "Publicar la lista ahora"}</button>
+            </div>
+            <span class="sub">Hay ${activos} persona(s) con correo y activas.</span>
+          </div>`;
+        })()}
+
         ${paso(1, "Genera el archivo", `<p>El botón de arriba descarga un
           <code>index.html</code> igual a este pero con tu proyecto adentro.</p>`)}
 
@@ -15757,6 +15789,22 @@ async function acciones(a) {
     return;
   }
   if (a === "ver-estado") { hojaEstado(); return; }
+  if (a === "publicar-correos") {
+    if (!FB.db) return alert("Primero conecta Firebase.");
+    const activos = (D.personas || []).filter(p => p.correo && p.activo !== false);
+    if (!activos.length) return alert(
+      "No hay ninguna persona con correo y activa en este equipo, así que la lista " +
+      "quedaría vacía y nadie podría pedir acceso.\n\nEspera a que bajen los datos.");
+    FB.espejoCorreos = null;                 // forzar la publicación
+    await publicarCorreos();
+    pintar();
+    alert(FB.correosPublicados
+      ? `Lista publicada con ${FB.correosPublicados.n} correo(s).\n\n` +
+        `A partir de ahora, en la pantalla de inicio solo estos correos pueden pedir el ` +
+        `enlace o cambiar la contraseña.`
+      : "No se pudo publicar. Revisa que las reglas estén al día.");
+    return;
+  }
   if (a === "bajar-directo") { cerrarHoja(); FB.rescateHecho = true; await bajarDirecto(); return; }
   if (a === "rebajar-todo") {
     /* Suelta todas las escuchas y las rehace desde cero, olvidando las cajas
