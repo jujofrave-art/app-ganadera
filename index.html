@@ -928,11 +928,26 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.57.0";
+const VERSION = "2.58.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.58.0", "8 sep 2026", [
+    "SEGURIDAD: en la pantalla de inicio se podía escribir CUALQUIER correo y la app mandaba " +
+      "la invitación, el enlace para poner contraseña o el de recuperarla. No servía para " +
+      "entrar —las reglas siguen mandando— pero se creaban cuentas sueltas en Firebase y se " +
+      "le mandaban correos a gente que no tiene nada que ver con la finca.",
+    "Ahora los tres sitios comprueban antes que ese correo tenga ficha en la finca y esté " +
+      "activo. Si no, no se manda nada y se dice por qué.",
+    "Antes de entrar no se puede leer la base de datos, así que la comprobación se hace " +
+      "contra una lista pública de <strong>huellas</strong> de los correos permitidos. Una " +
+      "huella no se puede deshacer: no revela el correo de nadie ni da acceso a nada.",
+    "La lista la mantiene sola la app desde cualquier equipo de un dueño o administrador.",
+    "Si la lista todavía no existe, no se estorba a nadie: es preferible a dejar fuera a " +
+      "todo el mundo. En cuanto el dueño abra la app una vez, se crea.",
+    "HAY QUE VOLVER A PUBLICAR LAS REGLAS.",
+  ]],
   ["2.57.0", "7 sep 2026", [
     "ARREGLO: a un empleado no le sal\u00eda su nombre abajo en el men\u00fa. Desde la 2.23 ese " +
       "bloque deja de ser bot\u00f3n cuando el puesto no puede abrir su propia ficha, y todo el " +
@@ -4767,6 +4782,14 @@ function conectarAcceso() {
 
     if (f.dataset.acceso === "primera-vez") {
       S.cargando = true; pantallaAcceso(); soltarCargando(30);
+      const permiso = await correoPermitido(correo);
+      if (!permiso.ok) {
+        S.cargando = false;
+        S.error = permiso.motivo === "inactivo"
+          ? `La ficha de ${correo} está inactiva. Pídele a un dueño que la reactive.`
+          : NO_REGISTRADO(correo);
+        return pantallaAcceso();
+      }
       try {
         const m = await formasDeEntrar(correo);
         if (m.includes("password")) {
@@ -4827,6 +4850,14 @@ function conectarAcceso() {
       if (v.clave.length < 6) { S.error = "La contraseña necesita al menos 6 caracteres."; return pantallaAcceso(); }
       if (v.clave !== v.repite) { S.error = "Las dos contraseñas no son iguales."; return pantallaAcceso(); }
       S.cargando = true; S.error = ""; pantallaAcceso(); soltarCargando(30);
+      const permiso = await correoPermitido(correo);
+      if (!permiso.ok) {
+        S.cargando = false;
+        S.error = permiso.motivo === "inactivo"
+          ? `La ficha de ${correo} está inactiva. Pídele a un dueño que la reactive.`
+          : NO_REGISTRADO(correo);
+        return pantallaAcceso();
+      }
       try {
         await entrarFirebase(correo, v.clave, true);
         S.cargando = false; S.entrando = correo; pantallaAcceso();
@@ -4844,6 +4875,14 @@ function conectarAcceso() {
 
     if (f.dataset.acceso === "olvide") {
       S.cargando = true; pantallaAcceso(); soltarCargando(30);
+      const permiso = await correoPermitido(correo);
+      if (!permiso.ok) {
+        S.cargando = false;
+        S.error = permiso.motivo === "inactivo"
+          ? `La ficha de ${correo} está inactiva. Pídele a un dueño que la reactive.`
+          : NO_REGISTRADO(correo);
+        return pantallaAcceso();
+      }
       try {
         const m = await formasDeEntrar(correo);
         if (m.length && !m.includes("password")) {
@@ -11008,6 +11047,80 @@ function recombinar(nombre) {
  *
  * Ahora solo se corrige lo que este equipo sí ve. Lo demás se respeta.
  */
+/* ==========================================================
+   QUIÉN PUEDE SIQUIERA PEDIR ENTRAR
+
+   Antes, en la pantalla de acceso, se podía escribir CUALQUIER correo y la
+   app mandaba la invitación o el enlace para poner contraseña. No servía
+   para entrar —las reglas de Firestore siguen mandando—, pero se creaban
+   cuentas sueltas en Firebase y se gastaban correos a gente que no tiene
+   nada que ver con la finca.
+
+   El problema es que antes de entrar no se puede leer Firestore. La salida:
+   una lista pública de HUELLAS de los correos permitidos. Una huella no se
+   puede deshacer, así que no revela el correo de nadie, pero sí permite
+   comprobar si el que se escribió está en la lista.
+   ========================================================== */
+
+/** Huella corta e irreversible de un correo. */
+async function huellaCorreo(c) {
+  const t = String(c || "").trim().toLowerCase();
+  if (!t) return "";
+  try {
+    const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+    return [...new Uint8Array(b)].slice(0, 8)
+      .map(x => x.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return "d" + idDesdeCorreo(t);          // sin crypto: huella simple
+  }
+}
+
+/** Publica las huellas de quien puede entrar. Solo lo hace quien manda. */
+async function publicarCorreos() {
+  if (!FB.db || !FB.user || !manda() || !FB.fincasCargadas) return;
+  const { fs } = FB.mods;
+  const activos = D.personas.filter(p => p.correo && p.activo !== false);
+  const huellas = (await Promise.all(activos.map(p => huellaCorreo(p.correo)))).filter(Boolean);
+  const firma = huellas.slice().sort().join(",");
+  if (FB.espejoCorreos === firma) return;
+  try {
+    await fs.setDoc(fs.doc(FB.db, "publico", "correos"),
+      { h: huellas.sort(), n: huellas.length, tocado: new Date().toISOString() });
+    FB.espejoCorreos = firma;
+  } catch (e) { console.warn("publicar correos:", errorFB(e)); }
+}
+
+/**
+ * ¿Este correo puede pedir acceso?
+ *
+ * Si la lista todavía no existe —una finca recién montada, o el dueño no ha
+ * abierto la app desde esta versión— se deja pasar: es preferible a dejar
+ * fuera a todo el mundo. En cuanto exista, manda ella.
+ */
+async function correoPermitido(correo) {
+  const c = String(correo || "").trim().toLowerCase();
+  if (!c) return { ok: false, motivo: "vacio" };
+
+  // Si este equipo ya tiene la ficha, no hace falta preguntar nada.
+  const local = (D.personas || []).find(p => (p.correo || "").toLowerCase() === c);
+  if (local) return { ok: local.activo !== false, motivo: local.activo === false ? "inactivo" : "" };
+
+  if (!FB.db) return { ok: true, motivo: "sin-lista" };
+  try {
+    const { fs } = FB.mods;
+    const snap = await fs.getDoc(fs.doc(FB.db, "publico", "correos"));
+    if (!snap.exists()) return { ok: true, motivo: "sin-lista" };
+    const h = await huellaCorreo(c);
+    return { ok: (snap.data().h || []).includes(h), motivo: "lista" };
+  } catch {
+    return { ok: true, motivo: "sin-lista" };   // no se pudo comprobar: no se estorba
+  }
+}
+
+const NO_REGISTRADO = (c) =>
+  `El correo ${c} no está registrado en esta finca, así que no se le puede dar acceso. ` +
+  `Pídele a un dueño que te cree la ficha con ese mismo correo.`;
+
 async function sincronizarUsuarios() {
   // Con una ficha provisional todavía no se sabe lo suficiente: no se tocan
   // los permisos de nadie hasta que llegue la de verdad.
@@ -11053,6 +11166,7 @@ async function sincronizarUsuarios() {
       FB.usuariosRemotos[correo] = { ...remoto, ...doc };
     } catch (e) { console.warn("usuarios:", errorFB(e)); }
   }
+  publicarCorreos();
 }
 
 /* ---------- empujar cambios locales ----------
@@ -12604,6 +12718,15 @@ service cloud.firestore {
     // mayor al suyo, ni le quite el suyo a alguien que está por encima.
     function rango(r) {
       return r == 'superadmin' ? 4 : r == 'dueno' ? 3 : r == 'administrador' ? 2 : 1;
+    }
+
+    /* Lista de quién puede PEDIR acceso. Se lee sin haber entrado —hace falta
+       para la pantalla de inicio—, pero solo guarda huellas irreversibles de
+       los correos, nunca los correos. Y no da acceso a nada: es solo para no
+       mandarle invitaciones a gente que no tiene ficha. */
+    match /publico/{doc} {
+      allow read:  if true;
+      allow write: if registrado() && manda();
     }
 
     // ---- CONTROL RAÍZ ----
