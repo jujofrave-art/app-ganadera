@@ -928,11 +928,19 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.71.0";
+const VERSION = "2.72.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.72.0", "9 sep 2026", [
+    "ARREGLO: al reconectar sin recargar la p\u00e1gina, la app intentaba levantar Firebase otra " +
+      "vez cuando ya estaba levantado, y reventaba con un mensaje t\u00e9cnico en la pantalla de " +
+      "inicio. Ahora reaprovecha el que ya hay.",
+    "Y los errores en crudo de JavaScript dejan de salir tal cual: si no es un c\u00f3digo " +
+      "conocido de Firebase, se dice qu\u00e9 hacer \u2014recargar con Ctrl+May\u00fas+R\u2014 y el detalle " +
+      "t\u00e9cnico va al final por si hay que pas\u00e1rselo a alguien.",
+  ]],
   ["2.71.0", "9 sep 2026", [
     "La restricci\u00f3n de correos de la 2.58 no estaba actuando: necesita una lista publicada, " +
       "y esa lista solo se creaba desde un equipo con los datos cargados. Con la app en " +
@@ -10687,6 +10695,7 @@ async function cargarSDK() {
     setTimeout(() => r(new Error("El SDK de Firebase tardó demasiado")), 15000));
   const carga = Promise.all(ARCHIVOS_SDK.map(f => import(SDK + f)));
   const [app, auth, fs] = await Promise.race([carga, tope]);
+  if (!app || !auth || !fs) throw new Error("El SDK de Firebase llegó incompleto.");
   FB.mods = { app, auth, fs };
 
   // Pedirle al service worker que lo guarde, para poder abrir sin señal.
@@ -10700,6 +10709,14 @@ async function cargarSDK() {
 
 /** Traduce los códigos de Firebase a algo accionable. */
 function errorFB(e) {
+  /* Los errores en crudo de JavaScript no le dicen nada a nadie. Si no es un
+     código conocido de Firebase, se cuenta qué hacer y se deja el detalle
+     técnico al final, por si hay que pasárselo a alguien. */
+  const crudo = String(e?.message || e || "");
+  if (!e?.code && /Cannot read|Cannot destructure|undefined is not|null is not/i.test(crudo)) {
+    return "La conexión con Firebase se quedó a medias. Recarga la página " +
+           "(Ctrl+Mayús+R) y vuelve a entrar. Detalle: " + crudo;
+  }
   const c = e?.code || String(e);
   const mapa = {
     "auth/invalid-email": "El correo no tiene un formato válido.",
@@ -10730,9 +10747,19 @@ async function conectarFirebase(silencioso) {
   if (!silencioso) pintar();
 
   try {
-    const { app, auth, fs } = await cargarSDK();
+    const mods = await cargarSDK();
+    if (!mods || !mods.app || !mods.auth || !mods.fs) {
+      throw new Error("El SDK de Firebase no terminó de cargar. Recarga la página.");
+    }
+    const { app, auth, fs } = mods;
     if (!FB.app) {
-      FB.app = app.initializeApp(cfg);
+      /* Si ya había una app de Firebase levantada en esta pestaña —pasa al
+         reconectar sin recargar— volver a crearla revienta. Se reaprovecha. */
+      try { FB.app = app.initializeApp(cfg); }
+      catch (e) {
+        try { FB.app = app.getApp(); }
+        catch { throw e; }
+      }
       FB.auth = auth.getAuth(FB.app);
       // Por defecto la sesión es de la pestaña. Solo se guarda en el equipo
       // si la persona lo pidió expresamente.
