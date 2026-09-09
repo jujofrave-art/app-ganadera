@@ -928,11 +928,18 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.63.0";
+const VERSION = "2.64.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.64.0", "8 sep 2026", [
+    "La pantalla de estado dice ahora <strong>qué contestó cada consulta y de dónde vino</strong>: " +
+      "«44 de servidor», «0 de caché», o «sin respuesta todavía».",
+    "Un «0 registros» a secas no distingue entre «el servidor dice que no hay nada» y " +
+      "«todavía solo contestó la caché vacía de este equipo», que son dos problemas " +
+      "completamente distintos y se arreglan de forma distinta.",
+  ]],
   ["2.63.0", "8 sep 2026", [
     "RED DE SEGURIDAD: una respuesta vacía ya no borra de la pantalla lo que se tiene. Si la " +
       "app lleva 44 animales y de pronto llega una consulta sin ninguno, casi nunca es que " +
@@ -5768,10 +5775,20 @@ function hojaEstado() {
 
       <h4 class="sub-titulo">Qué hay bajado</h4>
       <div class="sub-tabla"><table>
-        <thead><tr><th>Tabla</th><th class="num">Registros</th></tr></thead>
-        <tbody>${COLECCIONES.map(c => `<tr>
-          <td>${c}</td><td class="num">${cuenta(c)}</td></tr>`).join("")}</tbody>
+        <thead><tr><th>Tabla</th><th class="num">Registros</th><th>Última respuesta</th></tr></thead>
+        <tbody>${COLECCIONES.map(c => {
+          const r = FB.ultimaResp?.[c];
+          const partes = r ? Object.entries(r).map(([via, x]) =>
+            `${x.n} de ${x.de}${via !== "principal" ? ` (${via})` : ""}`) : [];
+          return `<tr>
+            <td>${c}</td><td class="num">${cuenta(c)}</td>
+            <td><span class="sub">${partes.join(" · ") || "sin respuesta todavía"}</span></td>
+          </tr>`;
+        }).join("")}</tbody>
       </table></div>
+      <p class="expl">«De caché» es lo que tenía guardado este equipo; «de servidor» es lo
+      que contestó Firebase. Si todo dice «0 de caché» y nunca llega el servidor, la
+      consulta no está saliendo del aparato.</p>
 
       <p class="expl">Si todo sale en cero y no hay ningún error, es que aún no ha
       terminado de bajar o que tu permiso no alcanza ninguna finca.</p>
@@ -7429,6 +7446,16 @@ function formFinca(id) {
 }
 
 function formPersona(id, rolPre) {
+  /* Con la ficha provisional —la que se arma con el permiso mientras baja el
+     resto— no hay nada que editar todavía: el registro de verdad aún no ha
+     llegado. Antes se abría un formulario vacío o no pasaba nada. */
+  if (id && S.persona?._provisional && id === S.persona.id) {
+    return alert("Tu ficha todavía no ha bajado de Firebase, así que no se puede editar.\n\n" +
+      "Toca el indicador de conexión para ver qué está pasando.");
+  }
+  if (id && !persona(id)) {
+    return alert("Esa ficha no está en este equipo. Puede que aún no haya bajado.");
+  }
   // La ficha propia lleva el rol, el correo y las fincas asignadas: no es
   // para cualquiera, ni siquiera siendo la de uno mismo.
   if (id && id === S.persona?.id && !puedeFichaPropia()) {
@@ -10779,6 +10806,7 @@ function escucharColecciones(mias) {
   FB.fallos = {};
   FB.sinPermiso = false;
   FB.vacios = {};
+  FB.ultimaResp = {};
   FB.fincasCargadas = false;
   FB.espejoUsuarios = {};
   FB.usuariosRemotos = {};
@@ -10816,6 +10844,17 @@ function escucharColecciones(mias) {
            el celular reescribía con su copia vieja lo que se había hecho en
            el computador, y por eso un «Listo» daba marcha atrás solo. */
         (FB.leidas ||= new Set()).add(nombre);
+
+        /* Se apunta qué contestó cada consulta y de dónde vino. Sin esto, un
+           «0 registros» no distingue entre «el servidor dice que no hay nada»
+           y «todavía solo contestó la caché vacía de este equipo», que son dos
+           problemas completamente distintos. */
+        ((FB.ultimaResp ||= {})[nombre] ||= {})[via] = {
+          n: snap.docs.length,
+          de: snap.metadata.fromCache ? "caché" : "servidor",
+          cuando: Date.now(),
+        };
+
         // Los metadatos cambian muchas veces sin que cambie ningún dato.
         // En ese caso solo se refresca el indicador, sin volver a guardar.
         FB.enCache = snap.metadata.fromCache;
@@ -15475,6 +15514,7 @@ async function acciones(a) {
       pararEscuchas();
       FB.cajones = {}; FB.espejo = {}; FB.leidas = new Set();
       FB.fallos = {}; FB.sinPermiso = false; FB.claveFincas = null; FB.vacios = {};
+      FB.ultimaResp = {};
       escucharColecciones(FB.fincasRemotas || []);
     } catch (e) { alert("No se pudo: " + (e?.message || e)); }
     return;
