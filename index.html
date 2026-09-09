@@ -928,11 +928,45 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.58.0";
+const VERSION = "2.62.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.62.0", "8 sep 2026", [
+    "QUITADO EL «ARRANQUE EN CALIENTE» DE LA 2.56. Suscribirse a los datos con el permiso " +
+      "de la última vez ahorraba un ida y vuelta, pero dejaba dos suscripciones peleando " +
+      "por las mismas cajas, y hubo un caso de una cuenta que abrió con la app en blanco " +
+      "teniendo cuatro fincas y todo intacto en Firebase. Un segundo de espera no vale ese " +
+      "riesgo.",
+    "La entrada vuelve a esperar el permiso y a bajar una sola vez. Sigue siendo más rápida " +
+      "que antes de todos los cambios, porque la app abre en cuanto llega el permiso.",
+    "Botón nuevo <strong>«Volver a bajar todo»</strong> en la pantalla de estado: suelta las " +
+      "escuchas y las rehace desde cero. Es la salida cuando la app se queda sin datos que " +
+      "sí están en Firebase. No borra nada, solo vuelve a preguntar.",
+  ]],
+  ["2.61.0", "8 sep 2026", [
+    "Si tu permiso dice que alcanzas varias fincas y no baja ninguna, la app ya no te " +
+      "enseña la pantalla de «crea tu primera finca». Eso no es que la app esté vacía: es " +
+      "que algo pasó, y invitar a empezar de cero encima de unos datos que quizá se puedan " +
+      "recuperar es la peor respuesta posible.",
+    "En su lugar avisa de que falta algo, dice que no se cree ni se borre nada todavía, y " +
+      "manda a mirar la consola de Firebase y las copias de seguridad.",
+  ]],
+  ["2.60.0", "8 sep 2026", [
+    "La pantalla de inicio ya no recuerda ning\u00fan correo: el campo sale vac\u00edo siempre, en las " +
+      "cuatro pantallas donde se escribe uno. En un equipo compartido, ver ah\u00ed el correo de " +
+      "otra persona no est\u00e1 bien, y con la sesi\u00f3n guardada casi nunca hay que escribirlo.",
+    "El navegador puede seguir ofreciendo los correos que \u00e9l guarda por su cuenta; eso se " +
+      "maneja desde el navegador, no desde la app.",
+  ]],
+  ["2.59.0", "8 sep 2026", [
+    "El correo de la pantalla de inicio se queda puesto para no tener que reescribirlo, pero " +
+      "si esa cuenta resultó no tener ficha en la finca —o estar inactiva— ahora se olvida. " +
+      "Antes volvía a salir en cada arranque un correo que no puede entrar.",
+    "Y hay un enlace <strong>«Entrar con otro correo»</strong> debajo del botón, para " +
+      "vaciarlo cuando se comparte el computador.",
+  ]],
   ["2.58.0", "8 sep 2026", [
     "SEGURIDAD: en la pantalla de inicio se podía escribir CUALQUIER correo y la app mandaba " +
       "la invitación, el enlace para poner contraseña o el de recuperarla. No servía para " +
@@ -4621,7 +4655,7 @@ ${(FB.estado === "error" || !enLinea()) && haySesionGuardada() ? `<div class="no
 
     <form data-acceso="firebase">
       <div class="campo"><label>Correo</label>
-        <input name="correo" type="email" value="${esc(D.config.correo)}"
+        <input name="correo" type="email" value=""
           autocomplete="username" required></div>
       <div class="campo"><label>Contraseña</label>
         <input name="clave" type="password" autocomplete="current-password" required></div>
@@ -4661,7 +4695,7 @@ function bloqueClaveNueva() {
 
     <form data-acceso="clave-nueva">
       <div class="campo"><label>Tu correo</label>
-        <input name="correo" type="email" value="${esc(D.config.correo)}"
+        <input name="correo" type="email" value=""
           autocomplete="username" required autofocus></div>
       <div class="campo"><label>Contraseña nueva</label>
         <input name="clave" type="password" autocomplete="new-password" minlength="6" required>
@@ -4687,7 +4721,7 @@ function bloquePrimeraVez() {
 
     <form data-acceso="primera-vez">
       <div class="campo"><label>Tu correo</label>
-        <input name="correo" type="email" value="${esc(D.config.correo)}"
+        <input name="correo" type="email" value=""
           autocomplete="username" required autofocus></div>
       <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
         ${S.cargando ? "Enviando…" : "Enviarme el enlace"}</button>
@@ -4715,7 +4749,7 @@ function bloqueOlvide() {
 
     <form data-acceso="olvide">
       <div class="campo"><label>Tu correo</label>
-        <input name="correo" type="email" value="${esc(D.config.correo)}"
+        <input name="correo" type="email" value=""
           autocomplete="username" required autofocus></div>
       <button class="btn btn-firme grande" ${S.cargando ? "disabled" : ""}>
         ${S.cargando ? "Enviando…" : "Enviarme el correo"}</button>
@@ -5431,8 +5465,21 @@ const VISTAS = [
 function sinFincas() {
   const hayFincas = D.fincas.length > 0;
   return `
-  <header class="cab"><div><h1>Todo listo para empezar</h1>
-    <p>La app está vacía. Falta el primer paso.</p></div></header>
+  ${pareceVaciada() ? `
+    <div class="nota recorte" style="display:block">
+      <strong>Aquí falta algo.</strong> Tu permiso dice que alcanzas
+      ${(FB.fincasRemotas || []).length} finca(s), pero no bajó ninguna. Puede que la
+      descarga no haya terminado, que estés conectado a otro proyecto de Firebase, o que
+      la base de datos se haya vaciado.<br><br>
+      <strong>No crees nada ni borres nada todavía.</strong> Toca el indicador de abajo
+      para ver el detalle, revisa en la consola de Firebase si los datos siguen ahí, y si
+      no aparecen, restaura una copia de seguridad.
+    </div>` : ""}
+
+  <header class="cab"><div><h1>${pareceVaciada() ? "Aquí falta algo" : "Todo listo para empezar"}</h1>
+    <p>${pareceVaciada()
+      ? "Tu permiso alcanza fincas que no bajaron."
+      : "La app está vacía. Falta el primer paso."}</p></div></header>
   <div class="vacio">
     <div class="sello" style="margin:0 auto 14px"></div>
     <h2>${hayFincas ? "No tienes fincas asignadas" : "Crea tu primera finca"}</h2>
@@ -5637,6 +5684,21 @@ function selectorFinca() {
  * abrir. Cuando algo falla, el único que puede contar qué pasó es justo el
  * que no puede verlo. Esto se abre tocando el indicador del menú.
  */
+/**
+ * ¿El permiso dice que hay fincas pero no llegó ninguna?
+ *
+ * Eso no es «la app está vacía»: es que algo pasó. O la base de datos se
+ * vació, o se está mirando otro proyecto de Firebase, o la descarga no ha
+ * terminado. Enseñarle a alguien la pantalla de «crea tu primera finca»
+ * cuando tiene cuatro es la peor respuesta posible: invita a empezar de cero
+ * encima de unos datos que quizá se puedan recuperar.
+ */
+function pareceVaciada() {
+  return !!FB.user && (FB.fincasRemotas || []).length > 0
+      && (D.fincas || []).length === 0
+      && (FB.leidas?.has("fincas") || false);
+}
+
 function hojaEstado() {
   const fallos = FB.fallos || {};
   const conFallo = Object.keys(fallos);
@@ -5658,6 +5720,14 @@ function hojaEstado() {
       ${!(FB.fincasRemotas || []).length ? `<div class="aviso">Tu permiso no tiene ninguna
         finca asignada, así que no hay nada que mostrar. Pídele al dueño que te asigne
         al menos una en tu ficha.</div>` : ""}
+
+      ${pareceVaciada() ? `<div class="aviso"><strong>Ojo.</strong> Tu permiso dice que
+        alcanzas ${(FB.fincasRemotas || []).length} finca(s), pero no llegó ninguna. Eso no
+        es que la app esté vacía: o la base de datos se vació, o estás mirando otro
+        proyecto de Firebase.<br><br>
+        <strong>No crees nada todavía</strong>, ni pulses «borrar todo». Mira primero en la
+        consola de Firebase si los datos siguen ahí, y si no, restaura una copia desde
+        Configuración.</div>` : ""}
 
       ${conFallo.length ? `
         <h4 class="sub-titulo">Lo que está fallando</h4>
@@ -5690,6 +5760,7 @@ function hojaEstado() {
       terminado de bajar o que tu permiso no alcanza ninguna finca.</p>
     </div>
     <div class="hoja-pie">
+      <button class="btn" data-acc="rebajar-todo">Volver a bajar todo</button>
       <button class="btn" data-acc="reconectar">Volver a conectar</button>
       <button class="btn btn-firme" data-cerrar>Cerrar</button>
     </div>`);
@@ -10502,6 +10573,9 @@ async function entrarFirebase(correo, clave, registrar) {
   const fn = registrar ? auth.createUserWithEmailAndPassword : auth.signInWithEmailAndPassword;
   await fn(FB.auth, correo, clave);
   marcarConClave(correo);
+  /* Se apunta para no tener que reescribirlo la próxima vez. Si luego resulta
+     que ese correo no tiene ficha en la finca, se olvida: no tiene sentido
+     dejar puesto el correo de alguien que no puede entrar. */
   D.config.correo = correo;
   guardarLocal();
 }
@@ -10570,17 +10644,14 @@ function escucharTodo() {
   if (FB.escuchaUsuario) pararTodo();
   FB.correoEscuchado = correo;
 
-  /* Arranque en caliente: si este equipo ya sabe qué podía hacer esta
-     cuenta, se empieza a bajar de una vez. Lo que diga el servidor manda, y
-     si difiere se rehace; pero mientras tanto ya se está trabajando. */
-  const previo = permisoGuardado(correo);
-  if (previo && (previo.fincas || []).length) {
-    FB.rolRemoto = previo.rol;
-    FB.personaRemota = previo.persona;
-    FB.fincasRemotas = previo.fincas;
-    FB.claveFincas = (previo.fincas || []).join(",") + "|" + previo.rol;
-    try { escucharColecciones(previo.fincas); } catch {}
-  }
+  /* En la 2.56 se probó aquí un «arranque en caliente»: suscribirse a los
+     datos con el permiso de la última vez, sin esperar al servidor. Ahorraba
+     un ida y vuelta, pero dejaba dos suscripciones peleando por las mismas
+     cajas y hubo un caso de una cuenta que abrió con la app en blanco
+     teniendo cuatro fincas. Un segundo de espera no vale ese riesgo, así que
+     se quitó: se espera al permiso y se baja una sola vez.
+
+     El permiso se sigue guardando, que sirve para saber a quién se espera. */
 
   FB.escuchaUsuario = fs.onSnapshot(fs.doc(FB.db, "usuarios", correo),
     { includeMetadataChanges: true },
@@ -10667,6 +10738,7 @@ function escucharTodo() {
       if (datos.activo === false) {
         FB.estado = "listo";
         salirFirebase();
+        if ((D.config.correo || "").toLowerCase() === correo) { D.config.correo = ""; guardarLocal(); }
         S.persona = null; S.modo = null; S.entrando = null; S.cargando = false;
         S.error = "Tu acceso fue desactivado. Habla con el dueño de la finca.";
         CLAVE_DATOS = null;
@@ -11892,6 +11964,11 @@ async function rechazarAcceso(correo) {
   S.persona = null; S.modo = null; S.modoAcceso = "entrar"; S.aviso = "";
   S.entrando = null; S.cargando = false;
   try { localStorage.removeItem(CLAVE_PERMISO(correo)); } catch {}
+  // Y se olvida el correo, que si no vuelve a salir puesto en cada arranque.
+  if ((D.config.correo || "").toLowerCase() === String(correo).toLowerCase()) {
+    D.config.correo = "";
+    guardarLocal();
+  }
   S.error = `La cuenta ${correo} existe, pero no está autorizada en esta finca. ` +
             `Pídele al dueño que te registre con ese mismo correo y te asigne a una finca.`;
   FB.estado = "listo"; FB.error = "";
@@ -15346,6 +15423,21 @@ async function acciones(a) {
     return;
   }
   if (a === "ver-estado") { hojaEstado(); return; }
+  if (a === "rebajar-todo") {
+    /* Suelta todas las escuchas y las rehace desde cero, olvidando las cajas
+       intermedias. Es la salida cuando la app se quedó sin datos que sí
+       están en Firebase. No borra nada: solo vuelve a preguntar. */
+    if (!FB.db || !FB.user) return alert("No hay conexión con Firebase.");
+    cerrarHoja();
+    avisar("Volviendo a bajar todo…");
+    try {
+      pararEscuchas();
+      FB.cajones = {}; FB.espejo = {}; FB.leidas = new Set();
+      FB.fallos = {}; FB.sinPermiso = false; FB.claveFincas = null;
+      escucharColecciones(FB.fincasRemotas || []);
+    } catch (e) { alert("No se pudo: " + (e?.message || e)); }
+    return;
+  }
   if (a === "reconectar") {
     cerrarHoja();
     avisar("Volviendo a conectar…");
