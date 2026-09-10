@@ -928,11 +928,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.79.0";
+const VERSION = "2.80.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.80.0", "10 sep 2026", [
+    "ARREGLO SERIO: la <strong>fecha de nacimiento no se guardaba</strong>. Hay dos campos con " +
+      "ese nombre en la ficha del animal, uno en el bloque de \u00abnaci\u00f3 en la finca\u00bb y otro " +
+      "en el de \u00abcomprado\u00bb, porque en los dos casos se pregunta lo mismo. Esconder un " +
+      "bloque no impide que sus campos se manden al guardar: iban los dos, y el vac\u00edo, por " +
+      "ir de segundo, borraba lo que se acababa de escribir.",
+    "Ahora un campo escondido queda tambi\u00e9n desactivado, as\u00ed que no se manda. Vale para " +
+      "todos los bloques que aparecen y desaparecen seg\u00fan el caso.",
+    "No era que no subiera a Firebase: sub\u00eda vac\u00eda, que es peor porque no se nota.",
+  ]],
   ["2.79.0", "9 sep 2026", [
     "SEGURIDAD: borrar a una persona en la app no le quitaba el acceso. Su permiso segu\u00eda " +
       "vivo en Firebase y pod\u00eda seguir entrando y viendo los datos de la finca. Borrar una " +
@@ -7499,6 +7509,20 @@ function opcionesPadres(sexo, excluirId) {
       sub: `${CATEGORIAS[x.categoria]?.et || ""} · ${nombreFinca(x.fincaId)}` +
            (x.estado !== "activo" ? ` · ${x.estado}` : ""),
     }));
+}
+
+/**
+ * Esconde un bloque del formulario Y desactiva sus campos.
+ *
+ * Un campo escondido se sigue mandando al guardar. Cuando dos bloques tienen
+ * campos con el mismo nombre —pasa cuando se pregunta lo mismo de dos maneras
+ * según el caso— el del bloque escondido, vacío, pisa al bueno.
+ */
+function esconder(selector, ocultar) {
+  (hojaAbierta || document).querySelectorAll(selector).forEach(el => {
+    el.hidden = !!ocultar;
+    el.querySelectorAll("input,select,textarea").forEach(c => { c.disabled = !!ocultar; });
+  });
 }
 
 function formAnimal(id, estadoIni) {
