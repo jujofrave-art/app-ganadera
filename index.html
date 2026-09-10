@@ -928,11 +928,18 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.76.0";
+const VERSION = "2.77.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.77.0", "9 sep 2026", [
+    "ARREGLO: el panel dec\u00eda <strong>\u00absin publicar todav\u00eda\u00bb</strong> despu\u00e9s de cada recarga, " +
+      "aunque la lista estuviera publicada. Se fiaba de lo que hubiera en memoria, y la " +
+      "memoria se borra al recargar la p\u00e1gina.",
+    "Ahora la app le pregunta a Firebase c\u00f3mo est\u00e1 la lista al entrar, as\u00ed que lo que se ve " +
+      "es lo que hay de verdad.",
+  ]],
   ["2.76.0", "9 sep 2026", [
     "El bloque de la lista de correos daba dos n\u00fameros que parec\u00edan contradecirse: los " +
       "publicados y los que hay en el equipo. Son cosas distintas \u2014lo que est\u00e1 en Firebase " +
@@ -11297,6 +11304,7 @@ async function escucharColecciones(mias) {
      guarda. Se hace primero, siempre, y las escuchas quedan solo para lo que
      saben hacer bien. Nadie tiene que pulsar nada. */
   try { await bajarDirecto(true); } catch (e) { console.warn("carga inicial:", e); }
+  leerListaCorreos();      // para que Configuración diga la verdad
 
   const col = (n) => fs.collection(FB.db, n);
   // El superadministrador no filtra: las reglas le permiten leerlo todo.
@@ -11535,6 +11543,31 @@ async function huellaCorreo(c) {
 }
 
 /** Publica las huellas de quien puede entrar. Solo lo hace quien manda. */
+/**
+ * Lee de Firebase cómo está la lista de correos.
+ *
+ * El panel de Configuración se fiaba de lo que hubiera en memoria, y la
+ * memoria se borra al recargar la página. Así que después de cada recarga
+ * decía «sin publicar todavía» aunque la lista estuviera perfectamente
+ * publicada. Ahora se pregunta.
+ */
+async function leerListaCorreos() {
+  if (!FB.db || !FB.user) return null;
+  try {
+    const { fs } = FB.mods;
+    const snap = await fs.getDoc(fs.doc(FB.db, "publico", "correos"));
+    if (!snap.exists()) { FB.correosPublicados = null; return null; }
+    const d = snap.data();
+    FB.correosPublicados = {
+      n: d.n ?? (d.h || []).length,
+      cuando: (d.tocado || "").slice(0, 10) || hoyISO(),
+    };
+    FB.espejoCorreos = (d.h || []).slice().sort().join(",");
+    pintarPronto();
+    return FB.correosPublicados;
+  } catch { return null; }
+}
+
 async function publicarCorreos(forzado) {
   if (!FB.db || !FB.user) return { ok: false, por: "Firebase no está conectado." };
   if (!manda()) return { ok: false, por: "Tu puesto no puede publicar la lista." };
