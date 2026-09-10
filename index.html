@@ -928,11 +928,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.75.0";
+const VERSION = "2.76.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.76.0", "9 sep 2026", [
+    "El bloque de la lista de correos daba dos n\u00fameros que parec\u00edan contradecirse: los " +
+      "publicados y los que hay en el equipo. Son cosas distintas \u2014lo que est\u00e1 en Firebase " +
+      "y lo que hay aqu\u00ed\u2014 pero puestos as\u00ed confund\u00edan.",
+    "Ahora dice una sola cosa: <strong>\u00abAl d\u00eda: 3 correos pueden pedir acceso\u00bb</strong>, o " +
+      "<strong>\u00abfalta subir un cambio\u00bb</strong> con la explicaci\u00f3n de por qu\u00e9 no cuadran.",
+    "Y al publicarse la lista sola, el panel se refresca en vez de quedarse con el n\u00famero " +
+      "viejo hasta que uno cambie de pantalla.",
+  ]],
   ["2.75.0", "9 sep 2026", [
     "El bot\u00f3n de publicar la lista de correos dec\u00eda \u00abrevisa que las reglas est\u00e9n al d\u00eda\u00bb " +
       "sin saber si el problema eran las reglas. Ahora dice el motivo de verdad, y cuando " +
@@ -11544,6 +11553,7 @@ async function publicarCorreos(forzado) {
       { h: huellas.sort(), n: huellas.length, tocado: new Date().toISOString() });
     FB.espejoCorreos = firma;
     FB.correosPublicados = { n: huellas.length, cuando: hoyISO() };
+    pintarPronto();        // que el panel de Configuración se entere
     return { ok: true, n: huellas.length };
   } catch (e) {
     console.warn("publicar correos:", e);
@@ -14279,18 +14289,23 @@ function vConfiguracion() {
         ${(() => {
           const activos = (D.personas || []).filter(p => p.correo && p.activo !== false).length;
           const pub = FB.correosPublicados;
-          return `<div class="${pub ? "nota" : "aviso"}">
-            ${pub
-              ? `Lista publicada con <strong>${pub.n} correo(s)</strong>, actualizada
-                 ${fmtCorto(pub.cuando)}. Cualquier otro correo queda fuera.`
-              : `<strong>Sin publicar todavía.</strong> Mientras no exista la lista, la app
+          const alDia = pub && pub.n === activos;
+          return `<div class="${!pub ? "aviso" : alDia ? "nota" : "aviso"}">
+            ${!pub
+              ? `<strong>Sin publicar todavía.</strong> Mientras no exista la lista, la app
                  deja pedir el enlace a cualquier correo, para no dejar fuera a todo el
-                 mundo por un fallo. Púlsalo aquí y queda hecho.`}
+                 mundo por un fallo. Púlsalo aquí y queda hecho.`
+              : alDia
+                ? `Al día: <strong>${activos} correo(s)</strong> pueden pedir acceso,
+                   publicados el ${fmtCorto(pub.cuando)}. Cualquier otro queda fuera.`
+                : `<strong>Falta subir un cambio.</strong> En este equipo hay
+                   <strong>${activos} persona(s)</strong> con correo y activas, pero lo
+                   último publicado son <strong>${pub.n}</strong>. Se sube solo en unos
+                   segundos; si no, púlsalo aquí.`}
             <div class="fila-btn" style="margin-top:9px">
               <button class="btn" data-acc="publicar-correos">
-                ${pub ? "Actualizar la lista" : "Publicar la lista ahora"}</button>
+                ${!pub ? "Publicar la lista ahora" : "Actualizar la lista"}</button>
             </div>
-            <span class="sub">Hay ${activos} persona(s) con correo y activas.</span>
           </div>`;
         })()}
 
