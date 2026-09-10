@@ -928,11 +928,19 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.86.0";
+const VERSION = "2.87.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.87.0", "10 sep 2026", [
+    "El panel de \u00abcu\u00e1nto historial se baja\u00bb aclara que <strong>ese ajuste es solo de ese " +
+      "equipo</strong>. No viaja a Firebase ni a los dem\u00e1s aparatos, y es a prop\u00f3sito: en el " +
+      "celular interesa bajar poco para que abra r\u00e1pido y no gaste datos; en el computador, " +
+      "tenerlo todo para revisar a\u00f1os viejos.",
+    "Ver m\u00e1s historial en un aparato que en otro no es un fallo, y ahora la app lo dice en " +
+      "vez de dejar que uno lo descubra y se preocupe.",
+  ]],
   ["2.86.0", "10 sep 2026", [
     "La tabla de resumen de Leche ense\u00f1a los 60 periodos m\u00e1s recientes, con un bot\u00f3n para " +
       "ver el resto. Con la vista \u00abCada entrega\u00bb y a\u00f1os de historial pod\u00edan salir un millar " +
@@ -14265,8 +14273,19 @@ function vConfiguracion() {
           <div class="campo ancho"><label>Traer los últimos</label>
             ${seg("ventanaMeses", [["12","12 meses"],["24","24 meses"],["36","36 meses"],["0","Todo"]],
                   String(D.config.ventanaMeses ?? 24))}
-            <span class="ayuda">Con menos meses la app abre más rápido y gasta menos datos.
-            Con «Todo» se baja el historial completo en cada equipo.</span></div>
+            <span class="ayuda">Con menos meses la app abre más rápido y gasta menos datos.</span></div>
+        </div>
+
+        <div class="nota" style="margin-bottom:12px">
+          <strong>Este ajuste es solo de este equipo.</strong> No viaja a Firebase ni a los
+          demás aparatos, y es a propósito: en el celular interesa bajar poco para que abra
+          rápido y no gaste datos, y en el computador interesa tenerlo todo para revisar
+          años viejos.<br><br>
+          Si en el celular ves más historial que aquí, no es un fallo: es que ese aparato
+          tiene otro recorte puesto. Se cambia en cada uno por separado.<br><br>
+          Los datos están completos en Firebase pase lo que pase; esto solo decide cuánto
+          se trae a este aparato.
+        </div>
         </div>
 
         <div class="nota" style="margin-bottom:12px">
