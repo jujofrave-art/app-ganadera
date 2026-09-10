@@ -928,11 +928,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.87.0";
+const VERSION = "2.88.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.88.0", "10 sep 2026", [
+    "Opción nueva en Apariencia: <strong>«Que nunca quede patas arriba»</strong>. Deja girar " +
+      "entre vertical y horizontal, pero devuelve la pantalla cuando el celular la pone del " +
+      "revés.",
+    "Un teléfono admite cuatro posiciones, y las dos invertidas no le sirven a nadie en el " +
+      "corral. No hay forma de pedirle al navegador «vertical y horizontal pero solo de un " +
+      "lado», así que la app vigila el giro y la endereza sola.",
+    "Es distinto de «dejar la pantalla fija», que la clava en una sola posición. Funciona " +
+      "mejor con la app instalada, y si el navegador no lo permite se apaga sola en vez de " +
+      "dar la lata.",
+  ]],
   ["2.87.0", "10 sep 2026", [
     "El panel de \u00abcu\u00e1nto historial se baja\u00bb aclara que <strong>ese ajuste es solo de ese " +
       "equipo</strong>. No viaja a Firebase ni a los dem\u00e1s aparatos, y es a prop\u00f3sito: en el " +
@@ -3014,6 +3025,47 @@ const estaInstalada = () => {
   } catch { return false; }
 };
 
+/* ==========================================================
+   QUE NO SE PONGA PATAS ARRIBA
+
+   Un celular admite cuatro posiciones: vertical, vertical del revés,
+   horizontal a un lado y horizontal al otro. Las dos «del revés— no le
+   sirven a nadie en el corral: con el teléfono boca abajo el botón de la
+   cámara y el altavoz quedan donde no se espera, y se pierde el gesto.
+
+   No hay forma de decirle al navegador «vertical y horizontal, pero solo de
+   un lado». Lo que sí se puede es vigilar: cuando la pantalla cae en una de
+   las posiciones invertidas, se fija un instante en la buena para que vuelva,
+   y se suelta enseguida para que siga girando libre.
+   ========================================================== */
+let _vigilandoGiro = false;
+
+function vigilarGiro() {
+  if (_vigilandoGiro || !puedeGirar()) return;
+  _vigilandoGiro = true;
+
+  const corregir = async () => {
+    if (D.config.giroModo !== "derecho" || D.config.giroBloqueado) return;
+    const t = screen.orientation?.type || "";
+    if (!t.endsWith("-secondary")) return;
+    const buena = t.replace("-secondary", "-primary");
+    try {
+      await screen.orientation.lock(buena);
+      // Soltar en cuanto haya girado, para no dejarla clavada.
+      setTimeout(() => { try { screen.orientation.unlock?.(); } catch {} }, 400);
+    } catch {
+      /* Sin pantalla completa Chrome no deja fijar. Se apaga en vez de
+         insistir: mejor que la pantalla gire de más que dar la lata. */
+      D.config.giroModo = "libre";
+      guardarLocal();
+    }
+  };
+
+  try { screen.orientation.addEventListener("change", corregir); } catch {}
+  window.addEventListener("orientationchange", corregir);
+  corregir();
+}
+
 async function aplicarGiro(avisando) {
   if (esIOS()) {
     if (avisando) {
@@ -3334,6 +3386,7 @@ function abrirDatosDe(quien) {
   // pantalla y leerlas aquí dejaba la app quieta mientras tanto.
   cargarFotosDeDisco();
   VERSION_DATOS++;
+  if (D.config?.giroModo === "derecho") vigilarGiro();
 }
 
 function guardarLocal() {
@@ -10915,7 +10968,7 @@ const AJUSTES = {
 };
 
 /** Lo que se queda en este equipo: firebase, sinFirebase, sesionDe,
-    ventanaMeses, recordarSesion, tema, cuentaGoogle, giroBloqueado, correo. */
+    ventanaMeses, recordarSesion, tema, cuentaGoogle, giroBloqueado, giroModo, correo. */
 const puedeEscribirAjustes = (cual) =>
   cual === "finca" ? manda() : (esSuper() || rolActual() === "dueno");
 
@@ -14129,7 +14182,17 @@ function vConfiguracion() {
         <button class="btn ${D.config.giroBloqueado ? "btn-firme" : ""}" data-acc="giro">
           ${D.config.giroBloqueado ? "Pantalla fija · tocar para liberar" : "Dejar la pantalla fija"}
         </button>
+        <button class="btn ${D.config.giroModo === "derecho" ? "btn-firme" : ""}"
+          data-acc="giro-derecho">
+          ${D.config.giroModo === "derecho"
+            ? "Nunca patas arriba · tocar para quitar" : "Que nunca quede patas arriba"}
+        </button>
       </div>
+      <p class="expl"><strong>Nunca patas arriba:</strong> deja girar entre vertical y
+      horizontal, pero devuelve la pantalla cuando el celular la pone del revés. Un teléfono
+      admite cuatro posiciones y las dos invertidas no le sirven a nadie. No se puede pedir
+      «vertical y horizontal pero solo de un lado», así que la app vigila y la endereza sola.
+      Funciona mejor con la app instalada.</p>
       <p class="expl">En el corral la pantalla se voltea sola y estorba. Con esto se queda
       quieta en la posición en la que esté. Si el celular no lo permite de otra forma, la app
       se pone <strong>a pantalla completa</strong>, que es lo único que Chrome acepta cuando
@@ -16172,6 +16235,21 @@ async function acciones(a) {
       else avisar("Todo subió bien");
     }, 3000);
     return;
+  }
+  if (a === "giro-derecho") {
+    if (D.config.giroModo === "derecho") {
+      D.config.giroModo = "libre";
+      guardarLocal();
+      try { screen.orientation.unlock?.(); } catch {}
+      avisar("La pantalla vuelve a girar libre");
+    } else {
+      D.config.giroModo = "derecho";
+      D.config.giroBloqueado = false;      // son cosas distintas
+      guardarLocal();
+      vigilarGiro();
+      avisar("Ya no se pondrá patas arriba");
+    }
+    return pintar();
   }
   if (a === "giro") {
     D.config.giroBloqueado = !D.config.giroBloqueado;
