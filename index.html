@@ -928,11 +928,32 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.72.0";
+const VERSION = "2.74.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.74.0", "9 sep 2026", [
+    "La vaca pasa a <strong>Seca el d\u00eda que toca secarla</strong>, no una semana despu\u00e9s. " +
+      "Antes la app esperaba a que se cerrara la ventana de secado, as\u00ed que una vaca con la " +
+      "fecha ya cumplida segu\u00eda saliendo en Producci\u00f3n y contando en los promedios de " +
+      "leche varios d\u00edas de m\u00e1s.",
+    "Si en la finca se seca a los siete meses menos dos d\u00edas, ese d\u00eda ya est\u00e1 seca. Con o " +
+      "sin secado apuntado: cuando no lo hay, la ficha lo dice \u2014\u00abSeca \u00b7 sin apuntar\u00bb\u2014 " +
+      "para distinguir lo confirmado de lo supuesto.",
+    "El mismo criterio decide ahora los promedios de leche, que iban por su cuenta y " +
+      "contaban vacas ya secas.",
+  ]],
+  ["2.73.0", "9 sep 2026", [
+    "La gestaci\u00f3n se puede contar de dos maneras, y ahora se elige por especie en " +
+      "Par\u00e1metros. <strong>Por d\u00edas</strong> \u2014283 en bovinos, como de f\u00e1brica\u2014 o " +
+      "<strong>por meses de calendario</strong>, que es como se cuenta en muchas fincas.",
+    "La diferencia no es peque\u00f1a: 283 d\u00edas no son nueve meses justos, son nueve meses y " +
+      "unos diez d\u00edas. Servida el 24 de agosto, por d\u00edas pare el 3 de junio; por meses, el " +
+      "24 de mayo.",
+    "En el modo por meses se puede afinar con d\u00edas de m\u00e1s o de menos, por si en la finca " +
+      "cuentan \u00abnueve meses y una semana\u00bb.",
+  ]],
   ["2.72.0", "9 sep 2026", [
     "ARREGLO: al reconectar sin recargar la p\u00e1gina, la app intentaba levantar Firebase otra " +
       "vez cuando ya estaba levantado, y reventaba con un mensaje t\u00e9cnico en la pantalla de " +
@@ -3351,6 +3372,9 @@ function migrar(d) {
       g.secarHasta = ESPECIES[esp].secarHasta;
     }
     g.avisoLevante ??= ESPECIES[esp].avisoLevante || 0;
+    g.gestacionModo ??= "dias";
+    g.gestacionMeses ??= Math.round((g.gestacion || 283) / 30.44);
+    g.gestacionMasDias ??= 0;
     if (g.lechero) {
       g.secadoModo ??= "dias";
       g.secarMeses ??= Math.max(1, Math.round(g.secarDesde / 30.44));
@@ -3719,7 +3743,7 @@ function calcularEstado(a) {
     }
   }
 
-  const fechaProbableParto = prenada ? sumarDias(servicioValido.fecha, P.gestacion) : null;
+  const fechaProbableParto = prenada ? fechaDeParto(P, servicioValido.fecha) : null;
   /* La ventana de secado se calcula para ESTE servicio: si la finca cuenta
      por meses de calendario, los días cambian según en qué mes la sirvieran. */
   const vent = diasSecado(P, prenada ? servicioValido.fecha : null);
@@ -3788,7 +3812,11 @@ function calcularEstado(a) {
   else if (!ultParto && !prenada) etapa = "levante";
   else if (P.lechero) {
     if (secadoActual) etapa = "seca";
-    else if (prenada && diasGest > secarHastaD) etapa = "seca";
+    /* Pasa a Seca al LLEGAR la fecha de secado, no al terminar la ventana.
+       Si la finca dice «se seca a los siete meses menos dos días», ese día ya
+       está seca; esperar a que se cierre la ventana la dejaba una semana más
+       apareciendo en producción y contando en los promedios de leche. */
+    else if (prenada && diasGest >= secarDesdeD) etapa = "seca";
     else if (ultParto) etapa = "produccion";
     else etapa = "gestante";
   } else {
@@ -4313,7 +4341,9 @@ function enProduccionEn(a, fecha) {
 
   // O el calendario: si ese día ya venía muy avanzada de otra preñez.
   const srv = insemDe(a.id).find(i => i.fecha > parto.fecha && i.fecha <= fecha);
-  if (srv && dias(srv.fecha, aFecha(fecha)) > diasSecado(P, srv.fecha).hasta) return false;
+  // Desde la fecha de secado ya no se le cuenta la leche, aunque nadie la
+  // haya apuntado: es el mismo criterio que decide la etapa.
+  if (srv && dias(srv.fecha, aFecha(fecha)) >= diasSecado(P, srv.fecha).desde) return false;
 
   return true;
 }
@@ -4350,7 +4380,7 @@ function motivoNoProduce(a, fecha) {
   if (sec) return `la secaron el ${fmtCorto(sec.fecha)}`;
 
   const srv = insemDe(a.id).find(i => i.fecha > parto.fecha && i.fecha <= fecha);
-  if (srv && dias(srv.fecha, aFecha(fecha)) > diasSecado(P, srv.fecha).hasta)
+  if (srv && dias(srv.fecha, aFecha(fecha)) >= diasSecado(P, srv.fecha).desde)
     return "ya venía muy avanzada de preñez";
   return "no estaba en producción";
 }
@@ -10616,6 +10646,26 @@ function sumarMeses(iso, n) {
  * septiembre son 212 y de marzo a octubre 214. Contando en días fijos la
  * fecha se corre uno o dos días según cuándo la sirvieran.
  */
+/**
+ * Cuándo se espera el parto.
+ *
+ * De fábrica se cuentan los días de gestación de la especie —283 en bovinos—,
+ * que es la cuenta técnica y la que usan los libros. Ojo: 283 días NO son
+ * nueve meses de calendario, son nueve meses y unos diez días. Servida el 24
+ * de agosto, el parto cae el 3 de junio, no el 24 de mayo.
+ *
+ * Hay fincas que cuentan «nueve meses justos, el mismo día». Para esas se
+ * puede cambiar el modo en Parámetros y la app cuenta meses de calendario.
+ */
+function fechaDeParto(P, servicio) {
+  if (!servicio) return null;
+  if (P?.gestacionModo === "meses") {
+    const m = Number(P.gestacionMeses) || Math.round((P.gestacion || 283) / 30.44);
+    return sumarDias(sumarMeses(servicio, m), Number(P.gestacionMasDias) || 0);
+  }
+  return sumarDias(servicio, P.gestacion);
+}
+
 function diasSecado(P, inicio) {
   if (!P.lechero) return { desde: P.secarDesde, hasta: P.secarHasta };
   if (P.secadoModo !== "meses" || !inicio) {
@@ -14143,6 +14193,27 @@ function vConfiguracion() {
                 <span class="ayuda">Pasado el día ${g.secarHasta} ya se da por seca.
                 Ventana de ${g.secarHasta - g.secarDesde + 1} días</span></div>
             `}
+            <div class="campo"><label>Cómo se cuenta la gestación</label>
+              <select name="${k}_gestacionModo">
+                <option value="dias" ${g.gestacionModo !== "meses" ? "selected" : ""}>
+                  Por días (${g.gestacion})</option>
+                <option value="meses" ${g.gestacionModo === "meses" ? "selected" : ""}>
+                  Por meses de calendario</option>
+              </select>
+              <span class="ayuda">${g.gestacionModo === "meses"
+                ? `Servida el 24 de agosto, pare el 24 de ${MESES[(7 + (Number(g.gestacionMeses)||9)) % 12]}.`
+                : `${g.gestacion} días NO son ${Math.floor(g.gestacion/30.44)} meses justos: son
+                   ${Math.floor(g.gestacion/30.44)} meses y ${g.gestacion - Math.floor(g.gestacion/30.44)*30}
+                   días más o menos.`}</span></div>
+            ${g.gestacionModo === "meses" ? `
+              <div class="campo"><label>Meses de gestación</label>
+                <input type="number" name="${k}_gestacionMeses" min="1" max="14"
+                  value="${g.gestacionMeses ?? 9}">
+                <span class="ayuda">Y luego se suman los días de abajo</span></div>
+              <div class="campo"><label>… más estos días</label>
+                <input type="number" name="${k}_gestacionMasDias" min="-30" max="30"
+                  value="${g.gestacionMasDias ?? 0}">
+                <span class="ayuda">Con 0, pare el mismo día del mes</span></div>` : ""}
             <div class="campo"><label>Avisar si sigue en levante a los … meses</label>
               <input type="number" name="${k}_avisoLevante" min="0" max="120"
                 value="${g.avisoLevante ?? 0}">
@@ -14858,7 +14929,10 @@ function conectar() {
     const v = datos(fp), n = (x) => Math.max(1, Number(x) || 1);
     const out = {};
     for (const k in ESPECIES) {
-      const g = { avisoLevante: Math.max(0, Math.min(120, Number(v[k+"_avisoLevante"]) || 0)),
+      const g = { gestacionModo: v[k+"_gestacionModo"] === "meses" ? "meses" : "dias",
+                  gestacionMeses: Math.max(1, Math.min(14, Number(v[k+"_gestacionMeses"]) || 9)),
+                  gestacionMasDias: Math.max(-30, Math.min(30, Number(v[k+"_gestacionMasDias"]) || 0)),
+                  avisoLevante: Math.max(0, Math.min(120, Number(v[k+"_avisoLevante"]) || 0)),
                   gestacion:n(v[k+"_gestacion"]), palpar:n(v[k+"_palpar"]),
                   preparto: Math.max(0, Number(v[k+"_preparto"]) || 0),
                   edadServicio:n(v[k+"_edad"]), estro:n(v[k+"_estro"]),
