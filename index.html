@@ -928,11 +928,24 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.84.0";
+const VERSION = "2.85.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.85.0", "10 sep 2026", [
+    "En el celular, la ventana de <strong>pegar la leche del cuaderno</strong> no se pod\u00eda " +
+      "desplazar: al escribir en el recuadro no se ve\u00eda lo que se estaba escribiendo. Ya se " +
+      "desliza como las dem\u00e1s.",
+    "Antes de guardar sale <strong>en rojo la finca</strong> a la que van los registros, y al " +
+      "pulsar Guardar se pide confirmaci\u00f3n con el nombre en may\u00fasculas y las fechas. " +
+      "Equivocarse de finca mete un mes entero de leche donde no va, y se descubre tarde.",
+    "El campo <strong>A\u00f1o</strong> explica para qu\u00e9 sirve: vale para los n\u00fameros que no " +
+      "lleven cabecera de mes. Si en el texto se escribe \u00abEnero 2023\u00bb, manda el texto.",
+    "En Leche hay una vista nueva, <strong>\u00abCada entrega\u00bb</strong>, que no agrupa nada: " +
+      "cada apunte con su propio promedio. Sirve cuando hace falta la cuenta exacta de un " +
+      "d\u00eda concreto y no la del periodo, que mezcla entregas de varios d\u00edas.",
+  ]],
   ["2.84.0", "10 sep 2026", [
     "En \u00abCu\u00e1nto historial se baja\u00bb hay ahora un aviso: si vas a cargar leche o eventos de " +
       "a\u00f1os pasados, pon \u00abTodo\u00bb antes de empezar. Con el recorte puesto, lo que cargues " +
@@ -8348,6 +8361,7 @@ function formLecheRapida(fincaPre) {
       <div class="sub">Un mes de una finca, tal como se apunta cuando pasa el carrotanque</div></div>
       <button class="cerrar" data-cerrar>×</button></div>
     <form data-leche-rapida>
+      <div class="hoja-cuerpo">
       <div class="rej">
         <div class="campo"><label>Finca *</label>
           ${combo("fincaId", misFincas().map(f => ({ v: f, et: nombreFinca(f) })), V0.fincaId,
@@ -8356,7 +8370,9 @@ function formLecheRapida(fincaPre) {
           <select name="mes">${MESES.map((m, i) =>
             `<option value="${i + 1}" ${i + 1 === V0.mes ? "selected" : ""}>${m}</option>`).join("")}</select></div>
         <div class="campo"><label>Año</label>
-          <input type="number" name="anio" min="2000" max="2100" value="${V0.anio}"></div>
+          <input type="number" name="anio" min="2000" max="2100" value="${V0.anio}">
+          <span class="ayuda">El mes y el año de aquí valen para los números que no lleven
+          cabecera. Si escribes «Enero 2023» en el texto, manda lo del texto.</span></div>
         <div class="campo"><label>Días que cubre el primero</label>
           <input type="number" name="dias1" min="1" max="31" value="${V0.dias1}">
           <span class="ayuda">Los demás se calculan solos, contando desde el anterior</span></div>
@@ -8377,6 +8393,7 @@ Febrero
           aparezca otro mes se sigue usando el mismo.</span></div>
       </div>
       <div data-vista-cuaderno></div>
+      </div>
       <div class="hoja-pie">
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn btn-firme" data-guardar-cuaderno disabled>Guardar</button>
@@ -8387,6 +8404,14 @@ Febrero
   const caja = hojaAbierta.querySelector("[data-vista-cuaderno]");
   const btn = hojaAbierta.querySelector("[data-guardar-cuaderno]");
   let ultimo = { filas: [], malas: [] };
+
+  /* En qué finca se va a guardar, en grande y en rojo. Equivocarse de finca
+     mete un mes entero de leche donde no va, y se descubre tarde. */
+  const avisoFinca = (fincaId) => !fincaId ? "" : `
+    <div class="aviso" style="margin-bottom:12px">
+      Se va a guardar en <strong style="font-size:16px">${esc(nombreFinca(fincaId))}</strong>.
+      Comprueba que sea la correcta antes de guardar.
+    </div>`;
 
   const repasar = () => {
     const v = datos(f);
@@ -8403,6 +8428,7 @@ Febrero
     caja.innerHTML = !r.filas.length ? (v.texto ? `<div class="aviso">No se entendió nada.
         Escribe día y litros, por ejemplo <strong>3)639</strong>.</div>` : "")
       : `
+      ${avisoFinca(v.fincaId)}
       <dl class="conteos">
         <div class="conteo"><dt>Registros</dt><dd>${r.filas.length}</dd></div>
         ${r.meses > 1 ? `<div class="conteo"><dt>Meses</dt><dd>${r.meses}</dd></div>` : ""}
@@ -8437,6 +8463,14 @@ Febrero
     btn.disabled = true;
     const { filas, fincaId } = ultimo;
     if (!filas.length || !fincaId) { f.dataset.enviando = "0"; btn.disabled = false; return; }
+
+    if (!confirm(
+        `Vas a guardar ${filas.length} registro(s) de leche en:\n\n` +
+        `        ${nombreFinca(fincaId).toUpperCase()}\n\n` +
+        `Del ${fmt(filas[0].fecha)} al ${fmt(filas[filas.length - 1].fecha)}.\n\n` +
+        `¿Es esa la finca correcta?`)) {
+      f.dataset.enviando = "0"; btn.disabled = false; return;
+    }
     const viejas = filas.filter(x => dias(x.fecha) > 400).length;
     if (viejas && !confirm(`${viejas} de esos registros tienen más de un año.\n\n` +
         `Se guardan y suben igual, pero si tienes puesto el recorte de historial ` +
@@ -9267,11 +9301,18 @@ function lunesDe(d) {
   return t;
 }
 
-const EPOCAS = { semana:"Semanal", quincena:"Quincenal", mes:"Mensual", anio:"Anual" };
-const NOMBRE_EPOCA = { semana:"semana", quincena:"quincena", mes:"mes", anio:"año" };
+/* «Entrega» no agrupa nada: cada apunte con su propia cuenta. Sirve cuando
+   hace falta el promedio exacto de un día concreto y no el del periodo, que
+   mezcla entregas de varios días. */
+const EPOCAS = { entrega:"Cada entrega", semana:"Semanal", quincena:"Quincenal",
+                 mes:"Mensual", anio:"Anual" };
+const NOMBRE_EPOCA = { entrega:"entrega", semana:"semana", quincena:"quincena",
+                       mes:"mes", anio:"año" };
 
 /** A qué periodo pertenece una fecha, con una etiqueta legible. */
-function periodoDe(fecha, epoca) {
+function periodoDe(fecha, epoca, id) {
+  // Cada entrega va sola: la clave es el propio apunte.
+  if (epoca === "entrega") return { k: id || fecha, et: fmt(fecha), orden: fecha + (id || "") };
   const d = aFecha(fecha);
   const a = d.getFullYear(), m = d.getMonth(), dia = d.getDate();
 
@@ -9311,7 +9352,7 @@ function periodoDe(fecha, epoca) {
 function resumenLeche(registros, epoca) {
   const por = {};
   for (const r of registros) {
-    const p = periodoDe(r.fecha, epoca);
+    const p = periodoDe(r.fecha, epoca, r.id);
     const g = (por[p.k] ||= { ...p, litros: 0, dias: 0, n: 0, ingreso: 0, vacasDia: 0 });
     const d = Math.max(1, Number(r.dias) || 1);
     g.litros += Number(r.litros) || 0;
