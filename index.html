@@ -928,11 +928,17 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.74.0";
+const VERSION = "2.75.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.75.0", "9 sep 2026", [
+    "El bot\u00f3n de publicar la lista de correos dec\u00eda \u00abrevisa que las reglas est\u00e9n al d\u00eda\u00bb " +
+      "sin saber si el problema eran las reglas. Ahora dice el motivo de verdad, y cuando " +
+      "s\u00ed son las reglas explica exactamente cu\u00e1l falta: el permiso de esta lista se a\u00f1adi\u00f3 " +
+      "en la 2.58, as\u00ed que unas reglas anteriores no lo traen.",
+  ]],
   ["2.74.0", "9 sep 2026", [
     "La vaca pasa a <strong>Seca el d\u00eda que toca secarla</strong>, no una semana despu\u00e9s. " +
       "Antes la app esperaba a que se cerrara la ventana de secado, as\u00ed que una vaca con la " +
@@ -11520,23 +11526,29 @@ async function huellaCorreo(c) {
 }
 
 /** Publica las huellas de quien puede entrar. Solo lo hace quien manda. */
-async function publicarCorreos() {
-  if (!FB.db || !FB.user || !manda() || !FB.fincasCargadas) return;
-  if (equipoEnBlanco()) return;
+async function publicarCorreos(forzado) {
+  if (!FB.db || !FB.user) return { ok: false, por: "Firebase no está conectado." };
+  if (!manda()) return { ok: false, por: "Tu puesto no puede publicar la lista." };
+  if (!forzado && !FB.fincasCargadas) return { ok: false, por: "Todavía no han bajado las fincas." };
+  if (equipoEnBlanco()) return { ok: false, por: "Este equipo está en blanco: no escribe nada compartido." };
   const { fs } = FB.mods;
   const activos = D.personas.filter(p => p.correo && p.activo !== false);
   // Nunca se publica una lista vacía: dejaría a todo el mundo sin poder
   // pedir acceso, y una lista vacía casi siempre es un fallo de este equipo.
-  if (!activos.length) return;
+  if (!activos.length) return { ok: false, por: "No hay ningún correo activo que publicar." };
   const huellas = (await Promise.all(activos.map(p => huellaCorreo(p.correo)))).filter(Boolean);
   const firma = huellas.slice().sort().join(",");
-  if (FB.espejoCorreos === firma) return;
+  if (FB.espejoCorreos === firma && !forzado) return { ok: true, por: "ya estaba al día" };
   try {
     await fs.setDoc(fs.doc(FB.db, "publico", "correos"),
       { h: huellas.sort(), n: huellas.length, tocado: new Date().toISOString() });
     FB.espejoCorreos = firma;
     FB.correosPublicados = { n: huellas.length, cuando: hoyISO() };
-  } catch (e) { console.warn("publicar correos:", errorFB(e)); }
+    return { ok: true, n: huellas.length };
+  } catch (e) {
+    console.warn("publicar correos:", e);
+    return { ok: false, por: errorFB(e), codigo: e?.code || "" };
+  }
 }
 
 /**
@@ -15897,13 +15909,22 @@ async function acciones(a) {
       "No hay ninguna persona con correo y activa en este equipo, así que la lista " +
       "quedaría vacía y nadie podría pedir acceso.\n\nEspera a que bajen los datos.");
     FB.espejoCorreos = null;                 // forzar la publicación
-    await publicarCorreos();
+    const r = await publicarCorreos(true);
     pintar();
-    alert(FB.correosPublicados
-      ? `Lista publicada con ${FB.correosPublicados.n} correo(s).\n\n` +
+    if (r?.ok) {
+      alert(`Lista publicada con ${r.n} correo(s).\n\n` +
         `A partir de ahora, en la pantalla de inicio solo estos correos pueden pedir el ` +
-        `enlace o cambiar la contraseña.`
-      : "No se pudo publicar. Revisa que las reglas estén al día.");
+        `enlace o cambiar la contraseña.`);
+    } else if (String(r?.codigo || "").includes("permission-denied")) {
+      alert(
+        `Firestore no deja escribir la lista.\n\n` +
+        `Falta publicar las reglas NUEVAS: el permiso de esta lista se añadió en la versión ` +
+        `2.58, y las que tienes puestas son de antes.\n\n` +
+        `Ve a «Reglas de seguridad» aquí en Configuración, pulsa Copiar, y pégalas en ` +
+        `Firebase → Firestore → Reglas. Acuérdate de Publicar.`);
+    } else {
+      alert("No se pudo publicar.\n\n" + (r?.por || "Motivo desconocido."));
+    }
     return;
   }
   if (a === "bajar-directo") { cerrarHoja(); FB.rescateHecho = true; await bajarDirecto(); return; }
