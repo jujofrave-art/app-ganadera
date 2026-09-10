@@ -928,11 +928,18 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.83.0";
+const VERSION = "2.84.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.84.0", "10 sep 2026", [
+    "En \u00abCu\u00e1nto historial se baja\u00bb hay ahora un aviso: si vas a cargar leche o eventos de " +
+      "a\u00f1os pasados, pon \u00abTodo\u00bb antes de empezar. Con el recorte puesto, lo que cargues " +
+      "sube bien pero la app no lo vuelve a traer y parece perdido.",
+    "Y se aclara algo que preocupa a cualquiera que vaya a pasar cuadernos viejos: <strong>el " +
+      "orden en que se metan los datos da igual</strong>. Cada suceso se coloca por su fecha.",
+  ]],
   ["2.83.0", "10 sep 2026", [
     "La edad se dice de las dos maneras: <strong>\u00ab33 meses \u00b7 2 a\u00f1os y 9 meses\u00bb</strong>. En " +
       "meses se compara con los par\u00e1metros de la app, que van en meses; en a\u00f1os se entiende " +
@@ -14198,6 +14205,21 @@ function vConfiguracion() {
                   String(D.config.ventanaMeses ?? 24))}
             <span class="ayuda">Con menos meses la app abre más rápido y gasta menos datos.
             Con «Todo» se baja el historial completo en cada equipo.</span></div>
+        </div>
+
+        <div class="nota" style="margin-bottom:12px">
+          <strong>¿Vas a cargar leche o eventos de años pasados?</strong> Pon
+          <strong>«Todo»</strong> antes de empezar.<br><br>
+          Con el recorte puesto, lo que cargues sube bien a Firebase pero la app no lo vuelve
+          a traer, y parece que se hubiera perdido. Además, para calcular los promedios de
+          leche de esos años hacen falta los <strong>servicios</strong> de la época: de su
+          fecha sale la gestación, y de ahí sabe la app qué vacas ya estaban secas. Sin eso
+          cuenta vacas de más y el promedio por vaca sale bajo.<br><br>
+          Cuando termines de cargar y de revisar, puedes volver a recortarlo. Los datos se
+          quedan en Firebase; el recorte solo decide cuánto se baja a este equipo.<br><br>
+          <strong>El orden en que lo metas da igual.</strong> Puedes cargar los partos de 2024
+          después de los de 2026: cada suceso se coloca por su fecha y todas las cuentas salen
+          igual. Lo único que importa es que la fecha de cada uno esté bien.
         </div>
         <div class="fila-btn">
           <button class="btn btn-firme">Guardar</button>
