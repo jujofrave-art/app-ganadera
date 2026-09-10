@@ -928,11 +928,30 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.77.0";
+const VERSION = "2.79.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.79.0", "9 sep 2026", [
+    "SEGURIDAD: borrar a una persona en la app no le quitaba el acceso. Su permiso segu\u00eda " +
+      "vivo en Firebase y pod\u00eda seguir entrando y viendo los datos de la finca. Borrar una " +
+      "ficha ten\u00eda que significar quitar el acceso, y no lo significaba.",
+    "Ahora se retira solo. Lo hace \u00fanicamente el superadministrador, que es el \u00fanico que ve " +
+      "a todas las personas: un due\u00f1o con la vista de sus fincas creer\u00eda que sobran los de " +
+      "las dem\u00e1s y les quitar\u00eda el acceso sin querer. Y nunca se retira el de la ra\u00edz ni el " +
+      "de uno mismo.",
+    "ARREGLO: la lista de correos no se publicaba sola y hab\u00eda que pulsar el bot\u00f3n. Desde " +
+      "que la carga inicial pas\u00f3 a ser directa (2.70), la app no se enteraba de que las " +
+      "fincas ya hab\u00edan bajado y se negaba a tocar nada compartido.",
+  ]],
+  ["2.78.0", "9 sep 2026", [
+    "La lista de correos se corrige sola. Al entrar, la app compara lo publicado con la " +
+      "gente que hay registrada, y si no cuadra la vuelve a publicar.",
+    "As\u00ed se arregla tanto si alguien edit\u00f3 la lista a mano en la consola de Firebase como " +
+      "si un cambio se qued\u00f3 sin subir. La verdad son las fichas de personas; la lista es " +
+      "solo su reflejo, y no tiene sentido que se puedan separar.",
+  ]],
   ["2.77.0", "9 sep 2026", [
     "ARREGLO: el panel dec\u00eda <strong>\u00absin publicar todav\u00eda\u00bb</strong> despu\u00e9s de cada recarga, " +
       "aunque la lista estuviera publicada. Se fiaba de lo que hubiera en memoria, y la " +
@@ -5919,6 +5938,10 @@ async function bajarDirecto(callado) {
     FB.leidas = (FB.leidas || new Set()).add(col);
   }
   FB.vacios = {};
+  /* Sin esto, la app creía que las fincas no habían bajado y se negaba a
+     mantener los permisos y la lista de correos. Es lo que hacía que la lista
+     no se publicara sola y hubiera que pulsar el botón. */
+  if ((D.fincas || []).length) FB.fincasCargadas = true;
   try { localStorage.setItem(CLAVE_SESION_DE, FB.user.email.toLowerCase()); } catch {}
   D.config.sesionDe = FB.user.email.toLowerCase();
 
@@ -11564,6 +11587,19 @@ async function leerListaCorreos() {
     };
     FB.espejoCorreos = (d.h || []).slice().sort().join(",");
     pintarPronto();
+
+    /* Si lo publicado no coincide con la gente que hay, se corrige sola. Pasa
+       cuando alguien edita la lista a mano en la consola, o cuando un cambio
+       se quedó sin subir. La verdad son las fichas de personas, no la lista:
+       la lista es solo su reflejo. */
+    if (manda() && !equipoEnBlanco()) {
+      const activos = (D.personas || []).filter(p => p.correo && p.activo !== false);
+      if (activos.length && activos.length !== FB.correosPublicados.n) {
+        console.warn(`Lista de correos descuadrada (${FB.correosPublicados.n} publicados, ` +
+                     `${activos.length} personas). Se corrige.`);
+        publicarCorreos(true);
+      }
+    }
     return FB.correosPublicados;
   } catch { return null; }
 }
@@ -11687,7 +11723,47 @@ async function sincronizarUsuarios() {
       FB.usuariosRemotos[correo] = { ...remoto, ...doc };
     } catch (e) { console.warn("usuarios:", errorFB(e)); }
   }
+  await retirarAccesos();
   publicarCorreos();
+}
+
+/**
+ * Le quita el acceso en Firebase a quien ya no tiene ficha.
+ *
+ * Antes se borraba a la persona en la app y su permiso seguía vivo en
+ * Firestore: podía seguir entrando y viendo los datos de la finca. Borrar
+ * una ficha tenía que significar quitar el acceso, y no lo significaba.
+ *
+ * Solo lo hace el superadministrador, que es el único que ve a TODAS las
+ * personas. Un dueño con la vista de sus fincas creería que sobran los de las
+ * demás y les quitaría el acceso sin querer.
+ */
+async function retirarAccesos() {
+  if (!FB.db || !FB.user || !esSuper() || equipoEnBlanco()) return;
+  const { fs } = FB.mods;
+
+  const vivos = new Set((D.personas || [])
+    .filter(p => p.correo && p.activo !== false)
+    .map(p => p.correo.toLowerCase()));
+
+  const mio = (FB.user.email || "").toLowerCase();
+
+  // Hay que mirar TODOS los permisos que existen, no solo los de la gente que
+  // sigue registrada: los que sobran son justamente los que no tienen ficha.
+  let todos;
+  try { todos = await fs.getDocs(fs.collection(FB.db, "usuarios")); }
+  catch (e) { console.warn("leer usuarios:", errorFB(e)); return; }
+
+  for (const doc of todos.docs) {
+    const c = String(doc.id).toLowerCase();
+    if (vivos.has(c) || c === mio || c === CORREO_RAIZ) continue;
+    try {
+      await fs.deleteDoc(fs.doc(FB.db, "usuarios", c));
+      delete FB.usuariosRemotos?.[doc.id];
+      delete FB.espejoUsuarios?.[doc.id];
+      console.warn("Acceso retirado:", c);
+    } catch (e) { console.warn("retirar acceso:", c, errorFB(e)); }
+  }
 }
 
 /* ---------- empujar cambios locales ----------
