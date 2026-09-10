@@ -94,7 +94,14 @@ input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--pasto);outline-offset:2px}
 
 /* ---------- marco ---------- */
-.marco{display:grid;grid-template-columns:224px 1fr;height:100vh}
+/* El marco ocupa la pantalla y cada columna se desplaza por dentro. Sin
+   «min-height:0» una columna de una rejilla no se encoge por debajo de su
+   contenido: crece, empuja el marco más allá de la pantalla y la página
+   acaba pintando paneles por fuera del área, montados sobre el menú. El
+   «overflow:hidden» es la segunda red por si algo se sale igual. */
+.marco{display:grid;grid-template-columns:224px 1fr;height:100vh;
+  max-height:100vh;overflow:hidden}
+.marco>*{min-height:0;min-width:0}
 .rail{background:var(--rail-bg);color:var(--rail-fg);padding:18px 14px;display:flex;flex-direction:column;gap:20px;overflow-y:auto}
 .marca{display:flex;align-items:center;gap:10px}
 .marca strong{font-family:var(--display);font-size:18px;font-weight:800;letter-spacing:-.02em;display:block;line-height:1.1}
@@ -795,7 +802,10 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
     border-radius:20px;padding:4px 10px;border:0;flex:none}
 
   /* ---- cajón lateral ---- */
-  .marco{grid-template-columns:1fr;height:auto;min-height:100vh}
+  /* En móvil la página entera se desplaza, así que aquí sí puede crecer:
+     se sueltan el tope y el recorte que se ponen en pantalla grande. */
+  .marco{grid-template-columns:1fr;height:auto;min-height:100vh;
+    max-height:none;overflow:visible}
   .rail{position:fixed;top:0;bottom:0;left:0;width:262px;max-width:84vw;transform:translateX(-100%);
     transition:transform .22s ease;z-index:70;padding-top:calc(18px + env(safe-area-inset-top));
     padding-bottom:calc(18px + env(safe-area-inset-bottom));overflow-y:auto}
@@ -935,11 +945,19 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.90.0";
+const VERSION = "2.91.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.91.0", "10 sep 2026", [
+    "ARREGLO de un desajuste de la pantalla: a veces, con Configuraci\u00f3n abierta y bajando, " +
+      "los \u00faltimos paneles se pintaban fuera del \u00e1rea y montados sobre el men\u00fa.",
+    "La pantalla est\u00e1 partida en dos columnas que se desplazan por dentro, pero a una " +
+      "columna de rejilla no se le puede pedir que se encoja por debajo de su contenido si " +
+      "no se le dice expresamente. Sin eso, con mucho contenido la columna crec\u00eda, empujaba " +
+      "el marco m\u00e1s all\u00e1 de la pantalla y lo de abajo acababa donde no deb\u00eda.",
+  ]],
   ["2.90.0", "10 sep 2026", [
     "En el celular, los selectores de cuatro opciones cortaban la \u00faltima palabra: \u00abTodo\u00bb " +
       "sal\u00eda a medias. Cada bot\u00f3n se repart\u00eda el ancho a partes iguales sin mirar lo que " +
