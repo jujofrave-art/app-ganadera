@@ -878,7 +878,14 @@ tbody tr.marcada td{background:rgba(var(--pasto-rgb),.09)!important}
   /* ---- campos: 16px evita que iOS haga zoom al enfocar ---- */
   .rej,.datos,.ficha{grid-template-columns:1fr}
   .campo input,.campo select,.campo textarea,.busca input,.barra select{font-size:16px;padding:12px}
+  /* Con cuatro opciones y una pantalla estrecha, la última palabra salía
+     cortada: cada botón se reparte el ancho a partes iguales sin mirar lo que
+     tiene que caber. Ahora cada uno pide su sitio y, si no caben todos en
+     una fila, bajan a la siguiente en vez de recortarse. */
   .seg span{padding:13px 6px;font-size:13.5px}
+  .seg{flex-wrap:wrap}
+  .seg label{flex:1 1 auto;min-width:86px}
+  .seg span{white-space:normal;line-height:1.25}
   .btn{padding:12px 15px}
   .btn-sm{padding:8px 12px}
   .chip{padding:10px 13px}
@@ -928,11 +935,27 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.88.0";
+const VERSION = "2.90.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.90.0", "10 sep 2026", [
+    "En el celular, los selectores de cuatro opciones cortaban la \u00faltima palabra: \u00abTodo\u00bb " +
+      "sal\u00eda a medias. Cada bot\u00f3n se repart\u00eda el ancho a partes iguales sin mirar lo que " +
+      "ten\u00eda que caber dentro.",
+    "Ahora cada opci\u00f3n pide su sitio y, si no caben todas en una fila, bajan a la " +
+      "siguiente en vez de recortarse. En el computador siguen en una sola fila.",
+  ]],
+  ["2.89.0", "10 sep 2026", [
+    "ARREGLO: el bot\u00f3n <strong>Guardar</strong> de \u00abcu\u00e1nto historial se baja\u00bb no hac\u00eda nada. " +
+      "Al a\u00f1adir las explicaciones de las \u00faltimas versiones se col\u00f3 un cierre de m\u00e1s, el " +
+      "navegador daba el formulario por terminado antes de tiempo, y el bot\u00f3n quedaba " +
+      "fuera. Un bot\u00f3n fuera de su formulario no guarda nada y tampoco avisa.",
+    "Y se explica qu\u00e9 historial le toca a quien no vea ese panel: los 24 meses de f\u00e1brica. " +
+      "No se queda sin nada, y sigue pudiendo pedir el historial completo de un animal " +
+      "concreto desde su ficha.",
+  ]],
   ["2.88.0", "10 sep 2026", [
     "Opción nueva en Apariencia: <strong>«Que nunca quede patas arriba»</strong>. Deja girar " +
       "entre vertical y horizontal, pero devuelve la pantalla cuando el celular la pone del " +
@@ -14347,8 +14370,11 @@ function vConfiguracion() {
           Si en el celular ves más historial que aquí, no es un fallo: es que ese aparato
           tiene otro recorte puesto. Se cambia en cada uno por separado.<br><br>
           Los datos están completos en Firebase pase lo que pase; esto solo decide cuánto
-          se trae a este aparato.
-        </div>
+          se trae a este aparato.<br><br>
+          A quien no vea este panel —si se lo cerraste a algún puesto en «qué ve cada
+          puesto»— se le aplican <strong>24 meses</strong>, que es lo de fábrica. No se queda
+          sin historial: se queda con dos años, y puede pedir el resto de un animal concreto
+          abriendo su ficha y tocando «ver todo su historial».
         </div>
 
         <div class="nota" style="margin-bottom:12px">
