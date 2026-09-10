@@ -514,6 +514,10 @@ button.sync:hover{text-decoration:underline;text-underline-offset:2px}
   color:var(--tenue);font-size:10px;font-weight:700;cursor:pointer;padding:0;line-height:1;
   vertical-align:middle}
 .ayuda-btn:hover{color:var(--pasto);border-color:var(--pasto)}
+/* Candado a medias: el bloqueo está pedido pero el navegador todavía no lo
+   ha concedido. Parpadea para que se vea que falta tocar algo. */
+.topbar-giro.espera{color:var(--chapeta);animation:latir 1.6s infinite}
+@keyframes latir{0%,100%{opacity:1}50%{opacity:.45}}
 .quien-fijo{cursor:default}
 .quien-fijo:hover{background:none}
 
@@ -945,11 +949,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.91.0";
+const VERSION = "2.92.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.92.0", "10 sep 2026", [
+    "ARREGLO: al cerrar la app y volver a abrirla, el candado del giro sal\u00eda cerrado pero la " +
+      "pantalla giraba igual. Fijar la pantalla se pierde al cerrar \u2014el navegador lo suelta " +
+      "y no lo recuerda\u2014 y al volver la app lo intentaba al arrancar, pero Chrome no deja " +
+      "fijar la pantalla sin que la persona haya tocado algo antes. El intento fallaba en " +
+      "silencio y el candado quedaba mintiendo.",
+    "Ahora, si al volver no se puede, se queda esperando y lo hace <strong>en cuanto tocas " +
+      "cualquier cosa</strong>. Mientras tanto el candado sale abierto y parpadeando, para " +
+      "que se vea que est\u00e1 a medias en vez de dar por hecho algo que no es.",
+    "Se repone tambi\u00e9n al volver de otra app o de otra pesta\u00f1a, no solo al arrancar.",
+  ]],
   ["2.91.0", "10 sep 2026", [
     "ARREGLO de un desajuste de la pantalla: a veces, con Configuraci\u00f3n abierta y bajando, " +
       "los \u00faltimos paneles se pintaban fuera del \u00e1rea y montados sobre el men\u00fa.",
@@ -3105,6 +3120,44 @@ function vigilarGiro() {
   try { screen.orientation.addEventListener("change", corregir); } catch {}
   window.addEventListener("orientationchange", corregir);
   corregir();
+}
+
+/* ==========================================================
+   EL CANDADO TIENE QUE SEGUIR PUESTO AL VOLVER
+
+   Fijar la pantalla se pierde al cerrar la app: el navegador lo suelta y no
+   lo recuerda. Al volver, la app lo intentaba una vez al arrancar, pero
+   Chrome no deja fijar la pantalla sin que la persona haya tocado algo antes
+   —es para que ninguna página se apodere de la pantalla sola—. El intento
+   fallaba en silencio y el candado quedaba dibujado como puesto, mintiendo.
+
+   Ahora, si al volver no se puede, se queda esperando y lo hace en cuanto se
+   toca cualquier cosa. Y mientras tanto el candado lo dice.
+   ========================================================== */
+let giroPendiente = false;
+
+async function reponerGiro() {
+  if (!D.config?.giroBloqueado || !puedeGirar()) return;
+  try {
+    const t = screen.orientation?.type || "";
+    if (t) await screen.orientation.lock(t.startsWith("landscape") ? "landscape" : "portrait");
+    if (giroPendiente) { giroPendiente = false; pintarPronto(); }
+  } catch {
+    if (!giroPendiente) { giroPendiente = true; pintarPronto(); }
+  }
+}
+
+/** Al primer toque después de volver, se repone. */
+function armarReposicionGiro() {
+  const alTocar = () => { if (giroPendiente) reponerGiro(); };
+  ["pointerdown", "touchstart", "keydown"].forEach(ev =>
+    window.addEventListener(ev, alTocar, { passive: true }));
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") reponerGiro();
+  });
+  window.addEventListener("focus", reponerGiro);
+  window.addEventListener("pageshow", reponerGiro);
 }
 
 async function aplicarGiro(avisando) {
@@ -5943,10 +5996,12 @@ function pintar() {
         <path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <div class="topbar-tit">${esc(v ? v.et : "Control Ganadero")}</div>
-    ${giroPosible() ? `<button class="topbar-giro ${D.config.giroBloqueado ? "on" : ""}" data-acc="giro"
+    ${giroPosible() ? `<button class="topbar-giro ${
+        D.config.giroBloqueado ? (giroPendiente ? "espera" : "on") : ""}" data-acc="giro"
       title="${D.config.giroBloqueado ? "Pantalla fija. Toca para permitir el giro"
                                       : "Toca para dejar la pantalla fija"}"
-      aria-label="Bloquear giro">${D.config.giroBloqueado ? "🔒" : "⟳"}</button>` : ""}
+      aria-label="Bloquear giro">${
+        D.config.giroBloqueado ? (giroPendiente ? "🔓" : "🔒") : "⟳"}</button>` : ""}
     <span class="ver-chip sync-chip ${estadoSync().clase}" data-acc="ver-estado"
       style="cursor:pointer">${estadoSync().corto}</span>
     ${nAlertas ? `<button class="topbar-alertas" data-ir="alertas">${nAlertas}</button>` : ""}
@@ -16559,6 +16614,7 @@ fetch("./manifest.webmanifest", { method: "GET" })
   .catch(() => setTimeout(() => avisar(
     "Falta manifest.webmanifest en el servidor: la app no se podrá instalar bien"), 2500));
 aplicarGiro(false);
+armarReposicionGiro();
 recuperarSesion();
 pintar();
 
