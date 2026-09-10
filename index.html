@@ -928,11 +928,17 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.85.0";
+const VERSION = "2.86.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.86.0", "10 sep 2026", [
+    "La tabla de resumen de Leche ense\u00f1a los 60 periodos m\u00e1s recientes, con un bot\u00f3n para " +
+      "ver el resto. Con la vista \u00abCada entrega\u00bb y a\u00f1os de historial pod\u00edan salir un millar " +
+      "de filas, y en un celular eso es un muro por el que hay que bajar sin fin.",
+    "Al cambiar de vista vuelve a empezar por las 60 recientes.",
+  ]],
   ["2.85.0", "10 sep 2026", [
     "En el celular, la ventana de <strong>pegar la leche del cuaderno</strong> no se pod\u00eda " +
       "desplazar: al escribir en el recuadro no se ve\u00eda lo que se estaba escribiendo. Ya se " +
@@ -6937,10 +6943,24 @@ function vLeche() {
       </div>
     </div>
 
+    ${(() => {
+      /* Con «Cada entrega» y años de historial esto puede ser un millar de
+         filas, y en un celular es un muro. Se enseñan las más recientes y se
+         puede abrir el resto. */
+      const TOPE = 60;
+      const recorta = res.length > TOPE && !V.lecheTodo;
+      const filas = recorta ? res.slice(0, TOPE) : res;
+      return `
+    ${recorta ? `<div class="nota" style="display:flex;align-items:center;gap:11px;
+        justify-content:space-between;flex-wrap:wrap">
+        <span>Se ven ${TOPE} de ${res.length} ${NOMBRE_EPOCA[epoca]}s, del más reciente
+        al más viejo.</span>
+        <button class="btn btn-sm" data-acc="leche-ver-todo">Ver los ${res.length}</button>
+      </div>` : ""}
     ${tabla([{et:"Periodo"},{et:"Litros",num:1},{et:"Días",num:1},
              {et:"Promedio diario",num:1},{et:"Vacas",num:1},{et:"Litros por vaca",num:1},
              ...(hayPrecio ? [{et:"Ingreso",num:1}] : [])],
-      res.map(r => `<tr>
+      filas.map(r => `<tr>
         <td>${esc(r.et)}</td>
         <td class="num">${litros(r.litros)}</td>
         <td class="num">${r.dias}</td>
@@ -6948,7 +6968,8 @@ function vLeche() {
         <td class="num">${r.vacas ? litros(r.vacas) : "—"}</td>
         <td class="num"><strong>${r.porVaca ? litros(r.porVaca) : "—"}</strong></td>
         ${hayPrecio ? `<td class="num">${pesos(r.ingreso)}</td>` : ""}
-      </tr>`).join(""))}
+      </tr>`).join(""))}`;
+    })()}
 
     ${V.finca === "todas" && misFincasObj().length > 1 ? (() => {
       const pf = resumenPorFinca(L);
@@ -14943,7 +14964,7 @@ function conectar() {
   });
 
   const sep = $("[data-f=epoca]");
-  if (sep) sep.onchange = (e) => { V.epoca = e.target.value; pintar(); };
+  if (sep) sep.onchange = (e) => { V.epoca = e.target.value; V.lecheTodo = false; pintar(); };
 
   const se = $("[data-f=especie]");
   if (se) se.onchange = (e) => { V.especie = e.target.value; pintar(); };
@@ -16143,6 +16164,7 @@ async function acciones(a) {
       : "La pantalla vuelve a girar sola");
     return;
   }
+  if (a === "leche-ver-todo") { V.lecheTodo = true; pintar(); return; }
   if (a === "volver-recorte") { volverAlRecorte(); pintar(); return; }
   if (a === "soltar-historiales") {
     let n = 0;
