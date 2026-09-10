@@ -928,11 +928,28 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.81.0";
+const VERSION = "2.83.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.83.0", "10 sep 2026", [
+    "La edad se dice de las dos maneras: <strong>\u00ab33 meses \u00b7 2 a\u00f1os y 9 meses\u00bb</strong>. En " +
+      "meses se compara con los par\u00e1metros de la app, que van en meses; en a\u00f1os se entiende " +
+      "de un vistazo.",
+    "Hasta los dos a\u00f1os solo se dicen los meses: \u00ab1 a\u00f1o y 6 meses\u00bb no aclara nada frente a " +
+      "\u00ab18 meses\u00bb, y en ese tramo la finca cuenta por meses.",
+    "Vale tambi\u00e9n en las alertas de \u00ablista para servir\u00bb y \u00abya deber\u00eda haber parido\u00bb.",
+  ]],
+  ["2.82.0", "10 sep 2026", [
+    "Revisi\u00f3n en busca de m\u00e1s p\u00e9rdidas silenciosas como la de la fecha de nacimiento.",
+    "Los seis bloques que aparecen y desaparecen seg\u00fan el caso \u2014nacido o comprado, activo o " +
+      "vendido, macho o hembra, palpaci\u00f3n pre\u00f1ada o vac\u00eda, parto o aborto, con historia " +
+      "previa o sin ella\u2014 desactivan ahora sus campos al esconderse. Antes solo se " +
+      "escond\u00edan, y un campo escondido se manda igual.",
+    "Revisado tambi\u00e9n que ning\u00fan ajuste de Configuraci\u00f3n se quede sin viajar a Firebase, y " +
+      "que ning\u00fan campo del formulario se pierda al guardar. No apareci\u00f3 nada m\u00e1s.",
+  ]],
   ["2.81.0", "10 sep 2026", [
     "La fecha de nacimiento SEGU\u00cdA sin guardarse. El arreglo de la 2.80 desactivaba los " +
       "campos escondidos, pero solo al cambiar de \u00abnaci\u00f3 en la finca\u00bb a \u00abcomprado\u00bb. Al " +
@@ -2886,6 +2903,22 @@ function enMesesDias(n) {
   if (resto === 0) return `${meses} ${meses === 1 ? "mes" : "meses"}`;
   return `${meses} ${meses === 1 ? "mes" : "meses"} y ${resto} ${resto === 1 ? "día" : "días"}`;
 }
+/**
+ * La edad dicha de las dos maneras: «33 meses · 2 años y 9 meses».
+ *
+ * En meses se compara con los parámetros de la app —edad de servicio, aviso
+ * de levante—, que van en meses. En años se entiende de un vistazo. Hasta los
+ * dos años solo se dicen los meses: «1 año y 6 meses» no aclara nada frente a
+ * «18 meses», y en ese tramo la finca cuenta por meses.
+ */
+function textoEdad(m) {
+  if (m === null || m === undefined) return "";
+  if (m < 24) return `${m} ${m === 1 ? "mes" : "meses"}`;
+  const a = Math.floor(m / 12), r = m % 12;
+  return `${m} meses · ${a} año${a === 1 ? "" : "s"}` +
+         (r ? ` y ${r} ${r === 1 ? "mes" : "meses"}` : "");
+}
+
 function mesesEntre(desde) {
   const d = dias(desde);
   return d === null ? null : Math.floor(d / 30.44);
@@ -4065,7 +4098,7 @@ function alertas(incluirHechas) {
     // 9. Lista para servir
     if (P.sirve && e.totalPartos === 0 && !e.ultInsem && e.edadMeses >= P.edadServicio) {
       push("media", `${P.et} lista para servir`,
-        `${e.edadMeses} meses de edad y sin ningún servicio registrado.`,
+        `${textoEdad(e.edadMeses)} de edad y sin ningún servicio registrado.`,
         550, `servir:${a.fechaNacimiento || ""}`);
     }
 
@@ -4082,7 +4115,7 @@ function alertas(incluirHechas) {
 
     if (enLevante && e.edadMeses !== null && e.edadMeses >= topeLevante) {
       push("media", "Ya debería haber parido",
-        `${e.edadMeses} meses de edad y sigue en levante, sin ningún parto registrado. ` +
+        `${textoEdad(e.edadMeses)} de edad y sigue en levante, sin ningún parto registrado. ` +
         `${e.ultInsem ? `Su último servicio fue el ${fmt(e.ultInsem.fecha)}. ` : "Nunca la han servido. "}` +
         `Si ya parió, regístralo y la app la pasa a ${adulta} sola.`,
         540, `levante:${a.fechaNacimiento || ""}`);
@@ -7250,7 +7283,7 @@ function fichaAnimal(id) {
             a.origen === "comprado"
               ? ` · comprado${a.fechaIngreso ? " el " + fmt(a.fechaIngreso) : ""}`
               : a.fechaNacimiento ? ` · nació el ${fmt(a.fechaNacimiento)}` : ""}${
-            e.edadMeses !== null ? ` · ${e.edadMeses} meses`
+            e.edadMeses !== null ? ` · ${textoEdad(e.edadMeses)}`
             : e.mesesSeguidos !== null && e.refEdad !== "nacimiento"
               ? ` · ${e.mesesSeguidos} meses en la finca (sin fecha de nacimiento)`
               : " · sin fecha de nacimiento"}</div>
@@ -7682,24 +7715,27 @@ function formAnimal(id, estadoIni) {
     const c = CATEGORIAS[valorCat()];
     // Solo hembras adultas de especie que se sirve: ni machos ni levante.
     const traeHistoria = !!c && c.sexo === "H" && c.etapa === "adulta";
-    hojaAbierta.querySelectorAll("[data-solo-vaca]").forEach(el => el.hidden = !traeHistoria);
+    esconder("[data-solo-vaca]", !traeHistoria);
     // La opción de no palpar aplica a cualquier hembra que se sirva.
     const sirve = !!c && c.sexo === "H" && c.etapa !== "cria";
-    hojaAbierta.querySelectorAll("[data-solo-hembra]").forEach(el => el.hidden = !sirve);
+    esconder("[data-solo-hembra]", !sirve);
   };
 
   const selEstado = hojaAbierta.querySelector("[data-estado]");
   const verSalida = () => {
     const fuera = selEstado.value !== "activo";
-    hojaAbierta.querySelectorAll("[data-solo-salida]").forEach(el => el.hidden = !fuera);
+    esconder("[data-solo-salida]", !fuera);
   };
   selEstado.onchange = verSalida;
   verSalida();
 
   const verOrigen = () => {
     const comprado = hojaAbierta.querySelector("[name=origen]:checked")?.value === "comprado";
-    hojaAbierta.querySelectorAll("[data-solo-nacido]").forEach(el => el.hidden = comprado);
-    hojaAbierta.querySelectorAll("[data-solo-comprado]").forEach(el => el.hidden = !comprado);
+    /* Un campo escondido se manda igual al guardar, y aquí hay dos que se
+       llaman igual —la fecha de nacimiento— porque se pregunta en los dos
+       casos. Al esconder un bloque, sus campos quedan desactivados. */
+    esconder("[data-solo-nacido]", comprado);
+    esconder("[data-solo-comprado]", !comprado);
   };
   hojaAbierta.querySelectorAll("[name=origen]").forEach(r => r.onchange = verOrigen);
   verOrigen();
@@ -8061,7 +8097,7 @@ function formPalpacion(id, anId) {
   };
   const prenada = () => {
     const r = hojaAbierta.querySelector("[name=resultado]:checked")?.value === "prenada";
-    hojaAbierta.querySelectorAll("[data-solo-prenada]").forEach(el => el.hidden = !r);
+    esconder("[data-solo-prenada]", !r);
     if (r) recalcular();
   };
   ["fecha","mesesGest","diasGest"].forEach(n =>
@@ -8099,7 +8135,7 @@ function formParto(id, anId) {
   // En un aborto no hay sexo de cría que registrar.
   const alternar = () => {
     const esParto = hojaAbierta.querySelector('[name=tipo]:checked').value === "parto";
-    hojaAbierta.querySelector("[data-solo-parto]").hidden = !esParto;
+    esconder("[data-solo-parto]", !esParto);
   };
   hojaAbierta.querySelectorAll('[name=tipo]').forEach(r => r.onchange = alternar);
   alternar();
