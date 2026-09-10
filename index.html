@@ -928,11 +928,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.80.0";
+const VERSION = "2.81.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.81.0", "10 sep 2026", [
+    "La fecha de nacimiento SEGU\u00cdA sin guardarse. El arreglo de la 2.80 desactivaba los " +
+      "campos escondidos, pero solo al cambiar de \u00abnaci\u00f3 en la finca\u00bb a \u00abcomprado\u00bb. Al " +
+      "abrir la ficha sin tocar ese interruptor \u2014que es lo normal\u2014 el bloque escondido " +
+      "llegaba con sus campos activos y volv\u00eda a pisar la fecha.",
+    "Ahora se arregla en la ra\u00edz: al guardar, la app lee los campos uno a uno y se salta " +
+      "los que est\u00e9n dentro de algo escondido. Da igual el orden en que est\u00e9n y da igual " +
+      "si se toc\u00f3 el interruptor o no.",
+  ]],
   ["2.80.0", "10 sep 2026", [
     "ARREGLO SERIO: la <strong>fecha de nacimiento no se guardaba</strong>. Hay dos campos con " +
       "ese nombre en la ficha del animal, uno en el bloque de \u00abnaci\u00f3 en la finca\u00bb y otro " +
@@ -15375,12 +15384,39 @@ function conectarHoja(d) {
   };
 }
 
+/**
+ * Recoge lo escrito en un formulario, SIN mirar lo que esté escondido.
+ *
+ * Un campo escondido se manda igual al guardar; el navegador no distingue. Y
+ * en esta app hay bloques que aparecen y desaparecen según el caso —nacido o
+ * comprado— con campos que se llaman igual porque preguntan lo mismo. El del
+ * bloque escondido, vacío, pisaba al bueno: se escribía la fecha de
+ * nacimiento, se guardaba, y quedaba en blanco.
+ *
+ * Se leen los campos uno a uno y se saltan los que estén dentro de algo
+ * escondido. Así da igual en qué orden estén en la página.
+ */
 function datos(f) {
   const o = {};
-  const fd = new FormData(f);
-  fd.forEach((v, k) => o[k] = typeof v === "string" ? v.trim() : v);
-  if (f.querySelector('[name=personas]')) o.personas = fd.getAll("personas");
-  if (f.querySelector('[name=fincas]')) o.fincas = fd.getAll("fincas");
+  const visible = (c) => !c.closest("[hidden]") && !c.disabled;
+
+  for (const c of f.querySelectorAll("input,select,textarea")) {
+    if (!c.name || !visible(c)) continue;
+    if (c.type === "checkbox") {
+      if (c.name === "personas" || c.name === "fincas") continue;   // se juntan abajo
+      o[c.name] = c.checked;
+    } else if (c.type === "radio") {
+      if (c.checked) o[c.name] = c.value;
+      else if (!(c.name in o)) o[c.name] = "";
+    } else {
+      o[c.name] = typeof c.value === "string" ? c.value.trim() : c.value;
+    }
+  }
+
+  const juntar = (n) => [...f.querySelectorAll(`[name=${n}]`)]
+    .filter(c => visible(c) && c.checked).map(c => c.value);
+  if (f.querySelector('[name=personas]')) o.personas = juntar("personas");
+  if (f.querySelector('[name=fincas]')) o.fincas = juntar("fincas");
   return o;
 }
 function error(f, msg) {
