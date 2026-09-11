@@ -949,11 +949,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.92.0";
+const VERSION = "2.93.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.93.0", "10 sep 2026", [
+    "En iPhone y iPad, el panel de instalar ense\u00f1a ahora los pasos de Apple en vez de un " +
+      "bot\u00f3n que all\u00ed nunca funciona. Apple no le da ese bot\u00f3n a las p\u00e1ginas web: se hace a " +
+      "mano con Compartir \u2192 A\u00f1adir a pantalla de inicio.",
+    "Y si se abre desde Chrome en un iPhone, avisa de que hay que usar Safari: Apple solo " +
+      "deja instalar desde ah\u00ed, aunque los dos navegadores se vean iguales.",
+    "Se advierten tambi\u00e9n las dos diferencias del iPhone: el candado del giro no funciona, " +
+      "y borrar la app de la pantalla de inicio borra lo guardado en el tel\u00e9fono \u2014los datos " +
+      "siguen en Firebase y vuelven al entrar\u2014.",
+  ]],
   ["2.92.0", "10 sep 2026", [
     "ARREGLO: al cerrar la app y volver a abrirla, el candado del giro sal\u00eda cerrado pero la " +
       "pantalla giraba igual. Fijar la pantalla se pierde al cerrar \u2014el navegador lo suelta " +
@@ -12413,6 +12423,18 @@ function generarArchivoPublicable() {
    INSTALACIÓN COMO APP
    ========================================================== */
 let promptInstalar = null;
+/** ¿Es un iPhone o un iPad? Ahí se instala de otra manera. */
+function esApple() {
+  const ua = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/.test(ua) ||
+         (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);   // iPad moderno
+}
+/** ¿Es Safari? En iPhone es el único que puede instalar. */
+function esSafari() {
+  const ua = navigator.userAgent || "";
+  return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome/.test(ua);
+}
+
 function instalada() {
   try {
     if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
@@ -14796,12 +14818,37 @@ function vConfiguracion() {
       puede instalar en la pantalla de inicio sin subir nada más. Queda con su propio ícono y
       abre sin la barra del navegador.</p>
 
-      ${instalada() ? `<div class="nota">Ya la estás usando como app instalada.</div>` : `
+      ${instalada() ? `<div class="nota">Ya la estás usando como app instalada.</div>`
+        : esApple() ? `
+        <h4 class="sub-titulo">En iPhone y iPad</h4>
+        ${!esSafari() ? `<div class="aviso"><strong>Abre esta página en Safari.</strong>
+          Apple solo deja instalar desde Safari; desde Chrome o cualquier otro navegador del
+          iPhone la opción no aparece, aunque se vean iguales.</div>` : ""}
+        <p class="expl">Aquí no hay botón de instalar: Apple no se lo da a las páginas web.
+        Se hace a mano, y son tres toques.</p>
+        <div class="sub-tabla"><table><tbody>
+          <tr><td><strong>1</strong></td><td>Toca el botón <strong>Compartir</strong>, el
+            cuadrado con la flecha hacia arriba. Está abajo en el centro, o arriba a la
+            derecha en el iPad.</td></tr>
+          <tr><td><strong>2</strong></td><td>Baja por la lista hasta
+            <strong>«Añadir a pantalla de inicio»</strong>.</td></tr>
+          <tr><td><strong>3</strong></td><td>Ponle el nombre que quieras y toca
+            <strong>Añadir</strong>.</td></tr>
+        </tbody></table></div>
+        <p class="expl">Queda con su ícono en la pantalla de inicio y abre sin la barra del
+        navegador, igual que cualquier otra app.</p>
+        <div class="nota" style="margin-top:12px">
+          <strong>Dos cosas que en iPhone no funcionan igual.</strong> Apple no deja que una
+          app instalada desde la web fije la orientación, así que el candado del giro no
+          hará nada. Y si borras la app de la pantalla de inicio, iOS borra también lo que
+          tuviera guardado en el teléfono; los datos siguen en Firebase y vuelven al entrar,
+          pero conviene saberlo.
+        </div>`
+        : `
         <div class="fila-btn" style="margin-bottom:14px">
           <button class="btn btn-firme" data-acc="instalar">Instalar la app</button>
         </div>
         <p class="expl">Si el botón no hace nada, tu navegador lo pide de otra forma:
-        en iPhone toca <strong>Compartir → Añadir a pantalla de inicio</strong>;
         en Android, el menú de tres puntos y <strong>Instalar aplicación</strong>.</p>
       `}
 
