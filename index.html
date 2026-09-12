@@ -518,6 +518,10 @@ button.sync:hover{text-decoration:underline;text-underline-offset:2px}
    ha concedido. Parpadea para que se vea que falta tocar algo. */
 .topbar-giro.espera{color:var(--chapeta);animation:latir 1.6s infinite}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.45}}
+/* Las dos fechas que más se miran, con un toque de color para encontrarlas
+   de un vistazo sin tener que leer las etiquetas. */
+.medidas li.destaca{background:rgba(var(--chapeta-rgb),.09);
+  border-left:3px solid var(--chapeta)}
 .quien-fijo{cursor:default}
 .quien-fijo:hover{background:none}
 
@@ -949,11 +953,40 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.93.0";
+const VERSION = "2.96.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.96.0", "10 sep 2026", [
+    "En la ficha del animal, <strong>fecha de parto</strong> y <strong>fecha de " +
+      "inseminaci\u00f3n</strong> pasan delante de todo lo dem\u00e1s, en grande y con un toque de " +
+      "color. Son las dos que primero se buscan al abrir una ficha y estaban en mitad de la " +
+      "lista. Debajo del servicio se dice cu\u00e1ntos d\u00edas hace.",
+    "Y en la tabla de Activos hay dos columnas nuevas con esas mismas fechas, para verlas " +
+      "sin abrir cada animal.",
+  ]],
+  ["2.95.0", "10 sep 2026", [
+    "ARREGLO en <strong>meses de gestaci\u00f3n</strong> y en todo lo que se dice en \u00abX meses y Y " +
+      "d\u00edas\u00bb. Los d\u00edas sueltos se contaban con los d\u00edas del mes en que EMPEZ\u00d3 la cuenta, no " +
+      "con los del mes que de verdad los contiene. De un 14 de febrero a un 12 de " +
+      "septiembre sal\u00edan 6 meses y 26 d\u00edas, cuando son 6 y 29: el tramo suelto va del 14 de " +
+      "agosto al 12 de septiembre, y agosto tiene 31 d\u00edas, no los 28 de febrero.",
+    "No era un detalle. La fecha de secado s\u00ed se calcula por calendario, as\u00ed que una vaca a " +
+      "la que le tocaba secarse HOY sal\u00eda con \u00abfaltan 4 d\u00edas para los 7 meses\u00bb cuando " +
+      "faltaban 2. Ahora las dos cuentas hablan el mismo idioma.",
+    "Afecta a meses de gestaci\u00f3n, meses vac\u00eda y a los textos de las alertas y las " +
+      "palpaciones. Los d\u00edas exactos y las fechas nunca estuvieron mal.",
+  ]],
+  ["2.94.0", "10 sep 2026", [
+    "ARREGLO GRAVE: lo apuntado sin se\u00f1al se perd\u00eda al cerrar y volver a abrir la app. " +
+      "Desde la 2.70 la carga inicial reemplaza cada tabla con lo que conteste Firebase, y " +
+      "sin se\u00f1al esa respuesta sale de la copia del aparato, que todav\u00eda no tiene lo " +
+      "reci\u00e9n escrito. Se borraba de la pantalla y, al no estar tampoco en la nube, se " +
+      "perd\u00eda de verdad.",
+    "Ahora se juntan las dos: lo que contesta Firebase manda, y lo que hay en el equipo y no " +
+      "viene de all\u00e1 se conserva. Lo borrado a prop\u00f3sito sigue borrado.",
+  ]],
   ["2.93.0", "10 sep 2026", [
     "En iPhone y iPad, el panel de instalar ense\u00f1a ahora los pasos de Apple en vez de un " +
       "bot\u00f3n que all\u00ed nunca funciona. Apple no le da ese bot\u00f3n a las p\u00e1ginas web: se hace a " +
@@ -2976,11 +3009,26 @@ function difCalendario(desde, hasta) {
               + (b.getMonth() - a.getMonth())
               - (b.getDate() < a.getDate() ? 1 : 0);
 
-  // Dias del mes en que cae la fecha de partida (equivale a EOMONTH(desde, 0)).
-  const finDeMes = new Date(a.getFullYear(), a.getMonth() + 1, 0).getDate();
-  const dias = b.getDate() >= a.getDate()
-    ? b.getDate() - a.getDate()
-    : finDeMes - a.getDate() + b.getDate();
+  /* Los días sueltos se cuentan desde el día del mes en que se cumplió el
+     último mes entero, no desde el mes de partida.
+
+     Antes se usaban los días del mes en que empezó todo. De un 14 de febrero
+     a un 12 de septiembre salían 6 meses y 26 días, cuando de verdad son 6
+     meses y 29: el tramo suelto va del 14 de agosto al 12 de septiembre, y
+     agosto tiene 31 días, no los 28 de febrero.
+
+     No era un detalle: la fecha de secado SÍ se calcula por calendario, así
+     que una vaca a la que le tocaba secarse hoy aparecía con «faltan 4 días
+     para los 7 meses» cuando faltaban 2. Ahora las dos cuentas hablan el
+     mismo idioma. */
+  const aux = new Date(a.getFullYear(), a.getMonth() + meses, 1);
+  const ultimo = new Date(aux.getFullYear(), aux.getMonth() + 1, 0).getDate();
+  aux.setDate(Math.min(a.getDate(), ultimo));      // igual que al sumar meses
+  // Las fechas de la app llevan hora, así que se comparan a mediodía las dos
+  // para que la resta no se vaya un día por el horario.
+  aux.setHours(12, 0, 0, 0);
+  const fin = new Date(b); fin.setHours(12, 0, 0, 0);
+  const dias = Math.round((fin - aux) / 86400000);
 
   return { meses: Math.max(0, meses), dias: Math.max(0, dias) };
 }
@@ -6168,8 +6216,29 @@ async function bajarDirecto(callado) {
         const fotos = new Map((D.animales || []).map(a => [a.id, a.foto]));
         docs.forEach(a => { a.foto = a.foto || fotos.get(a.id) || null; });
       }
-      D[col] = docs;
-      cuentas.push(`${col}: ${docs.length}`);
+
+      /* LO DE AQUÍ NO SE PIERDE.
+
+         Esto reemplazaba la tabla entera con lo que contestara Firebase. Sin
+         señal, lo que se acaba de apuntar todavía no ha llegado allá: la
+         respuesta viene de la copia guardada en el aparato y no lo trae. Se
+         borraba de la pantalla lo recién escrito, y al no estar tampoco en la
+         nube, se perdía de verdad.
+
+         Ahora se juntan: lo que contesta Firebase manda, y lo que hay aquí y
+         no viene de allá se conserva, salvo lo que se haya borrado a
+         propósito en este equipo. */
+      const traidos = new Map(docs.map(x => [x.id, x]));
+      const borrados = FB.borrados?.[col];
+      let rescatados = 0;
+      for (const local of (D[col] || [])) {
+        if (traidos.has(local.id) || borrados?.has(local.id)) continue;
+        traidos.set(local.id, local);
+        rescatados++;
+      }
+      D[col] = [...traidos.values()];
+      cuentas.push(`${col}: ${docs.length}` +
+        (rescatados ? ` (+${rescatados} sin subir)` : ""));
     } catch (e) {
       problemas.push(`${col}: ${e?.code || e?.message || e}`);
     }
@@ -6543,7 +6612,7 @@ function agrupado(items, fn) {
     const arr = por[f];
     const cerrada = !filtrando && !unaSola && !ABIERTAS_FINCA.set.has(f);
     return `<tr class="grupo ${cerrada ? "plegada" : ""}" data-finca-grupo="${esc(f)}">
-      <td colspan="10">
+      <td colspan="12">
         <span class="chevron">▾</span>
         <span class="nom-finca">${esc(f)}</span>
         <span class="n">${arr.length}</span>
@@ -6638,9 +6707,10 @@ function vActivos() {
 
   L.sort((x, y) => x.a.nombre.localeCompare(y.a.nombre));
 
-  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Etapa"},{et:"Meses vacía"},
-                {et:"Meses gestación"},{et:"Tiempo abierto",num:1},{et:"Alerta celo"},
-                {et:"Días entre servicios",num:1},{et:"Total partos",num:1}];
+  const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Etapa"},
+                {et:"Último parto"},{et:"Último servicio"},
+                {et:"Meses vacía"},{et:"Meses gestación"},{et:"Tiempo abierto",num:1},
+                {et:"Alerta celo"},{et:"Días entre servicios",num:1},{et:"Total partos",num:1}];
 
   return `
   <header class="cab"><div><h1>Activos</h1>
@@ -6656,6 +6726,8 @@ function vActivos() {
     return `<tr class="fila" data-abrir="${a.id}">
       ${celdaAnimal(a)}
       <td><span class="p ${et.cl}">${et.et}</span></td>
+      <td>${e.ultPartoReal ? fmtCorto(e.ultPartoReal.fecha) : '<span class="sub">—</span>'}</td>
+      <td>${e.ultInsem ? fmtCorto(e.ultInsem.fecha) : '<span class="sub">—</span>'}</td>
       <td>${e.mesesVacia}</td>
       <td>${e.gestacion}</td>
       <td class="num">${(() => {
@@ -7508,6 +7580,18 @@ function fichaAnimal(id) {
       </div>
 
       <ul class="medidas">
+        <!-- Las dos fechas que primero se buscan al abrir una ficha van
+             delante de todo lo demás. -->
+        <li class="destaca ${e.ultPartoReal && !e.ultPartoReal.previo ? "liga" : ""}" ${e.ultPartoReal && !e.ultPartoReal.previo ? `data-ev="parto:${e.ultPartoReal.id}"` : ""}>
+          <dt>Fecha parto</dt><dd class="g">${e.ultPartoReal ? fmt(e.ultPartoReal.fecha) : "—"}</dd>
+          ${e.abortosTrasParto ? `<span class="sub roja">y ${e.abortosTrasParto}
+            aborto${e.abortosTrasParto === 1 ? "" : "s"} después${
+            e.ultParto?.tipo === "aborto" ? `, el último el ${fmtCorto(e.ultParto.fecha)}` : ""}</span>`
+          : e.ultPartoReal ? '<span class="sub">último parto de verdad</span>' : ""}</li>
+        <li class="destaca ${e.ultInsem ? "liga" : ""}" ${e.ultInsem ? `data-ev="insem:${e.ultInsem.id}"` : ""}>
+          <dt>Fecha inseminación</dt><dd class="g">${e.ultInsem ? fmt(e.ultInsem.fecha) : "—"}</dd>
+          ${e.ultInsem ? `<span class="sub">hace ${dias(e.ultInsem.fecha)} días</span>` : ""}</li>
+
         <li><dt>Meses vacía</dt><dd class="g">${e.mesesVacia}</dd></li>
         <li><dt>Meses gestación</dt><dd class="g">${e.gestacion}</dd></li>
         <li><dt>Estado productivo</dt><dd>${et.et}${
@@ -7536,14 +7620,6 @@ function fichaAnimal(id) {
           <span class="sub">${historialRecortado() && !FB.historial?.has(id)
             ? `solo las de los últimos ${D.config.ventanaMeses || 24} meses`
             : "de toda su vida, sin reiniciar"}</span></li>
-        <li class="${e.ultPartoReal && !e.ultPartoReal.previo ? "liga" : ""}" ${e.ultPartoReal && !e.ultPartoReal.previo ? `data-ev="parto:${e.ultPartoReal.id}"` : ""}>
-          <dt>Fecha parto</dt><dd>${e.ultPartoReal ? fmt(e.ultPartoReal.fecha) : "—"}</dd>
-          ${e.abortosTrasParto ? `<span class="sub roja">y ${e.abortosTrasParto}
-            aborto${e.abortosTrasParto === 1 ? "" : "s"} después${
-            e.ultParto?.tipo === "aborto" ? `, el último el ${fmtCorto(e.ultParto.fecha)}` : ""}</span>`
-          : e.ultPartoReal ? '<span class="sub">último parto de verdad</span>' : ""}</li>
-        <li class="${e.ultInsem ? "liga" : ""}" ${e.ultInsem ? `data-ev="insem:${e.ultInsem.id}"` : ""}>
-          <dt>Fecha inseminación</dt><dd>${e.ultInsem ? fmt(e.ultInsem.fecha) : "—"}</dd></li>
         <li><dt>${e.motivoDias === "repeticion" ? "Días entre servicios" : "Días parto → servicio"}</dt>
           <dd>${e.diasEntreInsem !== null ? e.diasEntreInsem + " días" : "—"}</dd></li>
         ${(() => {
