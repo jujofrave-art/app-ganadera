@@ -953,11 +953,33 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.96.0";
+const VERSION = "2.98.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.98.0", "10 sep 2026", [
+    "Las letras duplicadas del buscador se atacan ahora de ra\u00edz, que es donde estaba el " +
+      "problema en el celular. Copiar el texto de un recuadro a otro nunca iba a ser " +
+      "perfecto: el teclado del celular guarda por dentro la palabra que est\u00e1 corrigiendo, " +
+      "y eso no se copia.",
+    "As\u00ed que si se est\u00e1 escribiendo, en vez de quedarse con el recuadro reci\u00e9n hecho la app " +
+      "pone de vuelta el de antes, tal cual, con su teclado y su estado intactos. Para quien " +
+      "escribe no ha pasado nada: el recuadro nunca se fue.",
+  ]],
+  ["2.97.0", "10 sep 2026", [
+    "ARREGLO: en los buscadores se duplicaban las letras. Al escribir \u00abiv\u00bb sal\u00eda \u00abiiv\u00bb.",
+    "Al repintar la pantalla, el recuadro de b\u00fasqueda se rehace de cero y se le pone el " +
+      "texto que la app ten\u00eda guardado. Si en esas d\u00e9cimas se escribe otra letra, el " +
+      "recuadro nuevo llegaba con el texto viejo y encima la letra reci\u00e9n tecleada.",
+    "Ahora manda siempre lo que hay escrito en el recuadro, no lo que la app crea recordar. " +
+      "Y el cursor se coloca contando las letras que quedan a su derecha, que es lo \u00fanico " +
+      "que no se mueve aunque se siga escribiendo.",
+    "Adem\u00e1s, mientras el teclado del celular est\u00e9 corrigiendo o prediciendo una palabra, la " +
+      "pantalla no se repinta: se espera a que termine. Repintar en mitad de una correcci\u00f3n " +
+      "hace que el teclado vuelva a meter lo que ten\u00eda a medias, y es la otra fuente de " +
+      "letras repetidas.",
+  ]],
   ["2.96.0", "10 sep 2026", [
     "En la ficha del animal, <strong>fecha de parto</strong> y <strong>fecha de " +
       "inseminaci\u00f3n</strong> pasan delante de todo lo dem\u00e1s, en grande y con un toque de " +
@@ -15222,19 +15244,71 @@ function conectar() {
      pare de escribir; mientras tanto no se toca nada de la pantalla. */
   const bi = $("[data-f=busca]");
   if (bi) {
+    /* LAS LETRAS SE DUPLICABAN AL ESCRIBIR.
+
+       Al repintar, el recuadro de búsqueda se rehace de cero y se le pone el
+       texto que la app tenía guardado. Si en esas décimas se escribe otra
+       letra, el recuadro nuevo llega con el texto viejo y encima la letra
+       recién tecleada: salía «iiv» al escribir «iv».
+
+       Ahora manda SIEMPRE lo que hay escrito en el recuadro, no lo que la app
+       crea recordar, y el cursor se coloca contando sobre ese texto. */
+    /* El teclado del celular corrige y predice mientras se escribe, y en ese
+       rato la letra aún no está asentada. Si la pantalla se repinta justo
+       entonces, el teclado vuelve a meter lo que tenía a medias y salen
+       letras repetidas. Mientras esté corrigiendo no se repinta: se espera. */
+    let componiendo = false;
+    bi.addEventListener("compositionstart", () => { componiendo = true; });
+    bi.addEventListener("compositionend", () => { componiendo = false; });
+
     bi.oninput = (e) => {
       V.busca = e.target.value;
       clearTimeout(_tBusca);
-      _tBusca = setTimeout(() => {
-        const activo = document.activeElement === bi;
-        const pos = activo ? bi.selectionStart : null;
+      _tBusca = setTimeout(function repintar() {
+        if (componiendo) { _tBusca = setTimeout(repintar, 150); return; }
+        return (() => {
+        const viejo = $("[data-f=busca]");
+        const activo = document.activeElement === viejo;
+        const texto = viejo ? viejo.value : V.busca;
+        // Cuántas letras quedan a la derecha del cursor: eso no cambia aunque
+        // se escriba más mientras se repinta.
+        const derecha = activo && viejo ? texto.length - (viejo.selectionStart ?? texto.length) : 0;
+
+        V.busca = texto;
         pintar();
+
         const n = $("[data-f=busca]");
-        if (activo && n) {
-          if (n !== bi) n.focus({ preventScroll: true });
+        if (!n) return;
+
+        /* EL RECUADRO VIVO NO SE TIRA: SE MUDA.
+
+           Copiar el texto de un recuadro a otro nunca va a ser perfecto,
+           porque el teclado del celular guarda por dentro la palabra que está
+           corrigiendo y eso no se copia. Así que si se estaba escribiendo, en
+           vez de quedarse con el recuadro recién hecho se pone de vuelta el
+           de antes, tal cual, con su teclado y su estado intactos. Para la
+           persona no ha pasado nada. */
+        if (activo && viejo && n !== viejo) {
+          const cajaVieja = viejo.closest(".busca");
+          const cajaNueva = n.closest(".busca");
+          if (cajaVieja && cajaNueva) {
+            cajaNueva.replaceWith(cajaVieja);       // vuelve el de verdad
+            V.busca = viejo.value;
+            viejo.focus({ preventScroll: true });
+            return;
+          }
+        }
+
+        // Si se siguió escribiendo durante el repintado, eso es lo bueno.
+        if (n.value !== texto && n.value) V.busca = n.value;
+        else if (n.value !== texto) n.value = texto;
+        if (activo) {
+          if (n !== viejo) n.focus({ preventScroll: true });
+          const pos = Math.max(0, n.value.length - derecha);
           try { n.setSelectionRange(pos, pos); } catch {}
         }
-      }, 260);
+        })();
+      }, 320);
     };
     const equis = bi.parentNode.querySelector("[data-busca-limpiar]");
     const verEquis = () => { if (equis) equis.hidden = !bi.value; };
