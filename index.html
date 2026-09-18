@@ -953,11 +953,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.99.0";
+const VERSION = "3.0.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["3.0.0", "18 sep 2026", [
+    "ENCONTRADOS LOS ERRORES ROJOS DE LA CONSOLA, uno por cada tabla. La app guarda varias " +
+      "cajas internas \u2014lo que est\u00e1 sin confirmar, el espejo de lo subido, lo borrado\u2014 y " +
+      "algunas no se creaban hasta la primera vez que se suben cambios.",
+    "Pero las respuestas de Firebase pueden llegar ANTES de que se haya subido nada nunca, " +
+      "al abrir la app reci\u00e9n instalada. La caja no exist\u00eda todav\u00eda y saltaba el error, " +
+      "una vez por cada una de las once tablas.",
+    "No romp\u00eda la app \u2014por eso todo se ve\u00eda bien\u2014 pero llenaba la consola de rojo y tapaba " +
+      "los errores que s\u00ed importan. Ahora nacen todas al arrancar, vac\u00edas pero existiendo.",
+  ]],
   ["2.99.0", "18 sep 2026", [
     "Se quitaron unos errores que sal\u00edan en la consola del navegador. Las funciones que " +
       "mantienen los permisos y la lista de correos corren dentro de las respuestas de " +
@@ -6278,7 +6288,7 @@ async function bajarDirecto(callado) {
   // Se rehacen los espejos para que lo bajado no se vuelva a subir entero.
   FB.espejo = {};
   for (const col of COLECCIONES) {
-    FB.espejo[col] = {};
+    (FB.espejo ||= {})[col] = {};
     for (const d of (D[col] || [])) FB.espejo[col][d.id] = firmaRemota(col, d);
     FB.leidas = (FB.leidas || new Set()).add(col);
   }
@@ -11185,10 +11195,23 @@ const AJUSTES = {
 const puedeEscribirAjustes = (cual) =>
   cual === "finca" ? manda() : (esSuper() || rolActual() === "dueno");
 
+/* AQUÍ ESTABAN LOS ERRORES ROJOS DE LA CONSOLA.
+
+   Varias de estas cajas se creaban más tarde, dentro de la función que sube
+   los cambios. Pero las respuestas de Firebase pueden llegar ANTES de que se
+   haya subido nada nunca —al abrir la app recién instalada, por ejemplo—, y
+   entonces la caja no existía todavía: «no se puede leer “fincas” de algo que
+   no existe», y lo mismo para cada una de las once tablas.
+
+   No rompía la app, pero llenaba la consola de rojo y tapaba los errores que
+   sí importan. Ahora nacen todas aquí, vacías pero existiendo. */
 const FB = {
   mods: null, app: null, db: null, auth: null, user: null,
   estado: "apagado",   // apagado | cargando | listo | error
-  error: "", escuchas: [], espejo: {}, aplicando: false, pendiente: null,
+  error: "", escuchas: [], aplicando: false, pendiente: null,
+  espejo: {}, cajones: {}, sinConfirmar: {}, borrados: {}, fallos: {},
+  espejoUsuarios: {}, usuariosRemotos: {}, vacios: {}, ultimaResp: {},
+  leidas: new Set(), fincasRemotas: [],
 };
 
 const SDK = "https://www.gstatic.com/firebasejs/10.13.0/";
@@ -11634,7 +11657,7 @@ async function escucharColecciones(mias) {
         // Lo que se creó aquí y todavía no aparece en la consulta se conserva.
         // Sin esto, un registro hecho sin señal podría desaparecer de la
         // pantalla antes de haber llegado a Firestore.
-        const propios = FB.sinConfirmar[nombre] || new Set();
+        const propios = FB.sinConfirmar?.[nombre] || new Set();
         for (const local of (D[nombre] || [])) {
           if (!vistos.has(local.id) && propios.has(local.id)) docs.push(local);
         }
@@ -11662,7 +11685,7 @@ async function escucharColecciones(mias) {
         }
         if (FB.vacios?.[nombre] && docs.length) delete FB.vacios[nombre];
 
-        FB.espejo[nombre] = {};
+        (FB.espejo ||= {})[nombre] = {};
         docs.forEach(d => { FB.espejo[nombre][d.id] = firmaRemota(nombre, d); });
         D[nombre] = docs;
         /* Los datos cambiaron: las cachés de búsqueda, de estado y de vacas en
@@ -12122,7 +12145,7 @@ async function sincronizarUsuarios() {
     const correo = p.correo.toLowerCase();
 
     // Lo que hay hoy en su permiso, para no borrar a ciegas.
-    if (!FB.usuariosRemotos[correo]) {
+    if (!(FB.usuariosRemotos ||= {})[correo]) {
       try {
         const s = await fs.getDoc(fs.doc(FB.db, "usuarios", correo));
         FB.usuariosRemotos[correo] = s.exists() ? s.data() : {};
@@ -12140,7 +12163,7 @@ async function sincronizarUsuarios() {
 
     const doc = { rol: p.rol, fincas, persona: p.id, activo: p.activo !== false };
     const firma = JSON.stringify(doc);
-    if (FB.espejoUsuarios[correo] === firma) continue;   // nada cambió
+    if ((FB.espejoUsuarios ||= {})[correo] === firma) continue;   // nada cambió
 
     try {
       await fs.setDoc(fs.doc(FB.db, "usuarios", correo), doc, { merge: true });
@@ -12321,7 +12344,7 @@ async function manejarFalloSubida(col, tanda, e) {
     try {
       const { id: _, ...resto } = paraRemoto(col, doc);
       await fs.setDoc(fs.doc(FB.db, col, id), limpiarParaFirestore(resto));
-      delete (FB.espejo[col] || {})[id];   // sí entró: se reintentará bien
+      delete (FB.espejo?.[col] || {})[id];   // sí entró: se reintentará bien
     } catch (e2) {
       culpable = doc;
       motivo = String(e2?.message || e2);
@@ -12358,7 +12381,7 @@ async function empujar() {
     // Sin haber leído la tabla no hay con qué comparar: todo parecería nuevo
     // y se mandaría encima de lo que haya en el servidor.
     if (!FB.leidas?.has(nombre)) continue;
-    const espejo = FB.espejo[nombre] || {};
+    const espejo = FB.espejo?.[nombre] || {};
     const vistos = new Set();
     for (const doc of (D[nombre] || [])) {
       vistos.add(doc.id);
