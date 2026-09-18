@@ -953,11 +953,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "2.98.0";
+const VERSION = "2.99.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["2.99.0", "18 sep 2026", [
+    "Se quitaron unos errores que sal\u00edan en la consola del navegador. Las funciones que " +
+      "mantienen los permisos y la lista de correos corren dentro de las respuestas de " +
+      "Firebase, que llegan cuando quieren; si en ese instante los datos se estaban " +
+      "rehaciendo \u2014al cambiar de cuenta, al restaurar una copia\u2014 la tabla pod\u00eda no existir " +
+      "todav\u00eda y el recorrido reventaba.",
+    "No romp\u00eda nada visible, pero ensuciaba la consola y esconde los errores que s\u00ed " +
+      "importan. Ahora esperan a que los datos est\u00e9n.",
+  ]],
   ["2.98.0", "10 sep 2026", [
     "Las letras duplicadas del buscador se atacan ahora de ra\u00edz, que es donde estaba el " +
       "problema en el celular. Copiar el texto de un recuadro a otro nunca iba a ser " +
@@ -11595,6 +11604,10 @@ async function escucharColecciones(mias) {
           return;
         }
 
+        // Si los datos se están rehaciendo justo ahora, esta respuesta no
+        // tiene dónde ir. Se deja pasar: la siguiente la traerá igual.
+        if (!D) return;
+
         FB.aplicando = true;
 
         ((FB.cajones ||= {})[nombre] ||= {})[via] = snap.docs
@@ -12013,6 +12026,7 @@ async function publicarCorreos(forzado) {
   if (!forzado && !FB.fincasCargadas) return { ok: false, por: "Todavía no han bajado las fincas." };
   if (equipoEnBlanco()) return { ok: false, por: "Este equipo está en blanco: no escribe nada compartido." };
   const { fs } = FB.mods;
+  if (!D?.personas) return { ok: false, por: "Los datos aún no están listos." };
   const activos = D.personas.filter(p => p.correo && p.activo !== false);
   // Nunca se publica una lista vacía: dejaría a todo el mundo sin poder
   // pedir acceso, y una lista vacía casi siempre es un fallo de este equipo.
@@ -12074,6 +12088,7 @@ const NO_REGISTRADO = (c) =>
  * que se vacían— y eso sí que no tiene vuelta atrás.
  */
 function equipoEnBlanco() {
+  if (!D) return false;            // todavía no hay datos: no se juzga nada
   return !!FB.user
       && (FB.fincasRemotas || []).length > 0
       && (D.fincas || []).length === 0
@@ -12088,6 +12103,13 @@ async function sincronizarUsuarios() {
   if (!FB.db || !FB.user || !manda()) return;
   if (!FB.fincasCargadas) return;          // sin la lista de fincas no se toca nada
   const { fs } = FB.mods;
+
+  /* Estas funciones corren dentro de las respuestas de Firebase, que llegan
+     cuando quieren. Si en ese instante los datos se están rehaciendo —al
+     cambiar de cuenta, al restaurar una copia— la tabla puede no existir
+     todavía, y el recorrido revienta con un error en la consola. No es grave,
+     pero ensucia y esconde los errores que sí importan. */
+  if (!D?.fincas || !D?.personas) return;
 
   const visibles = new Set(D.fincas.map(f => f.id));
   const borradas = FB.borrados?.fincas || new Set();
@@ -12145,6 +12167,7 @@ async function retirarAccesos() {
   if (!FB.db || !FB.user || !esSuper() || equipoEnBlanco()) return;
   const { fs } = FB.mods;
 
+  if (!D?.personas) return;
   const vivos = new Set((D.personas || [])
     .filter(p => p.correo && p.activo !== false)
     .map(p => p.correo.toLowerCase()));
