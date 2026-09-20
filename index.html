@@ -953,11 +953,47 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "3.0.0";
+const VERSION = "3.3.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["3.3.0", "18 sep 2026", [
+    "Una alerta cumplida <strong>desaparece en el momento</strong>, no a los quince d\u00edas. Si " +
+      "la vaca ya se sirvi\u00f3 o ya pari\u00f3, ese aviso no tiene nada que hacer en la app, ni " +
+      "siquiera en \u00abHechas\u00bb: es informaci\u00f3n que ya no sirve.",
+    "Se comporta igual que las pendientes, que se van solas al cumplirse su plazo sin que " +
+      "nadie las toque.",
+    "Si alguien prefiere repasar lo despachado, en Par\u00e1metros se pueden dejar unos d\u00edas de " +
+      "gracia. De f\u00e1brica son 0.",
+    "La limpieza no corre con los datos a medio cargar: en ese momento media app parece no " +
+      "tener alertas, y borrar ah\u00ed har\u00eda reaparecer como pendientes cosas ya despachadas.",
+  ]],
+  ["3.2.0", "18 sep 2026", [
+    "Las alertas ya resueltas <strong>desaparecen del todo</strong>, no solo de las " +
+      "pendientes. Cada vez que se pulsa \u00abListo\u00bb quedaba una marca pegada a la ficha del " +
+      "animal, y ah\u00ed se quedaba para siempre: la pesta\u00f1a de Hechas iba llen\u00e1ndose de cosas " +
+      "de hace meses y cada animal cargaba marcas viejas que adem\u00e1s viajan a Firebase.",
+    "Ahora, pasados 15 d\u00edas, una alerta resuelta desaparece de Hechas y su marca se borra " +
+      "de la ficha. El plazo se cambia en Configuraci\u00f3n \u2192 Par\u00e1metros, y con 0 se guardan " +
+      "todas como antes.",
+    "Las que siguen haciendo falta no se tocan: si la alerta sigue viva, su marca es lo que " +
+      "la mantiene fuera de las pendientes.",
+  ]],
+  ["3.1.0", "18 sep 2026", [
+    "ABRE R\u00c1PIDO AUNQUE LLEVES D\u00cdAS SIN ENTRAR. La carga inicial ped\u00eda siempre al servidor. " +
+      "Con buena se\u00f1al no se nota, pero tras unos d\u00edas sin abrir hay que bajarlo todo antes " +
+      "de ver nada, y en el corral con dos rayitas son varios segundos de pantalla vac\u00eda. " +
+      "Sin se\u00f1al, la espera entera hasta que la petici\u00f3n se rinde.",
+    "Ahora se lee primero la copia que el tel\u00e9fono ya tiene, que es inmediata, y solo se va " +
+      "al servidor cuando aqu\u00ed no hay nada. Lo que haya cambiado en esos d\u00edas llega despu\u00e9s " +
+      "por su cuenta, sin que nadie espere.",
+    "Y la app le pide al navegador que <strong>no borre lo guardado</strong>. Chrome puede " +
+      "tirar los datos de un sitio cuando le falta espacio o cuando lleva d\u00edas sin usarse, y " +
+      "eso deja la app sin copia: al volver hay que bajarlo todo otra vez y sin se\u00f1al no " +
+      "abre nada. En la pantalla de estado se ve si el permiso est\u00e1 dado.",
+    "El bot\u00f3n \u00abTraer todo de Firebase\u00bb s\u00ed sigue yendo al servidor: para eso se pulsa.",
+  ]],
   ["3.0.0", "18 sep 2026", [
     "ENCONTRADOS LOS ERRORES ROJOS DE LA CONSOLA, uno por cada tabla. La app guarda varias " +
       "cajas internas \u2014lo que est\u00e1 sin confirmar, el espejo de lo subido, lo borrado\u2014 y " +
@@ -3695,6 +3731,7 @@ function migrar(d) {
   d.config.ventanaMeses ??= 24;
   d.config.palpaSegun ??= "todas";   // a quién se le pide palpación
   d.config.avisarSecadoSinRegistrar ??= false;
+  d.config.diasHechas ??= 0;         // días de gracia de las hechas (0 = se van ya)
   d.config.avisoSecadoDias ??= 7;    // días de antelación del aviso de secado
   d.config.diasAvisoSecar ??= 4;     // y cuándo se apaga, pasada la fecha
   d.config.diasAvisoPreparto ??= 15; // cuánto dura el aviso de cuido preparto
@@ -4499,14 +4536,71 @@ function descripcionAlertaHecha(clave) {
  * pasaba de «un mes sin caloriarse» a «dos meses», la primera dejaba de
  * generarse y el «Listo» que alguien le dio no se veía en ninguna parte.
  */
+/**
+ * Tira las marcas de «hecho» que ya no significan nada.
+ *
+ * Cada vez que se pulsa «Listo» queda una marca pegada a la ficha del
+ * animal. Mientras la alerta sigue viva, la marca sirve: es lo que la
+ * mantiene fuera de las pendientes. Pero cuando la situación se resuelve
+ * —la vaca parió, la sirvieron, la secaron— la alerta deja de existir y la
+ * marca se queda ahí para siempre, engordando la ficha y llenando la
+ * pestaña de Hechas de cosas de hace meses.
+ *
+ * Se borran las que ya no corresponden a ninguna alerta viva y llevan más de
+ * unos días puestas. El plazo evita tirar una marca recién puesta por un
+ * cambio momentáneo de los datos.
+ */
+function limpiarHechas() {
+  /* Con los datos a medio cargar, media app parece no tener alertas. Borrar
+     marcas en ese momento haría reaparecer como pendientes cosas que ya se
+     despacharon. Se espera a que haya datos de verdad. */
+  if (!D?.animales?.length || equipoEnBlanco()) return 0;
+
+  const gracia = Math.max(0, Number(D.config?.diasHechas ?? 0));
+
+  const vivas = new Set();
+  for (const x of alertas(true)) vivas.add(x.animalId + "|" + x.clave);
+
+  let n = 0;
+  for (const a of (D.animales || [])) {
+    if (!a.hechas) continue;
+    for (const [clave, marca] of Object.entries(a.hechas)) {
+      if (vivas.has(a.id + "|" + clave)) continue;        // sigue haciendo falta
+      if (gracia) {
+        const cuando = fechaHecha(marca);
+        const edad = cuando ? dias(cuando) : null;
+        if (edad !== null && edad >= 0 && edad < gracia) continue;   // aún en plazo
+      }
+      delete a.hechas[clave]; n++;
+    }
+    if (a.hechas && !Object.keys(a.hechas).length) delete a.hechas;
+  }
+  if (n) { guardar(); console.log(`Alertas hechas limpiadas: ${n}`); }
+  return n;
+}
+
 function alertasHechas() {
   const vivas = new Map();
   for (const x of alertas(true)) if (x.hecha) vivas.set(x.animalId + "|" + x.clave, x);
+
+  /* En Hechas solo se enseña lo que TODAVÍA hace falta. Una alerta cumplida
+     —la vaca parió, la sirvieron— ya no aporta nada: desaparece igual que
+     desaparecen las pendientes cuando se les cumple el plazo.
+
+     Con un plazo de gracia puesto en Configuración se conservan unos días,
+     por si alguien quiere repasar lo despachado. De fábrica es 0: se van en
+     el momento. */
+  const gracia = Math.max(0, Number(D.config?.diasHechas ?? 0));
 
   const out = [];
   const lista = (typeof misAnimales === "function") ? misAnimales() : D.animales;
   for (const a of lista.filter(x => x.estado === "activo")) {
     for (const [clave, fecha] of Object.entries(a.hechas || {})) {
+      if (!vivas.has(a.id + "|" + clave)) {
+        if (!gracia) continue;                      // cumplida: fuera
+        const edad = dias(fechaHecha(fecha));
+        if (edad === null || edad >= gracia) continue;
+      }
       const viva = vivas.get(a.id + "|" + clave);
       out.push(viva || {
         animalId: a.id, nombre: a.nombre, chapeta: a.chapeta, fincaId: a.fincaId,
@@ -6225,7 +6319,7 @@ function pareceVaciada() {
  * pregunta a Firestore, se mete lo que venga y se guarda. Si los datos están
  * en la nube, aquí aparecen.
  */
-async function bajarDirecto(callado) {
+async function bajarDirecto(callado, deServidor) {
   if (!FB.db || !FB.user) { if (!callado) alert("No hay conexión con Firebase."); return; }
   const { fs } = FB.mods;
   const mias = (FB.fincasRemotas || []).filter(Boolean);
@@ -6249,7 +6343,24 @@ async function bajarDirecto(callado) {
         q = todo ? fs.collection(FB.db, col)
                  : fs.query(fs.collection(FB.db, col), fs.where("fincaId", "in", trozo));
       }
-      const snap = await fs.getDocs(q);
+      /* ABRIR RAPIDO AUNQUE LLEVE DIAS SIN ENTRAR.
+
+         Esto pedía siempre al servidor. Con buena señal no se nota, pero
+         después de unos días sin abrir la app hay que volver a bajarlo todo
+         antes de ver nada, y en el corral con dos rayitas eso son varios
+         segundos mirando una pantalla vacía. Y sin señal, la espera entera
+         hasta que la petición se rinde.
+
+         Ahora se lee primero la copia que el teléfono ya tiene, que es
+         inmediata, y solo se va al servidor cuando aquí no hay nada. Lo que
+         haya cambiado en estos días llega después por su cuenta, sin que
+         nadie espere. */
+      let snap = null;
+      if (!deServidor && fs.getDocsFromCache) {
+        try { snap = await fs.getDocsFromCache(q); } catch {}
+        if (snap && snap.empty) snap = null;        // aquí no había nada
+      }
+      if (!snap) snap = await fs.getDocs(q);
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       // Las fotos que haya en este equipo se conservan.
@@ -6327,7 +6438,7 @@ function programarRescate() {
     if (FB.rescateHecho || !equipoEnBlanco()) return;
     FB.rescateHecho = true;
     console.warn("Rescate: el equipo sigue en blanco. Bajando por la vía directa.");
-    try { await bajarDirecto(true); } catch (e) { console.warn("rescate:", e); }
+    try { await bajarDirecto(true, true); } catch (e) { console.warn("rescate:", e); }
   }, 8000);
 }
 
@@ -6353,6 +6464,7 @@ function hojaEstado() {
         <div><dt>Fincas autorizadas</dt><dd>${(FB.fincasRemotas || []).length}</dd></div>
         <div><dt>Fincas que se ven</dt><dd>${(D.fincas || []).length}</dd></div>
         <div><dt>Sin subir</dt><dd>${FB.sinSubir || 0}</dd></div>
+        <div><dt>Copia protegida</dt><dd>${FB.almacenFirme ? "sí" : "no"}</dd></div>
       </dl>
 
       ${!(FB.fincasRemotas || []).length ? `<div class="aviso">Tu permiso no tiene ninguna
@@ -6693,6 +6805,7 @@ function cuerpo(v) {
 
 /* ---------- ALERTAS ---------- */
 function vAlertas() {
+  limpiarHechas();          // se barre lo viejo cada vez que se abre
   const todas = alertas(true);
   const pend = todas.filter(x => !x.hecha);
   const hechas = alertasHechas();
@@ -11184,7 +11297,7 @@ const COLECCIONES = ["fincas", "personas", "animales", "inseminaciones",
 const AJUSTES = {
   // Reglas de manejo. Las cambia quien manda en la finca.
   finca: ["params", "palpaSegun", "avisarSecadoSinRegistrar", "avisoSecadoDias",
-          "diasAvisoSecar", "diasAvisoPreparto"],
+          "diasAvisoSecar", "diasAvisoPreparto", "diasHechas"],
   // Permisos y propiedad de la base. Solo dueño o superadministrador.
   mando: ["permisos", "accesoConfig", "limites", "maestro",
           "borrar", "vistasRol", "panelesRol", "fichaPropia"],
@@ -12577,6 +12690,29 @@ function esApple() {
 function esSafari() {
   const ua = navigator.userAgent || "";
   return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome/.test(ua);
+}
+
+/**
+ * Pedirle al navegador que NO borre lo guardado.
+ *
+ * Chrome puede tirar los datos de un sitio cuando le falta espacio o cuando
+ * lleva días sin usarse. Si eso pasa, la app pierde la copia del teléfono:
+ * al volver hay que bajarlo todo otra vez, y sin señal no abre nada. Con el
+ * permiso de almacenamiento persistente, el navegador se compromete a no
+ * borrarlo salvo que la persona lo pida.
+ *
+ * Se concede solo cuando el navegador entiende que la app se usa de verdad
+ * —instalada en la pantalla de inicio, sobre todo—, así que se pide cada
+ * arranque hasta que lo dé.
+ */
+async function pedirAlmacenamientoFirme() {
+  try {
+    if (!navigator.storage?.persist) return null;
+    if (await navigator.storage.persisted()) { FB.almacenFirme = true; return true; }
+    const dado = await navigator.storage.persist();
+    FB.almacenFirme = dado;
+    return dado;
+  } catch { return null; }
 }
 
 function instalada() {
@@ -14702,6 +14838,15 @@ function vConfiguracion() {
                se apaga. Si ya la secaste, tenerla ahí solo tapa las nuevas. La vaca pasa a
                Seca igual: eso lo decide la ventana, no la alerta.`
             : "Sin apagado: la alerta dura toda la ventana de secado."}</span></div>
+        <div class="campo"><label>Dejar ver las hechas … días más</label>
+          <input type="number" name="diasHechas" min="0" max="120"
+            value="${D.config.diasHechas ?? 0}" data-aviso-cierre="diasHechas">
+          <span class="ayuda">${Number(D.config.diasHechas ?? 0)
+            ? `Una alerta cumplida se queda ${D.config.diasHechas} días más en «Hechas»,
+               por si quieres repasar lo despachado. Luego desaparece y su marca se borra de
+               la ficha.`
+            : `Con 0, una alerta cumplida desaparece en el momento: si la vaca ya se sirvió
+               o ya parió, ese aviso no tiene nada que hacer en la app. Es lo recomendado.`}</span></div>
         <div class="campo"><label>Dejar de avisar del cuido preparto a los … días</label>
           <input type="number" name="diasAvisoPreparto" min="0" max="60"
             value="${D.config.diasAvisoPreparto ?? 15}" data-aviso-cierre="diasAvisoPreparto">
@@ -16671,7 +16816,8 @@ async function acciones(a) {
     }
     return;
   }
-  if (a === "bajar-directo") { cerrarHoja(); FB.rescateHecho = true; await bajarDirecto(); return; }
+  // El botón de la pantalla de estado sí va al servidor: para eso se pulsa.
+  if (a === "bajar-directo") { cerrarHoja(); FB.rescateHecho = true; await bajarDirecto(false, true); return; }
   if (a === "rebajar-todo") {
     /* Suelta todas las escuchas y las rehace desde cero, olvidando las cajas
        intermedias. Es la salida cuando la app se quedó sin datos que sí
@@ -16857,6 +17003,7 @@ fetch("./manifest.webmanifest", { method: "GET" })
   .catch(() => setTimeout(() => avisar(
     "Falta manifest.webmanifest en el servidor: la app no se podrá instalar bien"), 2500));
 aplicarGiro(false);
+pedirAlmacenamientoFirme();
 armarReposicionGiro();
 recuperarSesion();
 pintar();
