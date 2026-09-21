@@ -953,11 +953,20 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "3.5.0";
+const VERSION = "3.6.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["3.6.0", "18 sep 2026", [
+    "El plan del mes distingue ahora <strong>\u00abno hab\u00eda ninguna\u00bb</strong> de <strong>\u00abya las " +
+      "secaste todas\u00bb</strong>. La primera es una casualidad del calendario; la segunda es " +
+      "trabajo hecho. Decir lo mismo en los dos casos hace dudar de si la app se enter\u00f3.",
+    "Cuando quedan pendientes, el detalle a\u00f1ade cu\u00e1ntas van ya secadas este mes.",
+    "Y en Secados hay un bloque <strong>\u00abCu\u00e1ntas por mes\u00bb</strong>: los \u00faltimos 18 meses con " +
+      "su cuenta y el desglose por motivo. Contar a ojo en una lista de a\u00f1os no es manera, " +
+      "y \u00abcu\u00e1ntas sequ\u00e9 en julio\u00bb es una pregunta que se hace sola al comprar la droga.",
+  ]],
   ["3.5.0", "18 sep 2026", [
     "ARREGLO: la app se quedaba pegada en el logo al abrirla tras varios d\u00edas, y peor sin " +
       "internet. Al arrancar corren varias tareas una detr\u00e1s de otra \u2014el giro de pantalla, " +
@@ -4512,10 +4521,21 @@ function alertas(incluirHechas) {
   const nombreMes = `${MESES[hoy.getMonth()]} de ${hoy.getFullYear()}`;
 
   const porFinca = new Map();
+  const hechasMes = new Map();        // las que ya se secaron este mes
   for (const a of visibles.filter(x => x.estado === "activo")) {
     const e = estado(a);
-    if (!par(a).lechero || !e.prenada || !e.fechaSecado) continue;
-    if (e.secadoActual) continue;                       // ya la secaron
+    if (!par(a).lechero) continue;
+
+    /* Las ya secadas este mes se cuentan aparte. No es lo mismo «no había
+       ninguna» que «ya las secaste todas»: la primera es una casualidad del
+       calendario y la segunda es trabajo hecho. Decir lo mismo en los dos
+       casos hace dudar de si la app se enteró. */
+    if (e.secadoActual && e.secadoActual.fecha >= mesIni && e.secadoActual.fecha <= mesFin) {
+      hechasMes.set(a.fincaId, (hechasMes.get(a.fincaId) || 0) + 1);
+      continue;
+    }
+    if (e.secadoActual) continue;
+    if (!e.prenada || !e.fechaSecado) continue;
     if (e.fechaSecado < mesIni || e.fechaSecado > mesFin) continue;
     (porFinca.get(a.fincaId) || porFinca.set(a.fincaId, []).get(a.fincaId))
       .push({ a, e });
@@ -4533,12 +4553,18 @@ function alertas(incluirHechas) {
     const marca = D.fincas.find(f => f.id === fid)?.hechas?.[clave];
     if (marca && !incluirHechas) continue;
 
+    const yaHechas = hechasMes.get(fid) || 0;
     const pendientes = lista.filter(x => x.e.fechaSecado >= hoyISO()).length;
+
+    const cola = yaHechas
+      ? `  —  ${yaHechas} ya secada${yaHechas === 1 ? "" : "s"} este mes.` : "";
     const detalle = lista.length
       ? lista.map(({ a, e }) =>
           `${fmtCorto(e.fechaSecado)} · ${a.nombre} (${a.chapeta})` +
-          (e.fechaSecado < hoyISO() ? " — ya se pasó" : "")).join("   ·   ")
-      : "Ninguna vaca cumple el punto de secado este mes.";
+          (e.fechaSecado < hoyISO() ? " — ya se pasó" : "")).join("   ·   ") + cola
+      : yaHechas
+        ? `Ya están las ${yaHechas} de este mes. No queda ninguna pendiente.`
+        : "Ninguna vaca cumple el punto de secado este mes.";
 
     out.push({
       animalId: fid,                       // la marca se guarda en la finca
@@ -4547,10 +4573,12 @@ function alertas(incluirHechas) {
       nivel: lista.length ? "media" : "baja",
       titulo: lista.length
         ? `${lista.length} por secar en ${nombreMes}`
-        : `Nada que secar en ${nombreMes}`,
+        : yaHechas
+          ? `Secados de ${nombreMes} al día`
+          : `Nada que secar en ${nombreMes}`,
       detalle, orden: 60, clave, accion: null,
       hecha: marca || null,
-      plan: true, cuantas: lista.length, pendientes,
+      plan: true, cuantas: lista.length, pendientes, yaHechas,
     });
   }
 
@@ -7312,11 +7340,46 @@ function vSecados() {
   const tot = misEventos("secados");
   const cols = [{et:"Nombre"},{et:"Chapeta"},{et:"Fecha"},{et:"Motivo"},{et:"Días de gestación",num:1},{et:"Observaciones"}];
 
+  /* Cuántas se secaron cada mes. Contar a ojo en una lista de años no es
+     manera, y «cuántas sequé en julio» es una pregunta que se hace sola
+     cuando se compra la droga o se cuadra el trabajo. */
+  const porMes = {};
+  for (const x of L) {
+    const k = String(x.s.fecha).slice(0, 7);
+    (porMes[k] ||= { n: 0, motivos: {} }).n++;
+    const m = MOTIVOS_SECADO[x.s.motivo] || "Otro";
+    porMes[k].motivos[m] = (porMes[k].motivos[m] || 0) + 1;
+  }
+  const meses = Object.entries(porMes).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 18);
+
   return `
   <header class="cab"><div><h1>Secados</h1>
     <p>Un secado registrado manda sobre el calendario: la vaca pasa a Seca de inmediato.</p></div>
     <button class="btn btn-firme" data-nuevo="secado">Secar una vaca</button></header>
   <div class="barra">${buscador("Buscar en todo: motivo, observaciones, fecha…")}${selectorFinca()}</div>
+  ${meses.length ? `
+    <details class="panel" style="margin-bottom:14px">
+      <summary class="panel-cab"><h2>Cuántas por mes</h2>
+        <span class="p gris">${meses[0][1].n} en ${
+          (() => { const [y, m] = meses[0][0].split("-");
+                   return `${MESES[Number(m) - 1]} ${y}`; })()}</span></summary>
+      <div class="panel-cuerpo">
+        <div class="sub-tabla"><table>
+          <thead><tr><th>Mes</th><th class="num">Secadas</th><th>Por qué</th></tr></thead>
+          <tbody>${meses.map(([k, v]) => {
+            const [y, m] = k.split("-");
+            return `<tr>
+              <td>${MESES[Number(m) - 1]} ${y}</td>
+              <td class="num">${v.n}</td>
+              <td><span class="sub">${Object.entries(v.motivos)
+                .map(([mo, c]) => `${mo}: ${c}`).join(" · ")}</span></td></tr>`;
+          }).join("")}</tbody>
+        </table></div>
+        <p class="expl">Cuenta lo que se ve con el filtro y la búsqueda puestos ahora mismo.
+        Para un mes concreto, escribe su fecha en el buscador: <strong>09/26</strong> deja
+        solo los de septiembre de 2026.</p>
+      </div>
+    </details>` : ""}
   ${fichas([["todos","Todos",tot.length],
             ...Object.entries(MOTIVOS_SECADO).map(([k,v])=>[k,v,tot.filter(s=>s.motivo===k).length])
               .filter(x=>x[2]>0)])}
