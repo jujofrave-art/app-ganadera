@@ -953,11 +953,35 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "3.3.0";
+const VERSION = "3.5.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["3.5.0", "18 sep 2026", [
+    "ARREGLO: la app se quedaba pegada en el logo al abrirla tras varios d\u00edas, y peor sin " +
+      "internet. Al arrancar corren varias tareas una detr\u00e1s de otra \u2014el giro de pantalla, " +
+      "el permiso de almacenamiento, la sesi\u00f3n guardada\u2014 antes de dibujar nada. Si una sola " +
+      "se ca\u00eda, se llevaba por delante a las que ven\u00edan detr\u00e1s, incluida la que dibuja la " +
+      "pantalla.",
+    "Ahora cada una va por su cuenta: si tropieza, se apunta en la consola y se sigue. " +
+      "Dibujar la pantalla ya no depende de que todo lo anterior haya salido bien.",
+    "Y hay un vigilante: si a los diez segundos no hay nada dibujado, se fuerza la pantalla " +
+      "de entrada. Quedarse mirando un logo sin saber qu\u00e9 pasa es la peor forma de fallar.",
+    "La espera por el SDK de Firebase baja de 15 segundos a 8, y a 2,5 cuando el tel\u00e9fono " +
+      "ya sabe que no hay se\u00f1al. Sin se\u00f1al se sabe enseguida que no va a llegar.",
+  ]],
+  ["3.4.0", "18 sep 2026", [
+    "Alerta nueva: <strong>el plan de secados del mes</strong>. Dice qué vacas hay que secar " +
+      "antes de que acabe el mes, con su fecha y su chapeta, ordenadas por día.",
+    "Las demás alertas miran cada vaca por separado y avisan cuando ya toca. Esta mira el " +
+      "mes entero y por adelantado, para comprar la droga de una vez y organizar la semana " +
+      "en vez de ir corriendo vaca por vaca.",
+    "Si no hay ninguna, lo dice: <strong>«Nada que secar en septiembre»</strong>. El " +
+      "«ninguna» también es una respuesta y hay que poder confiar en ella.",
+    "Va una por finca, así que el filtro de finca la ordena como a las demás, y cada quien " +
+      "ve solo las fincas que alcanza. Dura todo el mes y se rehace sola el día 1.",
+  ]],
   ["3.3.0", "18 sep 2026", [
     "Una alerta cumplida <strong>desaparece en el momento</strong>, no a los quince d\u00edas. Si " +
       "la vaca ya se sirvi\u00f3 o ya pari\u00f3, ese aviso no tiene nada que hacer en la app, ni " +
@@ -4469,6 +4493,67 @@ function alertas(incluirHechas) {
       }
     }
   }
+
+  /* ==========================================================
+     EL PLAN DE SECADOS DEL MES
+
+     Las alertas de arriba miran cada vaca por separado y avisan cuando ya
+     toca. Esta mira el mes entero y por adelantado: quién hay que secar
+     antes de que acabe, para poder comprar la droga de una vez y organizar
+     la semana en vez de ir corriendo vaca por vaca.
+
+     Va una por finca, para que el filtro de finca la ordene como a las
+     demás, y solo se ven las fincas que cada quien alcanza, igual que el
+     resto. Dura todo el mes y se rehace sola el día 1.
+     ========================================================== */
+  const hoy = HOY();
+  const mesIni = aISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+  const mesFin = aISO(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
+  const nombreMes = `${MESES[hoy.getMonth()]} de ${hoy.getFullYear()}`;
+
+  const porFinca = new Map();
+  for (const a of visibles.filter(x => x.estado === "activo")) {
+    const e = estado(a);
+    if (!par(a).lechero || !e.prenada || !e.fechaSecado) continue;
+    if (e.secadoActual) continue;                       // ya la secaron
+    if (e.fechaSecado < mesIni || e.fechaSecado > mesFin) continue;
+    (porFinca.get(a.fincaId) || porFinca.set(a.fincaId, []).get(a.fincaId))
+      .push({ a, e });
+  }
+
+  // Las fincas que se ven, tengan o no vacas por secar: el «ninguna»
+  // también es una respuesta, y hay que poder confiar en ella.
+  const fincasVistas = [...new Set(visibles
+    .filter(x => x.estado === "activo").map(x => x.fincaId))];
+
+  for (const fid of fincasVistas) {
+    const lista = (porFinca.get(fid) || [])
+      .sort((x, y) => x.e.fechaSecado.localeCompare(y.e.fechaSecado));
+    const clave = `mes-secado:${mesIni}`;
+    const marca = D.fincas.find(f => f.id === fid)?.hechas?.[clave];
+    if (marca && !incluirHechas) continue;
+
+    const pendientes = lista.filter(x => x.e.fechaSecado >= hoyISO()).length;
+    const detalle = lista.length
+      ? lista.map(({ a, e }) =>
+          `${fmtCorto(e.fechaSecado)} · ${a.nombre} (${a.chapeta})` +
+          (e.fechaSecado < hoyISO() ? " — ya se pasó" : "")).join("   ·   ")
+      : "Ninguna vaca cumple el punto de secado este mes.";
+
+    out.push({
+      animalId: fid,                       // la marca se guarda en la finca
+      nombre: nombreFinca(fid), chapeta: "",
+      fincaId: fid,
+      nivel: lista.length ? "media" : "baja",
+      titulo: lista.length
+        ? `${lista.length} por secar en ${nombreMes}`
+        : `Nada que secar en ${nombreMes}`,
+      detalle, orden: 60, clave, accion: null,
+      hecha: marca || null,
+      plan: true, cuantas: lista.length, pendientes,
+    });
+  }
+
   return out.sort((a, b) => b.orden - a.orden);
 }
 
@@ -4478,6 +4563,15 @@ function alertas(incluirHechas) {
  * lo que de verdad cambia el estado del animal.
  */
 function marcarAlertaHecha(animalId, clave, accion) {
+  /* El plan del mes no es de ningún animal: es de la finca entera. Su marca
+     se guarda en la finca, y lleva el mes dentro de la clave, así que el
+     mes siguiente vuelve a salir sola. */
+  if (String(clave).startsWith("mes-secado:")) {
+    const f = finca(animalId);              // aquí viene el id de la finca
+    if (!f) return null;
+    (f.hechas ||= {})[clave] = { f: hoyISO(), p: S.persona?.id || null };
+    return "plan";
+  }
   const a = animal(animalId);
   if (!a) return null;
 
@@ -4614,6 +4708,11 @@ function alertasHechas() {
 }
 
 function deshacerAlerta(animalId, clave) {
+  if (String(clave).startsWith("mes-secado:")) {
+    const f = finca(animalId);
+    if (f?.hechas) { delete f.hechas[clave]; if (!Object.keys(f.hechas).length) delete f.hechas; }
+    return;
+  }
   const a = animal(animalId);
   if (a && a.hechas) delete a.hechas[clave];
 }
@@ -11334,8 +11433,12 @@ const ARCHIVOS_SDK = ["firebase-app.js", "firebase-auth.js", "firebase-firestore
 
 async function cargarSDK() {
   if (FB.mods) return FB.mods;
+  /* Quince segundos es una eternidad mirando un logo. Sin señal se sabe
+     enseguida que no va a llegar, y con señal mala más vale entrar a
+     trabajar sobre lo guardado que esperar. */
   const tope = new Promise((_, r) =>
-    setTimeout(() => r(new Error("El SDK de Firebase tardó demasiado")), 15000));
+    setTimeout(() => r(new Error("El SDK de Firebase tardó demasiado")),
+      navigator.onLine === false ? 2500 : 8000));
   const carga = Promise.all(ARCHIVOS_SDK.map(f => import(SDK + f)));
   const [app, auth, fs] = await Promise.race([carga, tope]);
   if (!app || !auth || !fs) throw new Error("El SDK de Firebase llegó incompleto.");
@@ -15618,6 +15721,11 @@ function conectar() {
     e.stopPropagation();
     const [animalId, clave, accion] = b.dataset.listo.split("|");
     const a = animal(animalId);
+    if (String(clave).startsWith("mes-secado:")) {
+      marcarAlertaHecha(animalId, clave, accion);
+      guardar(); pintar(); avisar("Plan del mes visto");
+      return;
+    }
     if (accion === "secar") {
       if (!confirm(`¿Confirmas que ya secaste a ${a.nombre} (${a.chapeta})?\n\n` +
                    `Se va a registrar el secado con la fecha de hoy y la vaca pasa a Seca.`)) return;
@@ -17002,11 +17110,44 @@ fetch("./manifest.webmanifest", { method: "GET" })
   .then(r => { if (!r.ok) throw 0; })
   .catch(() => setTimeout(() => avisar(
     "Falta manifest.webmanifest en el servidor: la app no se podrá instalar bien"), 2500));
-aplicarGiro(false);
-pedirAlmacenamientoFirme();
-armarReposicionGiro();
-recuperarSesion();
-pintar();
+/* ARRANQUE A PRUEBA DE TROPIEZOS.
+
+   Estas líneas corren una detrás de otra antes de dibujar nada. Si una sola
+   se cae —el giro en un navegador que no lo permite, el permiso de
+   almacenamiento, una sesión guardada a medias— se lleva por delante a las
+   que vienen detrás, incluida la que dibuja la pantalla. Y entonces la app
+   se queda en el logo para siempre, sin decir nada.
+
+   Cada una va por su cuenta: si tropieza, se apunta y se sigue. */
+const alArrancar = [
+  ["giro", () => aplicarGiro(false)],
+  ["almacenamiento", () => pedirAlmacenamientoFirme()],
+  ["vigilancia del giro", () => armarReposicionGiro()],
+  ["sesión guardada", () => recuperarSesion()],
+];
+for (const [que, fn] of alArrancar) {
+  try { fn(); } catch (e) { console.warn("Al arrancar, " + que + ":", e); }
+}
+try { pintar(); }
+catch (e) {
+  /* Si ni siquiera se puede dibujar, algo va muy mal. Antes que dejar el
+     logo eterno, se enseña la pantalla de entrada pelada. */
+  console.error("No se pudo dibujar la app:", e);
+  try { pantallaAcceso(); } catch {}
+}
+
+/* VIGILANTE DEL ARRANQUE.
+
+   Última red: si a los diez segundos la pantalla sigue en blanco, se fuerza
+   la de entrada. Nunca debería hacer falta, pero quedarse mirando un logo
+   sin saber qué pasa es la peor forma de fallar. */
+setTimeout(() => {
+  const cuerpo = document.querySelector(".marco, .acceso");
+  if (cuerpo && cuerpo.offsetHeight > 40) return;    // hay algo dibujado
+  console.warn("Arranque atascado: se fuerza la pantalla de entrada.");
+  S.cargando = false; S.entrando = null;
+  try { pantallaAcceso(); } catch (e) { console.error(e); }
+}, 10000);
 
 // Si el archivo cambió de versión desde la última vez, avisarlo.
 const versionPrevia = revisarVersion();
