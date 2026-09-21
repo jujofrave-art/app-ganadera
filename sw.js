@@ -4,8 +4,56 @@
    todo abra sin señal. Súbelo junto al index.html.
    ========================================================== */
 
-const CACHE = "ganadero-v6";
+const CACHE = "ganadero-v7";
 const BASE = new URL("./", self.location).pathname;
+
+/* ==========================================================
+   NUNCA GUARDAR UNA VERSION MAS VIEJA QUE LA QUE YA HAY
+
+   GitHub Pages reparte por una red de servidores repartidos por el mundo, y
+   cada uno tarda lo suyo en enterarse de que subiste un archivo nuevo.
+   Durante esos minutos, unos devuelven la version nueva y otros la vieja.
+
+   El service worker se baja la app por detras para tenerla lista sin senal,
+   y si le toca un servidor atrasado guardaba la version VIEJA encima de la
+   nueva. Al reabrir, la app aparecia "rejuvenecida": de la 3.5 a la 3.3 sin
+   que nadie tocara nada.
+
+   Ahora se mira el numero de version dentro del archivo antes de guardarlo.
+   Si lo que llego es mas viejo que lo guardado, se tira.
+   ========================================================== */
+function versionDe(texto) {
+  const m = String(texto || "").match(/const VERSION = "([\d.]+)"/);
+  return m ? m[1] : null;
+}
+function masNueva(a, b) {           // a > b ?
+  if (!a) return false;
+  if (!b) return true;
+  const x = a.split(".").map(Number), y = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  }
+  return false;
+}
+
+/** Guarda la app solo si no es un paso atras. */
+async function guardarSiEsMasNueva(respuesta) {
+  if (!respuesta || !respuesta.ok) return false;
+  const texto = await respuesta.clone().text();
+  const nueva = versionDe(texto);
+
+  const c = await caches.open(CACHE);
+  const hay = await c.match(BASE);
+  const vieja = hay ? versionDe(await hay.clone().text()) : null;
+
+  if (vieja && nueva && !masNueva(nueva, vieja) && nueva !== vieja) {
+    console.warn(`[sw] Llego la ${nueva} y ya hay la ${vieja}: no se pisa.`);
+    return false;
+  }
+  await c.put(BASE, new Response(texto, { headers: respuesta.headers }));
+  await c.put(BASE + "index.html", new Response(texto, { headers: respuesta.headers }));
+  return true;
+}
 
 /* AQUI ESTABA EL FALLO DE LAS VERSIONES QUE SE DEVOLVIAN.
 
@@ -21,12 +69,11 @@ self.addEventListener("install", (e) => {
   self.skipWaiting();
   e.waitUntil((async () => {
     try {
-      const r = await fetch(new Request(BASE, { cache: "reload", credentials: "same-origin" }));
-      if (r && r.ok) {
-        const c = await caches.open(CACHE);
-        await c.put(BASE, r.clone());
-        await c.put(BASE + "index.html", r.clone());
-      }
+      /* El parametro de tiempo obliga a los servidores repartidos a dar la
+         copia fresca en vez de la que tengan a mano. */
+      const r = await fetch(new Request(BASE + "?sw=" + Date.now(),
+        { cache: "reload", credentials: "same-origin" }));
+      await guardarSiEsMasNueva(r);
     } catch {}
   })());
 });
@@ -73,16 +120,10 @@ self.addEventListener("fetch", (e) => {
              seguia adelante: el navegador apaga el service worker en cuanto
              cree que acabo, asi que muchas veces la copia nueva no llegaba a
              escribirse y la app volvia a abrir con la version vieja. */
-          const red = fetch(new Request(req.url, { cache: "reload", credentials: "same-origin" }))
+          const red = fetch(new Request(BASE + "?sw=" + Date.now(),
+            { cache: "reload", credentials: "same-origin" }))
             .then(async (r) => {
-              if (r && r.ok) {
-                const copia = r.clone();
-                try {
-                  const c = await caches.open(CACHE);
-                  await c.put(BASE, copia);
-                  await c.put(BASE + "index.html", r.clone());
-                } catch {}
-              }
+              try { await guardarSiEsMasNueva(r); } catch {}
               return r;
             });
 
