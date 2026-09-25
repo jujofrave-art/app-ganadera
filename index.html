@@ -619,6 +619,10 @@ th.ordenable:hover{color:var(--tinta)}
 .palpa-conteo.hay{color:var(--pasto)}
 .palpa-conteo strong{font-size:14px}
 .palpa-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.palpa-nota{grid-column:1/-1;display:flex;align-items:center;gap:9px;margin-top:2px}
+.palpa-nota>span{font-family:var(--dato);font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--tenue);flex:none}
+.palpa-nota input{flex:1;padding:7px 9px;font-size:13px}
 .palpa-fila{display:grid;grid-template-columns:1.4fr .9fr 1.5fr .9fr;gap:11px;align-items:center;
   border:1px solid var(--linea);border-radius:9px;padding:9px 11px;background:var(--alto)}
 .palpa-fila.marcada{border-color:var(--pasto);background:rgba(var(--pasto-rgb),.07)}
@@ -646,6 +650,8 @@ th.ordenable:hover{color:var(--tinta)}
 .palpa-manda input{width:13px;height:13px;accent-color:var(--hierro);margin:0}
 @media(max-width:860px){
   .palpa-fila{grid-template-columns:1fr;gap:8px}
+  /* En una columna, la etiqueta encima y el campo debajo: de lado no cabe. */
+  .palpa-nota{flex-direction:column;align-items:stretch;gap:3px}
   .palpa-calc{text-align:left}
   .palpa-nums input{width:100%;font-size:16px}
   .palpa-nums label{flex:1}
@@ -953,11 +959,21 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "3.8.0";
+const VERSION = "3.9.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["3.9.0", "18 sep 2026", [
+    "En <strong>palpar en grupo</strong>, cada vaca tiene ahora su propia casilla de nota. " +
+      "Se palpan veinte seguidas y de varias hay algo que anotar \u2014un quiste, una metritis, " +
+      "que hay que ponerle droga\u2014 y hasta ahora no hab\u00eda d\u00f3nde: se guardaban todas con la " +
+      "observaci\u00f3n en blanco y eso se perd\u00eda.",
+    "La nota va con la palpaci\u00f3n de esa vaca, se ve en su ficha y se puede buscar: escribir " +
+      "\u00abquiste\u00bb en el buscador de Palpaci\u00f3n saca todas las que lo tengan.",
+    "En la palpaci\u00f3n individual ese campo ya exist\u00eda, y sirve igual para pre\u00f1adas y para " +
+      "vac\u00edas.",
+  ]],
   ["3.8.0", "18 sep 2026", [
     "Filtro nuevo en <strong>Inseminaciones</strong> y <strong>Partos-Abortos</strong>: " +
       "todo el historial, solo los del hato, solo vendidos o solo muertos.",
@@ -10319,6 +10335,15 @@ function abrirPalpacionGrupo(modo, fincaId) {
                   <label class="palpa-manda" hidden>
                     <input type="checkbox" name="md_${a.id}"><span>Que mande esta</span></label>
                 </div>
+                <!-- Lo que dice el veterinario de ESTA vaca. En grupo se
+                     palpan veinte seguidas y de varias hay algo que anotar
+                     —un quiste, una metritis, que hay que ponerle droga—; sin
+                     un sitio para cada una, eso se pierde. -->
+                <label class="palpa-nota">
+                  <span>Nota</span>
+                  <input name="o_${a.id}" autocomplete="off"
+                    placeholder="Quiste, metritis, hay que ponerle droga…">
+                </label>
               </div>`;
             }).join("")}
           </div>`).join("")}
@@ -10539,10 +10564,11 @@ function guardarPalpacionGrupo(f) {
     // Que esta palpación mande sobre la fecha del servicio apuntado.
     const manda = res === "prenada"
       && !!fila.querySelector(`[name=md_${idA}]`)?.checked;
+    const nota = (fila.querySelector(`[name=o_${idA}]`)?.value || "").trim();
     D.palpaciones.push({
       id: uid(), animalId: idA, fincaId: a.fincaId, fecha,
       resultado: res, mesesGest, diasGest, manda,
-      observaciones: "", creadoPor: S.persona?.id || null,
+      observaciones: nota, creadoPor: S.persona?.id || null,
     });
     n++;
   }
