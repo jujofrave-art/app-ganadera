@@ -953,11 +953,22 @@ const SW_FUENTE = "/* ==========================================================
    pueden exportar/importar como JSON.
    ========================================================== */
 
-const VERSION = "3.7.0";
+const VERSION = "3.8.0";
 const FECHA_VERSION = "3 sep 2026";
 
 /* Historial de cambios. Lo más reciente arriba. */
 const CAMBIOS = [
+  ["3.8.0", "18 sep 2026", [
+    "Filtro nuevo en <strong>Inseminaciones</strong> y <strong>Partos-Abortos</strong>: " +
+      "todo el historial, solo los del hato, solo vendidos o solo muertos.",
+    "Esas tablas guardan los sucesos para siempre, tambi\u00e9n los de animales que ya salieron. " +
+      "Est\u00e1 bien que sea as\u00ed \u2014son parte de la historia de la finca\u2014 pero al mirarlas suele " +
+      "quererse una cosa u otra: lo del hato de hoy, o lo de una vaca que se vendi\u00f3.",
+    "Va aparte de las pesta\u00f1as que ya tiene cada tabla, que filtran otra cosa: en " +
+      "Inseminaciones el resultado del servicio, y en Partos si fue parto o aborto. Los dos " +
+      "filtros se combinan.",
+    "Al cambiar de secci\u00f3n vuelve a \u00abtodo el historial\u00bb.",
+  ]],
   ["3.7.0", "18 sep 2026", [
     "ARREGLO: la app se \u00abrejuvenec\u00eda\u00bb sola. Se abr\u00eda con la 3.5 y al rato volv\u00eda la 3.3.",
     "GitHub Pages reparte por servidores repartidos por el mundo, y cada uno tarda lo suyo " +
@@ -4603,7 +4614,9 @@ function alertas(incluirHechas) {
           `${fmtCorto(e.fechaSecado)} · ${a.nombre} (${a.chapeta})` +
           (e.fechaSecado < hoyISO() ? " — ya se pasó" : "")).join("   ·   ") + cola
       : yaHechas
-        ? `Ya están las ${yaHechas} de este mes. No queda ninguna pendiente.`
+        ? (yaHechas === 1
+            ? "Ya está la única de este mes. No queda ninguna pendiente."
+            : `Ya están las ${yaHechas} de este mes. No queda ninguna pendiente.`)
         : "Ninguna vaca cumple el punto de secado este mes.";
 
     out.push({
@@ -6445,6 +6458,32 @@ function pintar() {
   if (_altoVentana) window.scrollTo(0, _altoVentana);
 }
 
+/**
+ * Filtro por el estado del animal, para las tablas de sucesos.
+ *
+ * Servicios y partos se guardan para siempre, también los de animales que ya
+ * salieron del hato. Eso está bien —son parte de la historia de la finca—
+ * pero al mirar la tabla suele quererse una cosa u otra: lo del hato de hoy,
+ * o lo de una vaca que se vendió.
+ *
+ * Va aparte de las pestañas de cada tabla, que filtran otra cosa.
+ */
+function selectorEstadoAnimal() {
+  const v = V.estadoAnimal || "todos";
+  return `<select data-f="estado-animal">
+    <option value="todos"   ${v === "todos"   ? "selected" : ""}>Todo el historial</option>
+    <option value="activo"  ${v === "activo"  ? "selected" : ""}>Solo los del hato</option>
+    <option value="vendido" ${v === "vendido" ? "selected" : ""}>Solo vendidos</option>
+    <option value="muerto"  ${v === "muerto"  ? "selected" : ""}>Solo muertos</option>
+  </select>`;
+}
+
+/** ¿Este animal pasa el filtro de estado? */
+function filtroEstadoAnimal(a) {
+  const v = V.estadoAnimal || "todos";
+  return v === "todos" || (a?.estado || "activo") === v;
+}
+
 function selectorFinca() {
   return `<select data-f="finca">
     <option value="todas">Todas las fincas</option>
@@ -7189,6 +7228,7 @@ function vInseminacion() {
     const a = animal(i.animalId);
     return a ? { i, a, _finca: nombreFinca(a.fincaId) } : null;
   }).filter(Boolean).filter(x => filtroFinca(x.a.fincaId))
+    .filter(x => filtroEstadoAnimal(x.a))
     .filter(x => busca(idxInsem(x.i)));
   L.forEach(x => x.c = servicioCalc(x.i));
   if (V.sub !== "todos") L = L.filter(x => x.c.resultado === V.sub);
@@ -7201,7 +7241,7 @@ function vInseminacion() {
   <header class="cab"><div><h1>Inseminaciones</h1>
     <p>${misEventos("inseminaciones").length} servicios registrados</p></div>
     <button class="btn btn-firme" data-nuevo="inseminacion">Registrar servicio</button></header>
-  <div class="barra">${buscador("Buscar en todo: pajilla, toro, intento, estatus…")}${selectorFinca()}</div>
+  <div class="barra">${buscador("Buscar en todo: pajilla, toro, intento, estatus…")}${selectorFinca()}${selectorEstadoAnimal()}</div>
   ${fichas([["todos","Todas",misEventos("inseminaciones").length],
             ...Object.entries(RESULTADOS).map(([k,v])=>[k,v.et,todos.filter(r=>r===k).length])
               .filter(x=>x[2]>0)])}
@@ -7232,6 +7272,7 @@ function vPartos() {
     const a = animal(p.animalId);
     return a ? { p, a, _finca: nombreFinca(a.fincaId) } : null;
   }).filter(Boolean).filter(x => filtroFinca(x.a.fincaId))
+    .filter(x => filtroEstadoAnimal(x.a))
     .filter(x => busca(idxParto(x.p)));
   const antesDeAcotar = L.length;
   if (desde) L = L.filter(x => x.p.fecha >= desde);
@@ -7244,7 +7285,7 @@ function vPartos() {
   <header class="cab"><div><h1>Partos-Abortos</h1>
     <p>${misEventos("partos").filter(p=>p.tipo==="parto").length} partos y ${misEventos("partos").filter(p=>p.tipo==="aborto").length} abortos</p></div>
     <button class="btn btn-firme" data-nuevo="parto">Registrar parto</button></header>
-  <div class="barra">${buscador("Buscar en todo: cría, detalles, fecha…")}${selectorFinca()}
+  <div class="barra">${buscador("Buscar en todo: cría, detalles, fecha…")}${selectorFinca()}${selectorEstadoAnimal()}
     <select data-f="rangoPartos">
       ${[[0,"Todo el historial"],[12,"Últimos 12 meses"],[24,"Últimos 24 meses"],
          [36,"Últimos 3 años"],[60,"Últimos 5 años"]].map(([v, et]) =>
@@ -15630,6 +15671,7 @@ function conectar() {
 
   document.querySelectorAll("[data-ir]").forEach(b =>
     b.onclick = () => { V.vista = b.dataset.ir; V.sub = "todos"; V.busca = ""; V.especie = "todas";
+      V.estadoAnimal = "todos";
     V.sel = null; V.railAbierto = false; pintar(); });
 
   document.querySelectorAll("[data-sub]").forEach(b =>
@@ -15733,6 +15775,9 @@ function conectar() {
 
   const sf = $("[data-f=finca]");
   if (sf) sf.onchange = (e) => { V.finca = e.target.value; pintar(); };
+
+  const sea = document.querySelector("[data-f=estado-animal]");
+  if (sea) sea.onchange = (e) => { V.estadoAnimal = e.target.value; pintar(); };
 
   document.querySelectorAll("[data-graf]").forEach(b => b.onclick = () => {
     V.graficoLeche = b.dataset.graf; pintar();
